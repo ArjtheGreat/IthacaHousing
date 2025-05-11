@@ -1,5 +1,5 @@
 <template>
-    <NavBar />
+  <NavBar />
     <div v-if="isLoading" class="loading-overlay">
       <div class="spinner"></div>
       <p class="loading-text">{{ loadingMessage }}</p>
@@ -77,20 +77,124 @@
                 </RadioGroup>
         </div>
     </div>
-    <div id="map" style="height: 100vh; width: 100%">
-        <div class="legend">
-            <h4>Zoning Legend</h4>
-            <ul>
-            <li><span style="background: #1f77b4"></span> Residential</li>
-            <li><span style="background: #ff7f0e"></span> Business</li>
-            <li><span style="background: #2ca02c"></span> Industrial</li>
-            <li><span style="background: #9467bd"></span> Government</li>
-            <li><span style="background: #d62728"></span> Mixed Use</li>
-            <li><span style="background: #8c564b"></span> Southwest</li>
-            <li><span style="background: #7f7f7f"></span> Not Zoned</li>
-            </ul>
-        </div>
+    <button
+    class="drawer-toggle"
+    @click="isDrawerOpen = !isDrawerOpen"
+  >
+    🧽 Filters
+  </button>
+  <!-- Drawer Container -->
+  <transition name="slide-up">
+    <div
+      class="filter-drawer"
+      v-if="isDrawerOpen"
+    >
+      <div class="drawer-header">
+        <span class="drawer-title">Filters</span>
+        <button class="close-drawer" @click="isDrawerOpen = false">✕</button>
+      </div>
+
+      <div class="tab-header">
+        <button
+          class="tab-button"
+          :class="{ active: activeTab === 'Land Use' }"
+          @click="activeTab = 'Land Use'"
+        >
+          Land Use
+        </button>
+        <button
+          class="tab-button"
+          :class="{ active: activeTab === 'Places of Interest' }"
+          @click="activeTab = 'Places of Interest'"
+        >
+          Places of Interest
+        </button>
+      </div>
+
+      <div class="tab-content">
+        <RadioGroup v-model="activeFilter" v-if="activeTab === 'Land Use'">
+          <div class="radio-options">
+            <RadioGroupOption
+              as="template"
+              v-for="option in filterOptions"
+              :key="option.value"
+              :value="option.value"
+              v-slot="{ checked }"
+            >
+              <button
+                class="filter-button"
+                :class="{ active: checked }"
+                @click="option.action"
+              >
+                <span class="filter-label">{{ option.label }}</span>
+                <span v-if="checked" class="checkmark">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="12" fill="white" fill-opacity="0.2" />
+                    <path
+                      d="M7 13l3 3 7-7"
+                      stroke="white"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+              </button>
+            </RadioGroupOption>
+          </div>
+        </RadioGroup>
+
+        <RadioGroup
+          v-model="activeFilterExpanded"
+          v-if="activeTab === 'Places of Interest'"
+        >
+          <div class="radio-options">
+            <RadioGroupOption
+              as="template"
+              v-for="option in filterOptionsExpanded"
+              :key="option.value"
+              :value="option.value"
+              v-slot="{ checked }"
+            >
+              <button
+                class="filter-button"
+                :class="{ active: checked }"
+                @click="option.action"
+              >
+                <span class="filter-label">{{ option.label }}</span>
+                <span v-if="checked" class="checkmark">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="12" fill="white" fill-opacity="0.2" />
+                    <path
+                      d="M7 13l3 3 7-7"
+                      stroke="white"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+              </button>
+            </RadioGroupOption>
+          </div>
+        </RadioGroup>
+      </div>
     </div>
+  </transition>
+  <div id="map" style="height: 100vh; width: 100%">
+      <div class="legend">
+          <h4>Zoning Legend</h4>
+          <ul>
+          <li><span style="background: #1f77b4"></span> Residential</li>
+          <li><span style="background: #ff7f0e"></span> Business</li>
+          <li><span style="background: #2ca02c"></span> Industrial</li>
+          <li><span style="background: #9467bd"></span> Government</li>
+          <li><span style="background: #d62728"></span> Mixed Use</li>
+          <li><span style="background: #8c564b"></span> Southwest</li>
+          <li><span style="background: #7f7f7f"></span> Not Zoned</li>
+          </ul>
+      </div>
+  </div>
 </template>
 
 <script setup>
@@ -110,6 +214,7 @@ const markerGroup = L.layerGroup();
 const layerGroup = ref(null); // Holds Layers 
 const isLoading = ref(true); // Add loading state
 const loadingMessage = ref("Loading zoning data...");
+const isDrawerOpen = ref(true);
 
 
 /**
@@ -595,6 +700,9 @@ async function plotFloodMap() {
   color: white;
 }
 
+.filter-drawer, .drawer-toggle {
+  display: none;
+}
 
 .checkmark .icon {
   width: 16px;
@@ -827,6 +935,75 @@ async function plotFloodMap() {
   }
   100% {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-container {
+    display: none;
+  }
+  .drawer-toggle {
+    display: block;
+    position: absolute;
+    top: 90px;
+    left: 16px;
+    z-index: 1002;
+    background: #1e3a8a;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .filter-drawer {
+    display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    z-index: 1001;
+    padding: 20px;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.2);
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: slideUp 0.4s ease-in-out;
+  }
+
+  .drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .drawer-title {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #1e3a8a;
+  }
+
+  .close-drawer {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #666;
+    cursor: pointer;
+  }
+
+  .slide-up-enter-active,
+  .slide-up-leave-active {
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+
+  .slide-up-enter-from,
+  .slide-up-leave-to {
+    transform: translateY(100%);
+    opacity: 0;
   }
 }
 </style>
