@@ -22,8 +22,8 @@ Finding housing in Ithaca is a tough cookie. Listings are scattered, and prices 
 ---
 ## Stack
 
-- **Frontend**: FastAPI, Vue.js, deployed via Fly.io  
-- **Backend**: PostgreSQL, SQLAlchemy, and REST endpoints  
+- **Frontend**: Vue.js, Typescript, deployed via Fly.io  
+- **Backend**: PostgreSQL, FastAPI, and REST endpoints  
 - **Data**: Parsed live from Ithaca’s rental feeds
 - **Model**: Spatial Random Forest Regressor
 - **Infra**: Docker app with CI/CD on GitHub Actions  
