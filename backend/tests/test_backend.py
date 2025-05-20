@@ -17,7 +17,10 @@ sys.path.append(str(BASE_DIR))
 from main import app
 from db import get_db, HousingListing, Base
 
-TEST_DATABASE_URL = "postgresql+psycopg2://postgres:password@postgres:5432/test_db"
+TEST_DATABASE_URL = (
+    f"postgresql+psycopg2://{os.getenv('DB_USER')}:{os.getenv('DB_PWD')}"
+    f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+)
 
 engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
