@@ -292,44 +292,50 @@ function plotRoute(listing) {
  * Lifecycle Hook on Mount
  * Fetches Data from API and initializes Map
  */
-onMounted(async () => {
+ onMounted(async () => {
   messageInterval = setInterval(() => {
     messageIndex = (messageIndex + 1) % messages.length;
     loadingMessage.value = messages[messageIndex];
   }, 2500);
 
   try {
-    // Initialize Map
     map.value = L.map("map", {
-          center: [42.455, -76.48],
-          zoom: 14,
-          maxZoom: 20,
-      });
+      center: [42.455, -76.48],
+      zoom: 14,
+      maxZoom: 20,
+    });
 
-      
-      const JAWG_API_KEY = import.meta.env.VITE_JAWG_API_KEY;
-      const tileLayer = L.tileLayer(`https://tile.jawg.io/f67529a2-5ea7-4b7a-81a7-c5147a45b5f0/{z}/{x}/{y}{r}.png?access-token=${JAWG_API_KEY}`, {
-          attribution: '<a href="https://jawg.io" target="_blank">&copy; Jawg Maps</a> &copy; OpenStreetMap contributors',
-          minZoom: 0,
-          maxZoom: 22,
-          accessToken: JAWG_API_KEY
-      })
-      tileLayer.addTo(map.value);
+    const JAWG_API_KEY = import.meta.env.VITE_JAWG_API_KEY;
+    const tileLayer = L.tileLayer(`https://tile.jawg.io/f67529a2-5ea7-4b7a-81a7-c5147a45b5f0/{z}/{x}/{y}{r}.png?access-token=${JAWG_API_KEY}`, {
+      attribution: '<a href="https://jawg.io" target="_blank">&copy; Jawg Maps</a> &copy; OpenStreetMap contributors',
+      minZoom: 0,
+      maxZoom: 22,
+      accessToken: JAWG_API_KEY
+    });
+    tileLayer.addTo(map.value);
 
-      // Grab Data from API
-      allListings.value = await fetchListings();
-      topTenListings.value = await fetchTopTenListings();
-      bottomTenListings.value = await fetchBottomTenListings();
-      clusteredListings.value = await fetchClusters();
-      heatmapData.value = await fetchHeatMap();
+    const [listings, top, bottom, clusters, heat] = await Promise.all([
+      fetchListings(),
+      fetchTopTenListings(),
+      fetchBottomTenListings(),
+      fetchClusters(),
+      fetchHeatMap()
+    ]);
 
-      // Initially, add all listings
-      addMarkers(allListings.value, false); 
-  }  catch (error) {
-      console.error("Error loading data:", error);
-    } finally {
-      isLoading.value = false;
-    }
+    // Store values and add to map
+    allListings.value = listings;
+    topTenListings.value = top;
+    bottomTenListings.value = bottom;
+    clusteredListings.value = clusters;
+    heatmapData.value = heat;
+
+    addMarkers(listings, false);
+
+  } catch (error) {
+    console.error("Error loading data:", error);
+  } finally {
+    isLoading.value = false;
+  }
 });
 
 /**

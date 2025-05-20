@@ -13,6 +13,7 @@ from shapely.geometry import Polygon
 import geopandas as gpd
 from sqlalchemy import func
 from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator.metrics import Info
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess, CONTENT_TYPE_LATEST
 from prometheus_client import Summary, Gauge
 import numpy as np
@@ -30,7 +31,8 @@ app.add_middleware(
     allow_headers=["*"], 
 )
 
-instrumentator = Instrumentator().instrument(app).expose(app)
+instrumentator = Instrumentator().instrument(app)
+instrumentator.expose(app)
 
 @app.options("/{full_path:path}")
 async def preflight_handler():
@@ -293,6 +295,14 @@ PREDICTION_ERROR = Gauge("prediction_error", "Absolute error between prediction 
 COEFFICIENT_OF_DETERMINATION = Gauge("coefficient_of_determination", "Proportion of variation explained by regression model")
 ROWS = Gauge("rows", "Proportion of variation explained by regression model")
 
+instrumentator.add(COEFFICIENT_OF_DETERMINATION)
+instrumentator.add(SSE)
+instrumentator.add(SSR)
+instrumentator.add(SST)
+instrumentator.add(PREDICTION_ERROR)
+instrumentator.add(ROWS)
+
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
@@ -344,33 +354,22 @@ def get_coefficient_of_determination(sse, sst):
     """
     return 1-sse/sst
 
-@app.get("/metrics")
-def metrics(db: Session = Depends(get_db)):
-    """
-    Gets metrics for Prometheus
-    """
+@app.get("/metric-calculations")
+def custom_metrics(db: Session = Depends(get_db)):
     sse = get_sum_of_squares_error(db)
     ssr = get_sum_of_squares_regression(db)
     sst = get_sum_of_squares_total(db)
     mse = get_mse(sse)
-    
+    r2 = get_coefficient_of_determination(ssr, sst)
+
     SSE.set(sse)
     SSR.set(ssr)
     SST.set(sst)
-
     PREDICTION_ERROR.set(mse)
-    
-    coefficient_of_determination = get_coefficient_of_determination(ssr, sst)
-    COEFFICIENT_OF_DETERMINATION.set(coefficient_of_determination)
-    
-    rows = db.query(HousingListing).all()
-    ROWS.set(len(rows))
+    COEFFICIENT_OF_DETERMINATION.set(r2)
+    ROWS.set(db.query(HousingListing).count())
 
-    registry = CollectorRegistry()
-    multiprocess.MultiProcessCollector(registry)
-
-    data = generate_latest()
-    return Response(content=data, media_type=CONTENT_TYPE_LATEST)
+    return {"status": "metrics updated"}
 
 @app.get("/metrics-debug")
 def metrics_debug(db: Session = Depends(get_db)):
