@@ -263,7 +263,7 @@ const emit = defineEmits(['close', 'zoom']);
 
 const closePopup = () => {
     emit('close');
-};
+};  
 
 const currentImageIndex = ref(0); // Holds the current index of the images in the gallery
 const totalImages = computed(() => extractPhoto(props.listing?.listingphotos).length); // Holds the number of images in the gallery
@@ -348,13 +348,20 @@ function parsePostgresArray(pgArrayString: String) {
  * Fetch Similar Listings
  */
  async function fetchSimilarListings() {
-  const ids = Array.from(props.listing?.nearest_neighbor_listingids || []) as number[];
+    const rawIds = props.listing?.nearest_neighbor_listingids;
 
-  const fetched = await Promise.all(
-    ids.map(id => fetchListing(id))
-  );
+    const ids = rawIds
+    ? rawIds
+        .replace(/[{}]/g, '')     
+        .split(',')                
+        .map((id: string) => Number(id))   
+    : [];
 
-  similarListings.value = fetched.filter(l => l !== null) as Listing[];
+    const fetched = await Promise.all(
+        ids.map((id: Number) => fetchListing(id))
+    );
+
+    similarListings.value = fetched.filter(l => l !== null) as Listing[];
 }
 /**
  * 

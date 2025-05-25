@@ -137,6 +137,8 @@
           <li><span style="background: #FF0000;"></span> Overpriced</li>
           <li><span style="background: #8B0000;"></span> Very Overpriced</li>
         </ul>
+        <p class="disclaimer">Note: These estimates are based on a statistical model and should be taken with a grain of salt. They’re meant to inform, not replace, your own research and judgment.
+        </p>
       </div>
     </div>
   </div>
@@ -910,6 +912,18 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   border: 1px solid #ddd;
 }
 
+.disclaimer {
+  font-size: 0.6rem;
+  color: #666;
+  font-style: italic;
+  line-height: 1.4;
+  max-width: 200px;      
+  white-space: normal;
+  word-break: break-word;
+  text-align: left;
+  margin-top: 10px;
+}
+
 
 .leaflet-popup-close-button {
   display: none;
@@ -1036,6 +1050,35 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
     padding: 16px;
     padding-top: 0px;
     animation: slideUp 0.3s ease-in-out;
+  }
+
+  .legend {
+    bottom: 20px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-width: 90vw;
+    padding: 12px;
+    font-size: 0.85rem;
+  }
+
+  .legend h4 {
+    font-size: 1rem;
+  }
+
+  .legend ul li {
+    font-size: 0.8rem;
+  }
+
+  .legend ul li span {
+    width: 14px;
+    height: 14px;
+  }
+
+  .disclaimer {
+    font-size: 0.65rem;
+    max-width: 100%;
+    margin-top: 8px;
   }
 
   @keyframes slideUp {
