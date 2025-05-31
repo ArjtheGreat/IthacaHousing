@@ -349,7 +349,7 @@ function parsePostgresArray(pgArrayString: String) {
  */
  async function fetchSimilarListings() {
     const rawIds = props.listing?.nearest_neighbor_listingids;
-
+    
     const ids = rawIds
     ? rawIds
         .replace(/[{}]/g, '')     

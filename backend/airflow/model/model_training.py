@@ -39,7 +39,8 @@ def ml_durbin_model(X, y, apartments_for_rent):
         apartments_for_rent: dataframe with housing data
     """
     coords = apartments_for_rent[["latitude", "longitude"]].values
-    knn_weights = KNN.from_array(coords, k=5)
+    knn_weights = KNN.from_array(coords, k=12)
+    knn_weights.transform = 'r'
     sdm_model = ML_Lag(
         y,
         X,

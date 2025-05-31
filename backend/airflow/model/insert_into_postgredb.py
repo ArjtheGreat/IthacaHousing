@@ -30,7 +30,7 @@ def psql_insert_copy(df):
     for col in ["HasValidCertificateOfOccupancy","MeetsMinimumRequirements","ExceedsRequirements","HasFireResistantConstructionType","SatisfiesApplicableCode"]:
         df[col] = df[col].astype(bool)
 
-        
+    df = df[["ListingId", "ListingAddress", "ListingCity", "ListingZip", "ShortDescription", "RentAmount", "RentType", "Pets", "Amenities", "Bedrooms", "Bathrooms", "HousingType", "latitude", "longitude", "ListingPhotos",  "walk_time", "walk_routes", "bike_time", "bike_routes", "drive_time", "drive_routes", "transit_score", "amenities_score", "OverallSafetyRatingPct", "RentAmountAdjusted", "PredictedRent", "DifferenceinFairValue", "nearest_neighbor_listingIds"]]
 
     df.columns = (
         df.columns
@@ -39,6 +39,7 @@ def psql_insert_copy(df):
         .str.replace(r"[^\w]", "", regex=True)  
         .str.replace("_pct", "pct")
     )
+
 
 
     with engine.begin() as conn: 

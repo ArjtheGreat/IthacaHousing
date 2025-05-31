@@ -46,7 +46,7 @@ def housing_data_pipeline():
 
     # Part 4
     apartments_for_rent = comparative_market_analysis.perform_cma(X_with_spatial, apartments_for_rent)
-    apartments_for_rent = model_training.spatial_random_forest_regressor(X_with_spatial, y, apartments_for_rent)
+    apartments_for_rent = model_training.ml_durbin_model(X_with_spatial, y, apartments_for_rent)
     insert_into_postgredb.psql_insert_copy(apartments_for_rent)
 
     return apartments_for_rent

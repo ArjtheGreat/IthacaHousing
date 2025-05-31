@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, Response
 import uvicorn
 from fastapi import FastAPI, HTTPException, Depends
+import traceback
 from db import HousingListing, get_db
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,8 +51,12 @@ def get_listings(db: Session = Depends(get_db)):
     """
     Gets all listings in Database
     """
-    listings = db.query(HousingListing).all()
-    return listings  
+    try:
+        listings = db.query(HousingListing).all()
+        return listings
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e) + "\n" + traceback.format_exc())
+
 
 @app.get("/top-ten-listings/")
 def get_top_ten_listings(db: Session = Depends(get_db)):
@@ -295,12 +300,12 @@ PREDICTION_ERROR = Gauge("prediction_error", "Absolute error between prediction 
 COEFFICIENT_OF_DETERMINATION = Gauge("coefficient_of_determination", "Proportion of variation explained by regression model")
 ROWS = Gauge("rows", "Proportion of variation explained by regression model")
 
-instrumentator.add(COEFFICIENT_OF_DETERMINATION)
-instrumentator.add(SSE)
-instrumentator.add(SSR)
-instrumentator.add(SST)
-instrumentator.add(PREDICTION_ERROR)
-instrumentator.add(ROWS)
+# instrumentator.add(COEFFICIENT_OF_DETERMINATION)
+# instrumentator.add(SSE)
+# instrumentator.add(SSR)
+# instrumentator.add(SST)
+# instrumentator.add(PREDICTION_ERROR)
+# instrumentator.add(ROWS)
 
 
 @app.get("/health")
