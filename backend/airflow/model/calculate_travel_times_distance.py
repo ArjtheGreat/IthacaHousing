@@ -51,6 +51,7 @@ def compute_all_travel_times(apartments_for_rent,  dist=2000):
                 routes.append(merged_line)
             except (nx.NetworkXNoPath, nx.NodeNotFound):
                 times.append(None)
+                routes.append(None)  # Add None to routes list to match length
 
         apartments_for_rent[f"{mode}_time"] = times
         apartments_for_rent[f"{mode}_routes"] = routes

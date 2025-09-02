@@ -18,9 +18,6 @@ if MODEL_PATH not in sys.path:
     sys.path.append(MODEL_PATH)
 
 import fetch_housing_data
-
-
-import fetch_housing_data
 import pipeline
 import insert_into_postgredb
 
