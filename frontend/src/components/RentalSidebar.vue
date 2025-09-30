@@ -19,7 +19,7 @@
         <!-- Image Display -->
         <img 
         v-if="extractPhoto(listing?.listingphotos).length > 0" 
-        :src="extractPhoto(listing?.listingphotos)[currentImageIndex].PhotoUrl" 
+        :src="extractPhoto(listing?.listingphotos)[currentImageIndex]?.PhotoUrl || ''" 
         alt="Listing Photo" 
         class="listing-image"
         >
@@ -237,7 +237,7 @@
             >
             <div class="image-container">
                 <img 
-                :src="extractPhoto(listing?.listingphotos.toString())[0].PhotoUrl" 
+                :src="extractPhoto(listing?.listingphotos)[0]?.PhotoUrl || ''" 
                 alt="Listing Photo" 
                 class="listing-photo"
                 />
@@ -323,6 +323,13 @@ const formatAmenities = (amenitiesData: any): string => {
 
     // If it's a string, clean and parse it
     const listingPhotosStr = String(listingPhotosData);
+    
+    // Check if it's the "[object Object]" string (invalid)
+    if (listingPhotosStr === '[object Object]') {
+      console.warn('Received invalid object string, returning empty array');
+      return [];
+    }
+    
     const cleanedStr = listingPhotosStr
       .replace(/\\/g, '\\\\')        
       .replace(/'/g, '"')            
@@ -337,7 +344,7 @@ const formatAmenities = (amenitiesData: any): string => {
 
     return Array.isArray(parsed) ? parsed : [];
   } catch (error: any) {
-    console.error("JSON Parsing Error:", error.message);
+    console.error("JSON Parsing Error:", error.message, "Data:", listingPhotosData);
     return [];
   }
 };
@@ -386,12 +393,42 @@ function parsePostgresArray(pgArrayString: String) {
  async function fetchSimilarListings() {
     const rawIds = props.listing?.nearest_neighbor_listingids;
     
-    const ids = rawIds
-    ? rawIds
-        .replace(/[{}]/g, '')     
-        .split(',')                
-        .map((id: string) => Number(id))   
-    : [];
+    let ids: number[] = [];
+    
+    if (rawIds) {
+        try {
+            // If it's already an array, use it directly
+            if (Array.isArray(rawIds)) {
+                ids = rawIds.map(id => Number(id)).filter(id => !isNaN(id));
+            } 
+            // If it's a string, try to parse it as JSON first
+            else if (typeof rawIds === 'string') {
+                try {
+                    const parsed = JSON.parse(rawIds);
+                    if (Array.isArray(parsed)) {
+                        ids = parsed.map(id => Number(id)).filter(id => !isNaN(id));
+                    } else {
+                        // Fallback to old string processing
+                        ids = rawIds
+                            .replace(/[{}]/g, '')     
+                            .split(',')                
+                            .map((id: string) => Number(id))
+                            .filter(id => !isNaN(id));
+                    }
+                } catch {
+                    // If JSON parsing fails, use old string processing
+                    ids = rawIds
+                        .replace(/[{}]/g, '')     
+                        .split(',')                
+                        .map((id: string) => Number(id))
+                        .filter(id => !isNaN(id));
+                }
+            }
+        } catch (error) {
+            console.warn('Error processing nearest neighbor IDs:', error);
+            ids = [];
+        }
+    }
 
     const fetched = await Promise.all(
         ids.map((id: Number) => fetchListing(id))
