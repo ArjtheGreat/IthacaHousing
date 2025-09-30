@@ -5,6 +5,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY main.py .
+COPY db.py .
+COPY serializers.py .
+COPY site_selector/ ./site_selector/
+COPY airflow/ ./airflow/
 
 EXPOSE 80

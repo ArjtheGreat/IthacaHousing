@@ -180,7 +180,6 @@ def find_residual_rental_amounts(y_pred, apartments_for_rent):
     apartments_for_rent["PredictedRent"] = np.exp(y_pred)
     apartments_for_rent["DifferenceinFairValue"] = apartments_for_rent["RentAmountAdjusted"] - apartments_for_rent["PredictedRent"]
 
-    print(y_pred, apartments_for_rent["PredictedRent"])
     return apartments_for_rent
 
 
@@ -275,7 +274,4 @@ def train_and_evaluate_models(X, y, apartments_for_rent):
         print(f"Using regular features for {best_model_name}")
     
     apartments_for_rent, final_predictions = best_model_func(input_X, y, apartments_for_rent.copy())
-    print(results.head())
-    print(apartments_for_rent.head())
-    print(f"Best Model: {best_model_name}")
     return apartments_for_rent

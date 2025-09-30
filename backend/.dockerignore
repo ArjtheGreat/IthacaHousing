@@ -1,12 +1,55 @@
-# flyctl launch added from myenv/lib/python3.12/site-packages/libpysal/.gitignore
-myenv/lib/python3.12/site-packages/libpysal/**/contrib/points
-myenv/lib/python3.12/site-packages/libpysal/**/contrib/viz/Untitled.ipynb
-myenv/lib/python3.12/site-packages/libpysal/**/contrib/viz/color.ipynb
-myenv/lib/python3.12/site-packages/libpysal/**/contrib/viz/dispatch.ipynb
-myenv/lib/python3.12/site-packages/libpysal/**/contrib/viz/geotable_plot.html
-myenv/lib/python3.12/site-packages/libpysal/**/contrib/viz/rect5.png
-myenv/lib/python3.12/site-packages/libpysal/**/contrib/viz/selected.png
-myenv/lib/python3.12/site-packages/libpysal/**/inequality/gini_decomp.ipynb
-myenv/lib/python3.12/site-packages/libpysal/tools/gh_api.py
+# Virtual environments
+myenv/
+env/
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
 
+# Airflow data and logs (HUGE!)
+airflow/logs/
+airflow/cache/
+airflow/model/*.csv
+airflow/model/latest_*.csv
+airflow/model/insert_into_postgres.csv
+airflow/airflow.db
+airflow/airflow-scheduler.*
+airflow/airflow-webserver.pid
+airflow/full_backup.sql
+airflow/table_backup.dump
+
+# Data files
+data/
+*.db
+*.sqlite3
+*.csv
+*.log
+*.dump
+*.sql
+
+# Git and system files
+.git/
+.gitignore
+.DS_Store
 fly.toml
+
+# Node modules (if any)
+node_modules/
+
+# Test files
+tests/
+*_test.py
+test_*.py
+
+# Documentation
+README.md
+*.md
+
+# Cache and temp files
+cache/
+*.tmp
+*.temp
+

@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Numeric, Text, JSON, TypeDecorator
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, Numeric, Text, JSON, TypeDecorator, DateTime, func
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.dialects.postgresql import JSONB
 import json
@@ -36,6 +36,7 @@ class HousingListing(Base):
     listingaddress = Column(String)
     listingcity = Column(String)
     listingzip = Column(String)
+    createdate = Column(DateTime, default=func.now(), nullable=False)
     shortdescription = Column(Text)
     rentamount = Column(Numeric)
     renttype = Column(String)

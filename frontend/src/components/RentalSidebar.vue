@@ -223,7 +223,7 @@
     <div class="popup-amenities">
         <strong>Amenities: </strong>
         <span class="amenities-list">
-            {{ listing?.amenities ? listing?.amenities.replace(/[\[\]']/g, "") : "None Listed" }}
+            {{ formatAmenities(listing?.amenities) }}
         </span>
     </div>
 
@@ -279,14 +279,50 @@ const percentChange = computed(() => {
 
 
 /**
- * Extracts and Processes JSON String to get photos.
- * @param {string} listingPhotosStr - JSON string of listing photos.
+ * Formats amenities data for display.
+ * @param {any} amenitiesData - JSON object, array, or string of amenities.
+ * @returns {string} - Formatted amenities string for display.
+ */
+const formatAmenities = (amenitiesData: any): string => {
+  if (!amenitiesData) return "None Listed";
+  
+  try {
+    let amenities;
+    
+    if (typeof amenitiesData === 'object') {
+      amenities = Array.isArray(amenitiesData) ? amenitiesData : [];
+    } else {
+      const amenitiesStr = String(amenitiesData);
+      if (amenitiesStr.startsWith('[') && amenitiesStr.endsWith(']')) {
+        amenities = JSON.parse(amenitiesStr);
+      } else {
+        amenities = [amenitiesStr];
+      }
+    }
+    
+    return Array.isArray(amenities) ? amenities.join(', ') : "None Listed";
+  } catch (error) {
+    console.warn('Error formatting amenities:', error);
+    return "None Listed";
+  }
+};
+
+/**
+ * Extracts and Processes JSON data to get photos.
+ * @param {any} listingPhotosData - JSON object or string of listing photos.
  * @returns {Array} - Parsed array of photo objects, or an empty array if invalid.
  */
- const extractPhoto = (listingPhotosStr: string): Array<any> => {
-  if (!listingPhotosStr) return [];
+ const extractPhoto = (listingPhotosData: any): Array<any> => {
+  if (!listingPhotosData) return [];
 
   try {
+    // If it's already a parsed object/array, return it
+    if (typeof listingPhotosData === 'object') {
+      return Array.isArray(listingPhotosData) ? listingPhotosData : [];
+    }
+
+    // If it's a string, clean and parse it
+    const listingPhotosStr = String(listingPhotosData);
     const cleanedStr = listingPhotosStr
       .replace(/\\/g, '\\\\')        
       .replace(/'/g, '"')            
