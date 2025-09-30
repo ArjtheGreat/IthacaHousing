@@ -4,16 +4,23 @@ from sqlalchemy import create_engine, text
 from shapely import LineString
 
 def psql_insert_copy(df):
-    DB_USER = os.getenv("DB_USER")
-    DB_PWD = os.getenv("DB_PWD")
-    DB_HOST = os.getenv("DB_HOST")
-    DB_PORT = os.getenv("DB_PORT")
-    DB_NAME = os.getenv("DB_NAME")
+    """
+    Insert into Supabase
+    """
+    # DB_USER=os.getenv("DB_USER")
+    # DB_PWD=os.getenv("DB_PWD", "3789mwPK")
+    # DB_HOST=os.getenv("DB_HOST")
+    # DB_PORT=os.getenv("DB_PORT")
+    # DB_NAME=os.getenv("DB_NAME")
+
+    DB_URI = os.getenv("DB_URI")
 
     engine = create_engine(
-        f"postgresql+psycopg2://{DB_USER}:{DB_PWD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
+        DB_URI,
         pool_pre_ping=True,
         pool_recycle=1800, 
+        pool_size=1,     
+        max_overflow=0,       
         connect_args={
             "keepalives": 1,
             "keepalives_idle": 30,
@@ -30,7 +37,7 @@ def psql_insert_copy(df):
     for col in ["HasValidCertificateOfOccupancy","MeetsMinimumRequirements","ExceedsRequirements","HasFireResistantConstructionType","SatisfiesApplicableCode"]:
         df[col] = df[col].astype(bool)
 
-    df = df[["ListingId", "ListingAddress", "ListingCity", "ListingZip", "ShortDescription", "RentAmount", "RentType", "Pets", "Amenities", "Bedrooms", "Bathrooms", "HousingType", "latitude", "longitude", "ListingPhotos",  "walk_time", "walk_routes", "bike_time", "bike_routes", "drive_time", "drive_routes", "transit_score", "amenities_score", "OverallSafetyRatingPct", "RentAmountAdjusted", "PredictedRent", "DifferenceinFairValue", "nearest_neighbor_listingIds"]]
+    df = df[["ListingId", "ListingAddress", "ListingCity", "ListingZip", "CreateDate", "ShortDescription", "RentAmount", "RentType", "Pets", "Amenities", "Bedrooms", "Bathrooms", "HousingType", "latitude", "longitude", "ListingPhotos",  "walk_time", "walk_routes", "bike_time", "bike_routes", "drive_time", "drive_routes", "transit_score", "amenities_score", "OverallSafetyRatingPct", "RentAmountAdjusted", "PredictedRent", "DifferenceinFairValue", "predicted_rent_cma", "nearest_neighbor_listingIds"]]
 
     df.columns = (
         df.columns

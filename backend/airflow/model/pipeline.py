@@ -23,7 +23,9 @@ def housing_data_pipeline():
     Part 3:
         Pre-process and transform data
     Part 4:
-        Perform CMA and Regression, insert into DB
+        Perform Machine Learning Model, 
+        Perform CMA
+        insert into DB
     """
 
     # Part 1
@@ -38,15 +40,16 @@ def housing_data_pipeline():
     # Part 3
     X, y = model_training.define_X_Y_variables(apartments_for_rent)
 
+    X, y = data_preprocessing.clean_up_x_y(X, y)
     X = data_preprocessing.median_mode_imputation(X)
-    # X = data_preprocessing.outlier_imputation(X)
     y = data_preprocessing.log_transform_prices(y)
 
-    X_with_spatial = model_training.get_spatial_coefficients(X, apartments_for_rent)
-
     # Part 4
-    apartments_for_rent = comparative_market_analysis.perform_cma(X_with_spatial, apartments_for_rent)
-    apartments_for_rent = model_training.spatial_random_forest_regressor(X_with_spatial, y, apartments_for_rent)
+    apartments_for_rent = model_training.train_and_evaluate_models(X, y, apartments_for_rent)
+
+    X_for_cma = comparative_market_analysis.define_X_for_cma(apartments_for_rent) # add some more features
+    apartments_for_rent = comparative_market_analysis.perform_cma(X_for_cma, apartments_for_rent)
+
     insert_into_postgredb.psql_insert_copy(apartments_for_rent)
 
     return apartments_for_rent

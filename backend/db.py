@@ -1,17 +1,19 @@
 import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, Numeric, Text, JSON, TypeDecorator
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import JSONB
 import json
 
-DB_USER=os.getenv("DB_USER")
-DB_PWD=os.getenv("DB_PWD", "3789mwPK")
-DB_HOST=os.getenv("DB_HOST")
-DB_PORT=os.getenv("DB_PORT")
-DB_NAME=os.getenv("DB_NAME")
+load_dotenv()
 
-DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PWD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+DB_URI = os.getenv("DB_URI")
+if DB_URI is None:
+    raise ValueError("DB_URI environment variable is not set. Please check your .env file.")
+
+DATABASE_URL = f"{DB_URI}"
+
 engine = create_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -58,6 +60,7 @@ class HousingListing(Base):
     rentamountadjusted = Column(Numeric)
     predictedrent = Column(Numeric)
     differenceinfairvalue = Column(Numeric)
+    predicted_rent_cma = Column(Numeric)
     nearest_neighbor_listingids = Column(Text)
 
 

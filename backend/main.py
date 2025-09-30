@@ -5,6 +5,8 @@ import traceback
 from db import HousingListing, get_db
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.encoders import jsonable_encoder
+from serializers import serialize_listing, safe_float
 import logging
 from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial import Voronoi
@@ -21,6 +23,7 @@ import numpy as np
 import os
 from pathlib import Path
 import sys
+from decimal import Decimal
 
 app = FastAPI()
 
@@ -53,7 +56,7 @@ def get_listings(db: Session = Depends(get_db)):
     """
     try:
         listings = db.query(HousingListing).all()
-        return listings
+        return [serialize_listing(listing) for listing in listings]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e) + "\n" + traceback.format_exc())
 
@@ -67,7 +70,7 @@ def get_top_ten_listings(db: Session = Depends(get_db)):
         ((HousingListing.predictedrent - HousingListing.rentamountadjusted) / HousingListing.rentamountadjusted).desc()
     ).limit(10).all()
 
-    return top_listings 
+    return [serialize_listing(listing) for listing in top_listings] 
 
 @app.get("/bottom-ten-listings/")
 def get_bottom_ten_listings(db: Session = Depends(get_db)):
@@ -78,7 +81,7 @@ def get_bottom_ten_listings(db: Session = Depends(get_db)):
         ((HousingListing.predictedrent - HousingListing.rentamountadjusted) / HousingListing.rentamountadjusted)
     ).limit(10).all()
 
-    return bottom_listings 
+    return [serialize_listing(listing) for listing in bottom_listings] 
 
 @app.get("/clusters/")
 def cluster_neighborhoods(db: Session = Depends(get_db)):
@@ -163,7 +166,7 @@ def get_listing_beds(n_beds: int, db: Session = Depends(get_db)):
         listings = db.query(HousingListing).filter(HousingListing.bedrooms>=n_beds).all()
     if not listings:
         raise HTTPException(status_code=404, detail="Listing not found")
-    return listings
+    return [serialize_listing(listing) for listing in listings]
 
 @app.get("/listing/baths/{n_baths}")
 def get_listing_baths(n_baths: int, db: Session = Depends(get_db)):
@@ -179,7 +182,7 @@ def get_listing_baths(n_baths: int, db: Session = Depends(get_db)):
         listings = db.query(HousingListing).filter(HousingListing.bathrooms>=n_baths).all()
     if not listings:
         raise HTTPException(status_code=404, detail="Listing not found")
-    return listings
+    return [serialize_listing(listing) for listing in listings]
 
 @app.get("/listing/walks")
 def get_listing_walk(db: Session = Depends(get_db)):
@@ -190,7 +193,7 @@ def get_listing_walk(db: Session = Depends(get_db)):
     listings = db.query(HousingListing).filter(HousingListing.avg_walking_time<mean_walking_time).all()
     if not listings:
         raise HTTPException(status_code=404, detail="Listing not found")
-    return listings
+    return [serialize_listing(listing) for listing in listings]
 
 @app.get("/listing/transit")
 def get_listing_transit(db: Session = Depends(get_db)):
@@ -201,7 +204,7 @@ def get_listing_transit(db: Session = Depends(get_db)):
     listings = db.query(HousingListing).filter(HousingListing.transit_score>mean_transit_score).all()
     if not listings:
         raise HTTPException(status_code=404, detail="Listing not found")
-    return listings
+    return [serialize_listing(listing) for listing in listings]
 
 @app.get("/listing/pets")
 def get_listing_pet(db: Session = Depends(get_db)):
@@ -211,7 +214,7 @@ def get_listing_pet(db: Session = Depends(get_db)):
     listings = db.query(HousingListing).filter(HousingListing.pets=="Yes").all()
     if not listings:
         raise HTTPException(status_code=404, detail="Listing not found")
-    return listings
+    return [serialize_listing(listing) for listing in listings]
 
 @app.get("/room-to-rent-listings/")
 def get_top_ten_listings(db: Session = Depends(get_db)):
@@ -222,7 +225,7 @@ def get_top_ten_listings(db: Session = Depends(get_db)):
     if not listings:
         raise HTTPException(status_code=404, detail="Listing not found")
 
-    return listings 
+    return [serialize_listing(listing) for listing in listings] 
 
 @app.get("/rent-listings/")
 def get_top_ten_listings(db: Session = Depends(get_db)):
@@ -233,7 +236,7 @@ def get_top_ten_listings(db: Session = Depends(get_db)):
     if not listings:
         raise HTTPException(status_code=404, detail="Listing not found")
 
-    return listings 
+    return [serialize_listing(listing) for listing in listings] 
 
 @app.get("/shared-listings/")
 def get_top_ten_listings(db: Session = Depends(get_db)):
@@ -244,7 +247,7 @@ def get_top_ten_listings(db: Session = Depends(get_db)):
     if not listings:
         raise HTTPException(status_code=404, detail="Listing not found")
 
-    return listings 
+    return [serialize_listing(listing) for listing in listings] 
 
 @app.get("/listing/{listing_id}")
 def get_listing(listing_id: int, db: Session = Depends(get_db)):
@@ -254,7 +257,7 @@ def get_listing(listing_id: int, db: Session = Depends(get_db)):
     listing = db.query(HousingListing).filter(HousingListing.listingid==listing_id).first()
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found")
-    return listing
+    return serialize_listing(listing)
 
 """
 SITE SELECTOR

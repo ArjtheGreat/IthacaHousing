@@ -148,6 +148,9 @@
 import { ref, onMounted, onBeforeUnmount } from "vue";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { fetchListings, fetchTopTenListings, fetchBottomTenListings, fetchClusters, fetchHeatMap, fetchBedFilter, fetchBathFilter, fetchWalkFilter, fetchTransitFilter, fetchPetsFilter, fetchRentListings, fetchRoomToRentListings, fetchSharedListings } from "@/services/fetch";
 import NavBar from "@/components/NavBar.vue";
 import RentalSidebar from "@/components/RentalSidebar.vue";
@@ -224,6 +227,52 @@ function changeTab(tab) {
 }
 
 /**
+ * Group listings by exact coordinates and apply dispersion offset
+ */
+function groupListingsByLocation(listings) {
+    const locationGroups = {};
+    
+    listings.forEach(listing => {
+        const key = `${listing.latitude},${listing.longitude}`;
+        if (!locationGroups[key]) {
+            locationGroups[key] = [];
+        }
+        locationGroups[key].push(listing);
+    });
+    
+    // Apply offset to listings at the same location
+    const dispersedListings = [];
+    Object.values(locationGroups).forEach(group => {
+        if (group.length === 1) {
+            // Single listing, no offset needed
+            dispersedListings.push({
+                ...group[0],
+                displayLat: group[0].latitude,
+                displayLng: group[0].longitude
+            });
+        } else {
+            // Multiple listings at same location - create circular dispersion
+            const radius = 0.00005; // ~11 meters offset
+            group.forEach((listing, index) => {
+                const angle = (2 * Math.PI * index) / group.length;
+                const offsetLat = Math.cos(angle) * radius;
+                const offsetLng = Math.sin(angle) * radius;
+                
+                dispersedListings.push({
+                    ...listing,
+                    displayLat: listing.latitude + offsetLat,
+                    displayLng: listing.longitude + offsetLng,
+                    isGrouped: true,
+                    groupSize: group.length
+                });
+            });
+        }
+    });
+    
+    return dispersedListings;
+}
+
+/**
  * Add markers to the map
  * Only filters markers CURRENTLY on map using .some 
  */
@@ -235,14 +284,17 @@ function addMarkers(listings, filtered) {
       map.value.removeLayer(heatmapLayer.value); 
     }
 
-    listings.forEach(listing => {
+    // Apply dispersion to overlapping listings
+    const dispersedListings = groupListingsByLocation(listings);
+
+    dispersedListings.forEach(listing => {
         const color = getColor(listing.rentamountadjusted, listing.predictedrent);
 
-        const marker = L.circleMarker([listing.latitude, listing.longitude], {
+        const marker = L.circleMarker([listing.displayLat, listing.displayLng], {
           color,
           fillColor: color,                // dynamic fill based on pricing
           fillOpacity: 0.85,               // more saturated look
-          radius: 10,                      // slightly larger for mobile UX
+          radius: listing.isGrouped ? 8 : 10, // Slightly smaller for grouped
           weight: 2,                       // thin border
           opacity: 1,                      // full circle border visibility
           className: 'modern-dot'          // for custom CSS glow
@@ -718,18 +770,16 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 
 /* FILTER BUTTON */
 .filter-container {
-  /* position: absolute;
+  position: absolute;
   top: 100px;
   left: 20px;
   z-index: 1000;
-  width: 300px;
-  border-radius: 12px;
-  background: none;
-  backdrop-filter: blur(12px);
-  border-radius: 14px;
   width: 320px;
-  text-align: center; */
-  visibility: hidden;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  text-align: center;
+  visibility: visible;
 }
 
 .filter-title {

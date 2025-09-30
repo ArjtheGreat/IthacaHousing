@@ -8,7 +8,22 @@ numerical_columns = [
 categorical_columns = [
     "Pets"
 ]
+def clean_up_x_y(X, y):
+    """
+    Just a bit of clean up for X and y
+    """
+    X_clean = X.copy()
+    for col in X_clean.columns:
+        X_clean[col] = pd.to_numeric(X_clean[col], errors='coerce')
+    X_clean = X_clean.fillna(X_clean.median())
+    X_clean = X_clean.astype('float64')
+    
+    y_clean = pd.to_numeric(y, errors='coerce')
+    y_clean = y_clean.fillna(y_clean.median())
+    y_clean = y_clean.astype('float64')
 
+    return  X_clean, y_clean
+    
 def median_mode_imputation(X):
     """
     Median Imputation for Numerical Columns
@@ -21,11 +36,36 @@ def median_mode_imputation(X):
     for col in numerical_columns:
         X[col] = pd.to_numeric(X[col], errors="coerce")
         median = X[col].median()
+        
+        if pd.isna(median):
+            if col == "LengthAvailable":
+                median = 12  # Default 12 months
+            elif col == "combined_bedrooms_bathrooms":
+                median = 3.0  # Default 2 bedrooms + 1 bathroom
+            elif col == "drive_time":
+                median = 30  # Default 30 minutes
+            elif col == "transit_score":
+                median = 50  # Default middle score
+            elif col == "amenities_score":
+                median = 50  # Default middle score
+            elif col == "OverallSafetyRating":
+                median = 70  # Default safety rating
+            else:
+                median = 0  # Default fallback
+        
         X.fillna({col: median}, inplace=True)
 
     # For Categorical Categories, use Mode Imputation
     for col in categorical_columns:
-        mode = X[col].mode()[0]
+        mode_series = X[col].mode()
+        if len(mode_series) > 0:
+            mode = mode_series[0]
+        else:
+            non_null_values = X[col].dropna()
+            if len(non_null_values) > 0:
+                mode = non_null_values.value_counts().index[0]
+            else:
+                mode = "No" 
         X.fillna({col: mode}, inplace=True)
     
     X["Pets"] = X["Pets"].map({"No": 0, "Yes": 1})

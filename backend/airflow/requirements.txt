@@ -12,3 +12,4 @@ tensorflow
 contextily
 networkx
 osmnx
+xgboost
