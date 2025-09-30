@@ -12,11 +12,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      DB_USER: postgres
-      DB_PWD: password
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: test_db
+      DB_URI: ${{ secrets.DB_URI }}
 
     services:
       postgres:
