@@ -122,6 +122,33 @@
     <div class="relative flex z-[0] border-b-2 border-black overflow-hidden">
       <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" :listing="selectedListing" v-if="isSidebarVisible" />
 
+      <!-- Address Search Bar -->
+      <div class="search-container">
+        <div class="search-bar-wrapper">
+          <input
+            v-model="searchQuery"
+            @input="handleSearchInput"
+            @focus="showSuggestions = true"
+            @blur="hideSuggestions"
+            type="text"
+            placeholder="Search addresses..."
+            class="search-input"
+          />
+          <div v-if="showSuggestions && searchSuggestions.length > 0" class="suggestions-dropdown">
+            <div
+              v-for="(suggestion, index) in searchSuggestions"
+              :key="index"
+              @click="selectSuggestion(suggestion)"
+              class="suggestion-item"
+              :class="{ highlighted: index === highlightedIndex }"
+            >
+              <div class="suggestion-address">{{ suggestion.address }}</div>
+              <div class="suggestion-details">{{ suggestion.bedrooms }} bed • ${{ suggestion.rent }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="map"></div>
 
       <!-- Legend -->
@@ -174,6 +201,12 @@ const activeFilters = ref({ beds: null, baths: null, walk: null, transit: null, 
 const filteredListings = ref([]); // Keeps track of the filtered listings
 const selectedBeds = ref(0); // Number of Selected Beds
 const bedOptions = [1, 2, 3, 4, 5]; // Adjust based on available data
+
+// Search functionality
+const searchQuery = ref('');
+const searchSuggestions = ref([]);
+const showSuggestions = ref(false);
+const highlightedIndex = ref(-1);
 const selectedBaths = ref(0); // Number of Selected Beds
 const bathOptions = [1, 1.5, 2, 2.5, 3]; // Adjust based on available data
 const currentRoute = ref(null);
@@ -342,6 +375,99 @@ function plotRoute(listing) {
 
   return currentPolyline;
 }
+
+// Compute Levenshtein distance between two strings
+function levenshtein(a, b) {
+  const matrix = Array.from({ length: a.length + 1 }, () =>
+    Array(b.length + 1).fill(0)
+  );
+
+  for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+  for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,       // deletion
+        matrix[i][j - 1] + 1,       // insertion
+        matrix[i - 1][j - 1] + cost // substitution
+      );
+    }
+  }
+  return matrix[a.length][b.length];
+}
+
+// Fuzzy match using normalized Levenshtein similarity
+function fuzzyMatch(query, text) {
+  if (!query || !text) return 0;
+
+  const queryLower = query.toLowerCase();
+  const textLower = text.toLowerCase();
+
+  // Exact substring match gets 1.0
+  if (textLower.includes(queryLower)) {
+    return 1.0;
+  }
+
+  const distance = levenshtein(queryLower, textLower);
+  const maxLen = Math.max(queryLower.length, textLower.length);
+
+  return 1 - distance / maxLen;
+}
+
+
+const handleSearchInput = () => {
+  if (searchQuery.value.length < 2) {
+    searchSuggestions.value = [];
+    return;
+  }
+  
+  const query = searchQuery.value.toLowerCase();
+  const suggestions = allListings.value
+    .map(listing => ({
+      ...listing,
+      score: Math.max(
+        fuzzyMatch(query, listing.listingaddress || ''),
+        fuzzyMatch(query, listing.listingcity || ''),
+        fuzzyMatch(query, `${listing.listingaddress} ${listing.listingcity}` || '')
+      )
+    }))
+    .filter(listing => listing.score > 0.3)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map(listing => ({
+      address: `${listing.listingaddress}, ${listing.listingcity}`,
+      bedrooms: listing.bedrooms || 'N/A',
+      rent: listing.rentamountadjusted || listing.rentamount || 'N/A',
+      listing: listing
+    }));
+  
+  searchSuggestions.value = suggestions;
+  highlightedIndex.value = -1;
+};
+
+const selectSuggestion = (suggestion) => {
+  showSuggestions.value = false;
+  
+  // Zoom to the selected listing
+  if (suggestion.listing && suggestion.listing.latitude && suggestion.listing.longitude) {
+    selectedListing.value = suggestion.listing;
+    currentRoute.value = plotRoute(suggestion.listing).addTo(map.value);
+    isSidebarVisible.value = true;
+
+    // clear Text
+    searchQuery.value = ""
+  }
+};
+
+const hideSuggestions = () => {
+  // Delay hiding to allow for click events
+  setTimeout(() => {
+    showSuggestions.value = false;
+  }, 200);
+};
+
 /**
  * Lifecycle Hook on Mount
  * Fetches Data from API and initializes Map
@@ -753,6 +879,77 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   width: 100vw;
   height: 100vh;
   z-index: 0;
+}
+
+/* SEARCH BAR */
+.search-container {
+  position: absolute;
+  top: 70px;
+  right: 20px;
+  z-index: 10;
+  width: 350px;
+  border: black solid 1px;
+}
+
+.search-bar-wrapper {
+  position: relative;
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #ddd;
+  font-size: 16px;
+  background: white;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+.search-input:focus {
+  box-shadow: 0 2px 15px rgba(80, 124, 182, 0.2);
+}
+
+.suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1001;
+  margin-top: 4px;
+}
+
+.suggestion-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s ease;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover,
+.suggestion-item.highlighted {
+  background-color: #f8f9fa;
+}
+
+.suggestion-address {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.suggestion-details {
+  font-size: 14px;
+  color: #666;
 }
 
 .rental-sidebar {
