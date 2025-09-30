@@ -48,6 +48,7 @@
         >
             Percent Change: {{ percentChange.toFixed(2) }}%
         </div> 
+
     </div>
     <!-- Main Content (2-Column Layout) -->
     <div class="popup-content grid grid-cols-2 gap-4">
@@ -91,7 +92,7 @@
                 </tr>
                 <tr>
                     <td><i class="fa-solid fa-shield-halved text-yellow-500"></i></td>
-                    <td>Luxury Score:</td>
+                    <td>Amenities Score:</td>
                     <td>{{ (listing?.amenities_score).toFixed(2) ?? "N/A" }}/100</td>
                 </tr>
             </table>
@@ -246,6 +247,27 @@
             </div>
         </div>
     </div>
+
+    <!-- CMA Prediction Box -->
+    <!-- <div class="cma-prediction-section">
+        <div class="cma-prediction-box">
+            <div class="prediction-header">
+                <strong>CMA Predicted Rent</strong>
+                <span class="prediction-badge">Comparative Market Analysis</span>
+            </div>
+            <div class="prediction-value">
+                ${{ listing?.predicted_rent_cma ? listing.predicted_rent_cma.toFixed(2) : 'N/A' }}
+            </div>
+            <div v-if="listing?.predicted_rent_cma && listing?.rentamountadjusted" class="prediction-diff">
+                <span :class="{
+                    'text-green': (listing.rentamountadjusted - listing.predicted_rent_cma) < 0,
+                    'text-red': (listing.rentamountadjusted - listing.predicted_rent_cma) > 0
+                }">
+                    {{ (listing.rentamountadjusted - listing.predicted_rent_cma) < 0 ? 'Undervalued' : 'Overvalued' }} by ${{ Math.abs(listing.rentamountadjusted - listing.predicted_rent_cma).toFixed(2) }}
+                </span>
+            </div>
+        </div>
+    </div> -->
 
 </div>
 </template>
@@ -663,6 +685,71 @@ watch<Listing | undefined>(
 
 .rent-diff.text-green {
     color: #16a34a;
+}
+
+/* CMA Prediction Section Styles */
+.cma-prediction-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 2px solid #e5e7eb;
+}
+
+.cma-prediction-box {
+    background: #f8f9fa;
+    border: 2px solid #3b82f6;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
+}
+
+.cma-prediction-box:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.prediction-header {
+    margin-bottom: 12px;
+}
+
+.prediction-header strong {
+    display: block;
+    color: #374151;
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.prediction-badge {
+    display: inline-block;
+    background: rgba(59, 130, 246, 0.1);
+    color: #1e40af;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.prediction-value {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: #111827;
+    margin-bottom: 8px;
+}
+
+.prediction-diff {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.prediction-diff .text-green {
+    color: #059669;
+}
+
+.prediction-diff .text-red {
+    color: #dc2626;
 }
 
 
