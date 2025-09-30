@@ -18,9 +18,7 @@ from main import app
 from db import get_db, HousingListing, Base
 
 DB_URI = os.getenv("DB_URI")
-TEST_DATABASE_URL = (
-    {DB_URI}
-)
+TEST_DATABASE_URL = DB_URI
 
 engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
