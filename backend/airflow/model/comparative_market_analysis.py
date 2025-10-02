@@ -32,7 +32,7 @@ def perform_cma(X, apartments_for_rent, n_neighbors=4):
     nearest_neighbor_listingIds = listing_ids[indices[:, 1:]]
     apartments_for_rent["nearest_neighbor_listingIds"] = nearest_neighbor_listingIds.tolist()
     
-    rents = apartments_for_rent['RentAmountAdjusted'].values
+    rents = apartments_for_rent['rent_per_person'].values
     predicted_rents = []
     
     for row_indices in indices:

@@ -75,7 +75,7 @@ def psql_insert_copy(df):
         lambda x: json.dumps(x) if isinstance(x, (list, dict)) else x
     )
 
-    df = df[["ListingId", "ListingAddress", "ListingCity", "ListingZip", "CreateDate", "ShortDescription", "RentAmount", "RentType", "Pets", "Amenities", "Bedrooms", "Bathrooms", "HousingType", "latitude", "longitude", "ListingPhotos",  "walk_time", "walk_routes", "bike_time", "bike_routes", "drive_time", "drive_routes", "transit_score", "amenities_score", "OverallSafetyRatingPct", "RentAmountAdjusted", "PredictedRent", "DifferenceinFairValue", "predicted_rent_cma", "nearest_neighbor_listingIds"]]
+    df = df[["ListingId", "ListingAddress", "ListingCity", "ListingZip", "CreateDate", "ShortDescription", "RentAmount", "RentType", "Pets", "Amenities", "Bedrooms", "Bathrooms", "HousingType", "latitude", "longitude", "ListingPhotos",  "walk_time", "walk_routes", "bike_time", "bike_routes", "drive_time", "drive_routes", "transit_score", "amenities_score", "OverallSafetyRatingPct", "RentAmountAdjusted", "PredictedRent", "DifferenceinFairValue", "predicted_rent_cma", "nearest_neighbor_listingIds", "rent_per_person", "num_people"]]
 
     df.columns = (
         df.columns

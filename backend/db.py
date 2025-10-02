@@ -62,6 +62,8 @@ class HousingListing(Base):
     differenceinfairvalue = Column(Numeric)
     predicted_rent_cma = Column(Numeric)
     nearest_neighbor_listingids = Column(Text)
+    rent_per_person = Column(Numeric)
+    num_people = Column(Numeric)
 
 
 Base.metadata.create_all(bind=engine)

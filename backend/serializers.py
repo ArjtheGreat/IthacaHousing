@@ -65,4 +65,7 @@ def serialize_listing(listing):
         "differenceinfairvalue": safe_float(listing.differenceinfairvalue),
         "predicted_rent_cma": safe_float(listing.predicted_rent_cma),
         "nearest_neighbor_listingids": listing.nearest_neighbor_listingids,
+        "rent_per_person": safe_float(listing.rent_per_person),
+        "num_people": safe_float(listing.num_people),
+        
     }

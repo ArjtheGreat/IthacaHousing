@@ -70,8 +70,8 @@
 import NavBar from "@/components/NavBar.vue";
 import arjunImg from '@/assets/avatars/arjunmaitra.jpeg';
 import stevenImg from '@/assets/avatars/stevenzhou.jpeg';
+import ethanImg from '@/assets/avatars/ethanyang.jpeg';
 import vivianImg from '@/assets/avatars/vivianguo.jpeg';
-import lillianImg from '@/assets/avatars/lillianwang.jpeg';
 
 const teamMembers = [
   {
@@ -81,18 +81,18 @@ const teamMembers = [
   },
   {
     name: 'Steven Zhou',
-    role: 'Data Scientist',
+    role: 'Data Scientist Emeritus',
     avatar: stevenImg
   },
   {
-    name: 'Vivian Guo',
-    role: 'Researcher',
-    avatar: vivianImg
+    name: 'Ethan Yang',
+    role: 'Head of Marketing',
+    avatar: ethanImg
   },
   {
-    name: 'Lillian Wang',
-    role: 'Researcher',
-    avatar: lillianImg
+    name: 'Vivian Guo',
+    role: 'Data Analyst',
+    avatar: vivianImg
   }
 ];
 

@@ -154,18 +154,17 @@
       <!-- Legend -->
       <div class="legend">
         <h4>Price Difference Legend</h4>
-        <ul>
-          <li><span style="background: #006400;"></span> Very Underpriced</li>
-          <li><span style="background: #008000;"></span> Underpriced</li>
-          <li><span style="background: #32CD32;"></span> Slightly Underpriced</li>
-          <li><span style="background: #90EE90;"></span> Barely Underpriced</li>
-          <li><span style="background: #FFA07A;"></span> Barely Overpriced</li>
-          <li><span style="background: #FF6347;"></span> Slightly Overpriced</li>
-          <li><span style="background: #FF0000;"></span> Overpriced</li>
-          <li><span style="background: #8B0000;"></span> Very Overpriced</li>
-        </ul>
-        <p class="disclaimer">Note: These estimates are based on a statistical model and should be taken with a grain of salt. They’re meant to inform, not replace, your own research and judgment.
-        </p>
+        <div class="gradient-legend">
+          <div class="gradient-bar"></div>
+          <div class="gradient-labels">
+            <span class="label-start">Overpriced</span>
+            <span class="label-middle">Fair Price</span>
+            <span class="label-end">Underpriced</span>
+          </div>
+        </div>
+        <div class="legend-disclaimer">
+          Colors show how actual rent compares to predicted rent
+        </div>
       </div>
     </div>
   </div>
@@ -239,17 +238,44 @@ const messages = [
  */
 function getColor(rent, predicted) {
     const percent_change = (predicted - rent) / rent;
-    if (percent_change >= 0.30) return "#006400"; // Dark Green (Very Underpriced)
-    if (percent_change >= 0.20) return "#008000"; // Green (Underpriced)
-    if (percent_change >= 0.10) return "#32CD32";  // Lime Green (Slightly Underpriced)
-    if (percent_change > 0) return "#90EE90";     // Light Green (Barely Underpriced)
+    
+    // Clamp percent_change to a narrower range for more dramatic colors (-0.2 to 0.2)
+    const clamped = Math.max(-0.2, Math.min(0.2, percent_change));
+    
+    // Normalize to 0-1 range (0 = very overpriced, 1 = very underpriced)
+    const normalized = (clamped + 0.2) / 0.4;
+    
+    // Interpolate between the three colors
+    // Red (#d73027) -> Yellow (#fee08b) -> Green (#1a9850)
+    if (normalized <= 0.5) {
+        // Interpolate between red and yellow
+        const t = normalized * 2; // 0 to 1
+        return interpolateColor('#d73027', '#fee08b', t);
+    } else {
+        // Interpolate between yellow and green
+        const t = (normalized - 0.5) * 2; // 0 to 1
+        return interpolateColor('#fee08b', '#1a9850', t);
+    }
+}
 
-    if (percent_change <= -0.30) return "#8B0000"; // Dark Red (Very Overpriced)
-    if (percent_change <= -0.20) return "#FF0000"; // Red (Overpriced)
-    if (percent_change <= -0.10) return "#FF6347";  // Tomato (Slightly Overpriced)
-    if (percent_change < 0) return "#FFA07A";    // Light Salmon (Barely Overpriced)
-
-    return "gray"; // Neutral (Fairly Priced)
+// Helper function to interpolate between two hex colors
+function interpolateColor(color1, color2, factor) {
+    const hex1 = color1.replace('#', '');
+    const hex2 = color2.replace('#', '');
+    
+    const r1 = parseInt(hex1.substr(0, 2), 16);
+    const g1 = parseInt(hex1.substr(2, 2), 16);
+    const b1 = parseInt(hex1.substr(4, 2), 16);
+    
+    const r2 = parseInt(hex2.substr(0, 2), 16);
+    const g2 = parseInt(hex2.substr(2, 2), 16);
+    const b2 = parseInt(hex2.substr(4, 2), 16);
+    
+    const r = Math.round(r1 + (r2 - r1) * factor);
+    const g = Math.round(g1 + (g2 - g1) * factor);
+    const b = Math.round(b1 + (b2 - b1) * factor);
+    
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
 function changeTab(tab) {
@@ -321,7 +347,7 @@ function addMarkers(listings, filtered) {
     const dispersedListings = groupListingsByLocation(listings);
 
     dispersedListings.forEach(listing => {
-        const color = getColor(listing.rentamountadjusted, listing.predictedrent);
+        const color = getColor(listing.rent_per_person, listing.predictedrent);
 
         const marker = L.circleMarker([listing.displayLat, listing.displayLng], {
           color,
@@ -354,26 +380,42 @@ function plotRoute(listing) {
    * @param wkt 
    */
   function parseWKTLineString(wkt) {
-    const coordsText = wkt
-      .replace('LINESTRING (', '')
-      .replace(')', '')
-      .trim();
+    // Check if wkt is null, undefined, or empty
+    if (!wkt || typeof wkt !== 'string') {
+      console.warn('Invalid WKT data:', wkt);
+      return [];
+    }
 
-    const coords = coordsText.split(',').map(pair => {
-      const [lng, lat] = pair.trim().split(' ').map(Number);
-      return [lat, lng]; 
-    });
+    try {
+      const coordsText = wkt
+        .replace('LINESTRING (', '')
+        .replace(')', '')
+        .trim();
 
-    return coords;
+      const coords = coordsText.split(',').map(pair => {
+        const [lng, lat] = pair.trim().split(' ').map(Number);
+        return [lat, lng]; 
+      });
+
+      return coords;
+    } catch (error) {
+      console.error('Error parsing WKT:', error, 'WKT data:', wkt);
+      return [];
+    }
   }
 
-  const currentPolyline = L.polyline(parseWKTLineString(listing.walk_routes), {
-    color: 'orange',
-    weight: 4,
-    opacity: 0.7
-  })
-
-  return currentPolyline;
+  const routeCoords = parseWKTLineString(listing.walk_routes);
+  if (routeCoords.length > 0) {
+    const currentPolyline = L.polyline(routeCoords, {
+      color: 'orange',
+      weight: 4,
+      opacity: 0.7
+    });
+    return currentPolyline;
+  } else {
+    console.warn('No valid route data for listing:', listing.id || listing.listingaddress);
+    return L.polyline([], { color: 'transparent', weight: 0 });
+  }
 }
 
 // Compute Levenshtein distance between two strings
@@ -439,7 +481,7 @@ const handleSearchInput = () => {
     .map(listing => ({
       address: `${listing.listingaddress}, ${listing.listingcity}`,
       bedrooms: listing.bedrooms || 'N/A',
-      rent: listing.rentamountadjusted || listing.rentamount || 'N/A',
+      rent: listing.rent_per_person || listing.rentamountadjusted || listing.rentamount || 'N/A',
       listing: listing
     }));
   
@@ -450,8 +492,10 @@ const handleSearchInput = () => {
 const selectSuggestion = (suggestion) => {
   showSuggestions.value = false;
   
-  // Zoom to the selected listing
+  // Center map on the selected listing (without zooming)
   if (suggestion.listing && suggestion.listing.latitude && suggestion.listing.longitude) {
+    map.value.setView([suggestion.listing.latitude, suggestion.listing.longitude], map.value.getZoom());
+    
     selectedListing.value = suggestion.listing;
     currentRoute.value = plotRoute(suggestion.listing).addTo(map.value);
     isSidebarVisible.value = true;
@@ -1169,6 +1213,48 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   word-break: break-word;
   text-align: left;
   margin-top: 10px;
+}
+
+/* New gradient legend styles */
+.gradient-legend {
+  margin-bottom: 8px;
+}
+
+.gradient-bar {
+  width: 100%;
+  height: 20px;
+  background: linear-gradient(to right, #d73027, #fee08b, #1a9850);
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  margin-bottom: 8px;
+}
+
+.gradient-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #666;
+  position: relative;
+}
+
+.label-start, .label-end {
+  font-weight: 600;
+}
+
+.label-middle {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-weight: 600;
+  color: #333;
+}
+
+.legend-disclaimer {
+  font-size: 0.65rem;
+  color: #666;
+  margin-top: 8px;
+  line-height: 1.3;
+  text-align: center;
 }
 
 

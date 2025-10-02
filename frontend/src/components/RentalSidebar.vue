@@ -29,26 +29,52 @@
 
      <!-- Rental Information -->
     <div class="rent-section">
-        <div class="rent-box">
-            <strong>Rent:</strong>
-            <span>${{ listing?.rentamountadjusted.toFixed(2) }}</span>
-        </div>
-        <div class="rent-box">
-            <strong>Predicted Rent:</strong>
-            <span :class="{'text-green': listing?.differenceinfairvalue < 0, 'text-red': listing?.differenceinfairvalue > 0}">
-            ${{ listing?.predictedrent.toFixed(2) }}
-            </span>
-        </div>
-        <div
-            class="rent-diff"
-            :class="{
-            'text-red': percentChange < 0,
-            'text-green': percentChange > 0
-            }"
-        >
-            Percent Change: {{ percentChange.toFixed(2) }}%
-        </div> 
+        <div class="rent-main-card">
+            <!-- Header -->
+            <div class="rent-card-header">
+                <h4 class="rent-comparison-title">Rent Comparison</h4>
+            </div>
+            
+            <!-- Main Rent Display -->
+            <div class="rent-comparison-grid">
+                <!-- Actual Rent Column -->
+                <div class="rent-column actual-rent">
+                    <div class="rent-column-header">
+                        <span class="column-label">Actual Rent</span>
+                    </div>
+                    <div class="rent-total-section">
+                        <div class="rent-amount-large">${{ listing?.rentamountadjusted ? listing.rentamountadjusted.toFixed(2) : 'N/A' }}</div>
+                        <div class="rent-label-small">Total Rent</div>
+                    </div>
+                    <div class="rent-per-person-section">
+                        <div class="per-person-amount">${{ listing?.rent_per_person?.toFixed(2) || 'N/A' }}</div>
+                        <div class="per-person-label">per person ({{ listing?.num_people || 'N/A' }} {{ (listing?.num_people === 1) ? 'person' : 'people' }})</div>
+                    </div>
+                </div>
 
+                <!-- Predicted Rent Column -->
+                <div class="rent-column predicted-rent">
+                    <div class="rent-column-header">
+                        <span class="column-label">Predicted Rent</span>
+                    </div>
+                    <div class="rent-total-section">
+                        <div class="rent-amount-large predicted-amount">${{ listing?.predictedrent ? listing.predictedrent.toFixed(2) : 'N/A' }}</div>
+                        <div class="rent-label-small">AI Prediction</div>
+                    </div>
+                    <div class="prediction-difference">
+                        <div class="difference-badge" :class="{
+                            'badge-overpriced': percentChange > 0,
+                            'badge-underpriced': percentChange < 0,
+                            'badge-fair': percentChange === 0
+                        }">
+                            <span class="difference-arrow">{{ percentChange > 0 ? '🔻' : (percentChange < 0 ? '🔼' : '⚖') }}</span>
+                            <span class="difference-percent">{{ Math.abs(percentChange).toFixed(1) }}%</span>
+                            <span class="difference-label">{{ percentChange > 0 ? 'Overpriced' : (percentChange < 0 ? 'Underpriced' : 'Fair Price') }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     <!-- Main Content (2-Column Layout) -->
     <div class="popup-content grid grid-cols-2 gap-4">
@@ -63,17 +89,17 @@
                 <!-- <tr>
                     <td><i class="fa-solid fa-person-walking text-green-500"></i></td>
                     <td>Arts Quad:</td>
-                    <td>{{ (listing?.ag_quad_time/60).toFixed(0) ?? "N/A" }} min</td>
+                    <td>{{ listing?.ag_quad_time ? (listing.ag_quad_time/60).toFixed(0) : "N/A" }} min</td>
                 </tr>
                 <tr>
                     <td><i class="fa-solid fa-person-walking text-green-500"></i></td>
                     <td>Ag Quad:</td>
-                    <td>{{ (listing?.arts_quad_time/60).toFixed(0) ?? "N/A" }} min</td>
+                    <td>{{ listing?.arts_quad_time ? (listing.arts_quad_time/60).toFixed(0) : "N/A" }} min</td>
                 </tr>
                 <tr>
                     <td><i class="fa-solid fa-person-walking text-green-500"></i></td>
                     <td>Uris Hall:</td>
-                    <td>{{ (listing?.uris_hall_time/60).toFixed(0) ?? "N/A" }} min</td>
+                    <td>{{ listing?.uris_hall_time ? (listing.uris_hall_time/60).toFixed(0) : "N/A" }} min</td>
                 </tr> -->
                 <tr>
                     <td><i class="fa-solid fa-person-walking text-yellow-500"></i></td>
@@ -93,7 +119,7 @@
                 <tr>
                     <td><i class="fa-solid fa-shield-halved text-yellow-500"></i></td>
                     <td>Amenities Score:</td>
-                    <td>{{ (listing?.amenities_score).toFixed(2) ?? "N/A" }}/100</td>
+                    <td>{{ listing?.amenities_score ? listing.amenities_score.toFixed(2) : "N/A" }}/100</td>
                 </tr>
             </table>
         </div>
@@ -168,7 +194,7 @@
             <i class="fa-solid fa-shield-halved text-yellow-500"></i>
             <div class="info-text">
             <div class="label">Luxury Score</div>
-            <div class="value">{{ listing?.amenities_score?.toFixed(2) ?? "N/A" }}/100</div>
+            <div class="value">{{ listing?.amenities_score ? listing.amenities_score.toFixed(2) : "N/A" }}/100</div>
             </div>
         </div>
 
@@ -249,25 +275,25 @@
     </div>
 
     <!-- CMA Prediction Box -->
-    <!-- <div class="cma-prediction-section">
-        <div class="cma-prediction-box">
-            <div class="prediction-header">
-                <strong>CMA Predicted Rent</strong>
-                <span class="prediction-badge">Comparative Market Analysis</span>
-            </div>
-            <div class="prediction-value">
-                ${{ listing?.predicted_rent_cma ? listing.predicted_rent_cma.toFixed(2) : 'N/A' }}
-            </div>
-            <div v-if="listing?.predicted_rent_cma && listing?.rentamountadjusted" class="prediction-diff">
+        <div class="cma-prediction-section">
+            <div class="cma-prediction-box">
+                <div class="prediction-header">
+                    <strong>CMA Predicted Rent</strong>
+                    <span class="prediction-badge">Comparative Market Analysis</span>
+                </div>
+                <div class="prediction-value">
+                    ${{ listing?.predicted_rent_cma ? listing.predicted_rent_cma.toFixed(2) : 'N/A' }}
+                </div>
+            <div v-if="listing?.predicted_rent_cma && listing?.rent_per_person" class="prediction-diff">
                 <span :class="{
-                    'text-green': (listing.rentamountadjusted - listing.predicted_rent_cma) < 0,
-                    'text-red': (listing.rentamountadjusted - listing.predicted_rent_cma) > 0
+                    'text-green': (listing.rent_per_person - listing.predicted_rent_cma) < 0,
+                    'text-red': (listing.rent_per_person - listing.predicted_rent_cma) > 0
                 }">
-                    {{ (listing.rentamountadjusted - listing.predicted_rent_cma) < 0 ? 'Undervalued' : 'Overvalued' }} by ${{ Math.abs(listing.rentamountadjusted - listing.predicted_rent_cma).toFixed(2) }}
+                    {{ (listing.rent_per_person - listing.predicted_rent_cma) < 0 ? 'Undervalued' : 'Overvalued' }} by ${{ listing.rent_per_person && listing.predicted_rent_cma ? Math.abs(listing.rent_per_person - listing.predicted_rent_cma).toFixed(2) : 'N/A' }}
                 </span>
             </div>
+            </div>
         </div>
-    </div> -->
 
 </div>
 </template>
@@ -295,8 +321,8 @@ const similarListings = ref<Listing[]>([]);
  * Percent Change
  */
 const percentChange = computed(() => {
-  if (!props.listing?.predictedrent || !props.listing?.rentamountadjusted) return 0;
-  return ((props.listing.predictedrent - props.listing.rentamountadjusted) / props.listing.rentamountadjusted) * 100;
+  if (!props.listing?.predictedrent || !props.listing?.rent_per_person) return 0;
+  return ((props.listing.predictedrent - props.listing.rent_per_person) / props.listing.rent_per_person) * 100;
 });
 
 
@@ -622,42 +648,147 @@ watch<Listing | undefined>(
 
 /* 💰 RENT INFO BOX */
 .rent-section {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-    background: none;
-    border: 1px solid none;
-    text-align: center;
-    font-family: "Inter", sans-serif;
-    align-items: center;
-    /* border-top: 2px solid #e5e7eb; */
+    margin-bottom: 20px;
+    padding: 16px 0;
     border-bottom: 2px solid #e5e7eb;
-    margin-bottom: 16px;
-    padding-top: 16px;
-    padding-bottom: 16px;
 }
 
-.rent-box {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    background: none;
-    padding: 8px;
-    width: 100%;
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
+.rent-main-card {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-.rent-box strong {
+.rent-card-header {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.rent-comparison-title {
+    font-size: 1.1rem;
+    font-weight: 600;
     color: #374151;
+    margin: 0;
+    letter-spacing: 0.025em;
 }
 
-.rent-box span {
+.rent-comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+.rent-column {
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.rent-column-header {
+    margin-bottom: 12px;
+    text-align: center;
+}
+
+.column-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.rent-total-section {
+    text-align: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.rent-amount-large {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.rent-label-small {
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.predicted-amount {
+    color: #4b5563 !important; /* Neutral color for predicted rent */
+}
+
+.rent-per-person-section {
+    text-align: center;
+}
+
+.per-person-amount {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #059669;
+    margin-bottom: 2px;
+}
+
+.per-person-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.prediction-difference {
+    text-align: center;
+    margin-top: 12px;
+}
+
+.difference-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.badge-overpriced {
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.badge-underpriced {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+}
+
+.badge-fair {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    color: #6b7280;
+    border: 1px solid #d1d5db;
+}
+
+.difference-arrow {
     font-size: 1rem;
-    font-weight: bold;
-    margin-top: 5px;
-    color: #111827;
+}
+
+.difference-percent {
+    font-weight: 700;
+}
+
+.difference-label {
+    font-size: 0.75rem;
+    font-weight: 500;
 }
 
 .text-green {
@@ -1050,26 +1181,37 @@ watch<Listing | undefined>(
     }
 
     .rent-section {
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
         margin-bottom: 12px;
     }
 
-    .rent-box {
-        font-size: 0.95rem;
-        padding: 8px;
-        text-align: center;
+    .rent-main-card {
+        padding: 16px;
     }
 
-    .rent-box span {
-        font-size: 1.1rem;
-        font-weight: 600;
+    .rent-comparison-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
     }
 
-    .rent-diff {
-        font-size: 0.95rem;
-        text-align: center;
-        padding: 10px;
+    .rent-column {
+        padding: 12px;
+    }
+
+    .rent-amount-large {
+        font-size: 1.5rem;
+    }
+
+    .rent-comparison-title {
+        font-size: 1rem;
+    }
+
+    .column-label {
+        font-size: 0.8rem;
+    }
+
+    .difference-badge {
+        font-size: 0.8rem;
+        padding: 6px 10px;
     }
 
     .info-table {

@@ -14,7 +14,7 @@ def define_X_Y_variables(apartments_for_rent):
     Define X and y features for model training
     """
     X = apartments_for_rent[["LengthAvailable", "Pets", "combined_bedrooms_bathrooms", "drive_time", "transit_score", "amenities_score", "OverallSafetyRating"]]
-    y = apartments_for_rent["RentAmountAdjusted"]
+    y = apartments_for_rent["rent_per_person"]
 
     return X, y
 
@@ -178,7 +178,7 @@ def find_residual_rental_amounts(y_pred, apartments_for_rent):
     """
     
     apartments_for_rent["PredictedRent"] = np.exp(y_pred)
-    apartments_for_rent["DifferenceinFairValue"] = apartments_for_rent["RentAmountAdjusted"] - apartments_for_rent["PredictedRent"]
+    apartments_for_rent["DifferenceinFairValue"] = apartments_for_rent["rent_per_person"] - apartments_for_rent["PredictedRent"]
 
     return apartments_for_rent
 
