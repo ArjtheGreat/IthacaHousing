@@ -43,12 +43,12 @@
                         <span class="column-label">Actual Rent</span>
                     </div>
                     <div class="rent-total-section">
-                        <div class="rent-amount-large">${{ listing?.rentamountadjusted ? listing.rentamountadjusted.toFixed(2) : 'N/A' }}</div>
-                        <div class="rent-label-small">Total Rent</div>
+                        <div class="rent-amount-large">${{ listing?.rent_per_person?.toFixed(2) || 'N/A' }}</div>
+                        <div class="rent-label-small">per person ({{ listing?.num_people || 'N/A' }} {{ (listing?.num_people === 1) ? 'person' : 'people' }})</div>
                     </div>
                     <div class="rent-per-person-section">
-                        <div class="per-person-amount">${{ listing?.rent_per_person?.toFixed(2) || 'N/A' }}</div>
-                        <div class="per-person-label">per person ({{ listing?.num_people || 'N/A' }} {{ (listing?.num_people === 1) ? 'person' : 'people' }})</div>
+                        <div class="per-person-amount">${{ listing?.rentamountadjusted ? listing.rentamountadjusted.toFixed(2) : 'N/A' }}</div>
+                        <div class="per-person-label">Total Rent</div>
                     </div>
                 </div>
 
