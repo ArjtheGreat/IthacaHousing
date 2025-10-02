@@ -33,9 +33,15 @@
             <!-- Header -->
             <div class="rent-card-header">
                 <h4 class="rent-comparison-title">
-                    Rent Comparison
+                    Fair Rent Comparison
                     <div class="tooltip-container">
-                        <span class="tooltip-icon">❓</span>
+                        <span class="tooltip-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 16v-4"/>
+                                <path d="M12 8h.01"/>
+                            </svg>
+                        </span>
                         <div class="tooltip-content">
                             <div class="tooltip-title">How Rent Comparison Works</div>
                             <div class="tooltip-text">
@@ -69,11 +75,11 @@
                 <!-- Predicted Rent Column -->
                 <div class="rent-column predicted-rent">
                     <div class="rent-column-header">
-                        <span class="column-label">Predicted Rent</span>
+                        <span class="column-label">Fair Rent</span>
                     </div>
                     <div class="rent-total-section">
                         <div class="rent-amount-large predicted-amount">${{ listing?.predictedrent ? listing.predictedrent.toFixed(2) : 'N/A' }}</div>
-                        <div class="rent-label-small">AI Prediction</div>
+                        <div class="rent-label-small">per person (Predicted using AI)</div>
                     </div>
                     <div class="prediction-difference">
                         <div class="difference-badge" :class="{
@@ -268,59 +274,108 @@
         </span>
     </div>
 
-    <div class="popup-similar-listings">
-        <span class="similar-listing-title"><strong>Similar Listings: </strong></span>
-        <div class="similar-listings-list">
-            <div 
-            v-for="(listing, index) in similarListings" 
-            :key="index" 
-            class="similar-listing-item"
-            >
-            <div class="image-container">
-                <img 
-                :src="extractPhoto(listing?.listingphotos)[0]?.PhotoUrl || ''" 
-                alt="Listing Photo" 
-                class="listing-photo"
-                />
-            </div>
-            <p class="listing-address">{{ listing?.listingaddress }}</p>
-            </div>
-        </div>
-    </div>
+    <!-- Removed duplicate similar listings section - using CMA section instead -->
 
-    <!-- CMA Prediction Box -->
-        <div class="cma-prediction-section">
-            <div class="cma-prediction-box">
-                <div class="prediction-header">
-                    <strong>
-                        CMA Predicted Rent
-                        <div class="tooltip-container">
-                            <span class="tooltip-icon">❓</span>
-                            <div class="tooltip-content">
-                                <div class="tooltip-title">What is CMA?</div>
-                                <div class="tooltip-text">
-                                    Comparative Market Analysis (CMA) is another valuation method.<br><br>
-                                    We look at the 4 most similar rental listings based on location, size, amenities, and other attributes, then average their rent.<br><br>
-                                    This gives you a market-based estimate of fair rent value, complementing our AI model's prediction.
-                                </div>
-                            </div>
+    <!-- CMA Similar Listings -->
+    <div class="cma-section">
+        <div class="cma-header">
+            <h4 class="cma-title">
+                Comparative Market Analysis
+                <div class="tooltip-container">
+                    <span class="tooltip-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 16v-4"/>
+                            <path d="M12 8h.01"/>
+                        </svg>
+                    </span>
+                    <div class="tooltip-content">
+                        <div class="tooltip-title">What is CMA?</div>
+                        <div class="tooltip-text">
+                            Comparative Market Analysis (CMA) is another alternative valuation method.<br><br>
+                            We look at the 3 most similar rental listings based on location, size, amenities, and other attributes, then average their rent.<br><br>
+                            This gives you a market-based estimate of fair rent value, complementing our AI model's prediction.
                         </div>
-                    </strong>
-                    <span class="prediction-badge">Comparative Market Analysis</span>
+                    </div>
                 </div>
-                <div class="prediction-value">
-                    ${{ listing?.predicted_rent_cma ? listing.predicted_rent_cma.toFixed(2) : 'N/A' }}
+            </h4>
+            <!-- Main Rent Display -->
+            <div class="rent-comparison-grid">
+                <!-- Actual Rent Column -->
+                <div class="rent-column actual-rent">
+                    <div class="rent-column-header">
+                        <span class="column-label">ACTUAL RENT</span>
+                    </div>
+                    <div class="rent-total-section">
+                        <div class="rent-amount-large">${{ listing?.rent_per_person?.toFixed(2) || 'N/A' }}</div>
+                        <div class="rent-label-small">per person ({{ listing?.num_people || 'N/A' }} {{ (listing?.num_people === 1) ? 'person' : 'people' }})</div>
+                    </div>
+                    <div class="rent-per-person-section">
+                        <div class="per-person-amount">${{ listing?.rentamountadjusted ? listing.rentamountadjusted.toFixed(2) : 'N/A' }}</div>
+                        <div class="per-person-label">Total Rent</div>
+                    </div>
                 </div>
-            <div v-if="listing?.predicted_rent_cma && listing?.rent_per_person" class="prediction-diff">
-                <span :class="{
-                    'text-green': (listing.rent_per_person - listing.predicted_rent_cma) < 0,
-                    'text-red': (listing.rent_per_person - listing.predicted_rent_cma) > 0
-                }">
-                    {{ (listing.rent_per_person - listing.predicted_rent_cma) < 0 ? 'Undervalued' : 'Overvalued' }} by ${{ listing.rent_per_person && listing.predicted_rent_cma ? Math.abs(listing.rent_per_person - listing.predicted_rent_cma).toFixed(2) : 'N/A' }}
-                </span>
-            </div>
+
+                <!-- CMA Rent Column -->
+                <div class="rent-column predicted-rent">
+                    <div class="rent-column-header">
+                        <span class="column-label">MARKET AVERAGE RENT</span>
+                    </div>
+                    <div class="rent-total-section">
+                        <div class="rent-amount-large predicted-amount">${{ listing?.predicted_rent_cma ? listing.predicted_rent_cma.toFixed(2) : 'N/A' }}</div>
+                        <div class="rent-label-small">per person (Market Average)</div>
+                    </div>
+                    <div class="prediction-difference">
+                        <div class="difference-badge" :class="{
+                            'badge-overpriced': listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) > 0,
+                            'badge-underpriced': listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) < 0,
+                            'badge-fair': listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) === 0
+                        }">
+                            <span class="difference-arrow">{{ listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) < 0 ? '🔼' : (listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) > 0 ? '🔻' : '⚖') }}</span>
+                            <span class="difference-percent">{{ listing?.rent_per_person && listing?.predicted_rent_cma ? Math.abs(((listing.rent_per_person - listing.predicted_rent_cma) / listing.predicted_rent_cma) * 100).toFixed(1) : '0.0' }}%</span>
+                            <span class="difference-label">{{ listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) < 0 ? 'Underpriced' : (listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) > 0 ? 'Overpriced' : 'Fair Price') }}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+        
+        <div class="cma-listings-grid">
+            <div v-for="(similarListing, index) in similarListings.slice(0, 4)" :key="index" class="cma-listing-card">
+                <div class="card-left" @click="showListingDetails(similarListing)">
+                    <div class="cma-listing-image">
+                        <img 
+                            v-if="extractPhoto(similarListing?.listingphotos).length > 0" 
+                            :src="extractPhoto(similarListing?.listingphotos)[0]?.PhotoUrl || ''" 
+                            alt="Listing Photo" 
+                            class="cma-photo"
+                        >
+                        <div v-else class="cma-photo-placeholder">📷</div>
+                    </div>
+                    <div class="listing-info">
+                        <div class="listing-address">{{ similarListing?.listingaddress }}</div>
+                        <div class="listing-details">{{ similarListing?.bedrooms }} bed, {{ similarListing?.bathrooms }} bath</div>
+                        <div class="listing-amenities" v-if="similarListing?.amenities_score">
+                            Amenities: {{ similarListing?.amenities_score.toFixed(1) }}/100
+                        </div>
+                        <div class="listing-walk-time" v-if="similarListing?.walk_time">
+                            Walk: {{ similarListing?.walk_time }} min
+                        </div>
+                    </div>
+                </div>
+                <div class="card-right">
+                    <div class="listing-rent">
+                        ${{ similarListing?.rent_per_person ? similarListing.rent_per_person.toFixed(2) : 'N/A' }}
+                        <div class="per-person-text">per person</div>
+                    </div>
+                    <button class="view-more-btn" @click="selectListing(similarListing)">
+                        View More
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+    </div>
 
 </div>
 </template>
@@ -334,10 +389,21 @@ const props = defineProps({
     listing: Object,
 });
 
-const emit = defineEmits(['close', 'zoom']);
+const emit = defineEmits(['close', 'zoom', 'select-listing']);
 
 const closePopup = () => {
     emit('close');
+};
+
+const showListingDetails = (listing: Listing) => {
+    // This could show a tooltip or expand the card with more details
+    console.log('Showing details for:', listing?.listingaddress);
+};
+
+const selectListing = (listing: Listing) => {
+    // Emit to parent to select this listing
+    emit('select-listing', listing);
+    emit('close'); // Close current sidebar to show selected listing
 };  
 
 const currentImageIndex = ref(0); // Holds the current index of the images in the gallery
@@ -514,8 +580,39 @@ function parsePostgresArray(pgArrayString: String) {
 /**
  * 
  */
+/**
+ * Handles tooltip positioning to prevent cutoff
+ */
+const handleTooltipPosition = () => {
+    const tooltipContainers = document.querySelectorAll('.tooltip-container');
+    
+    tooltipContainers.forEach(container => {
+        const tooltip = container.querySelector('.tooltip-content') as HTMLElement;
+        if (!tooltip) return;
+        
+        const checkPosition = () => {
+            const rect = container.getBoundingClientRect();
+            const tooltipRect = tooltip.getBoundingClientRect();
+            
+            // Check if tooltip would be cut off at the top
+            if (rect.top - tooltipRect.height < 0) {
+                tooltip.classList.add('tooltip-below');
+            } else {
+                tooltip.classList.remove('tooltip-below');
+            }
+        };
+        
+        // Check on hover
+        container.addEventListener('mouseenter', checkPosition);
+        // Also check on window resize
+        window.addEventListener('resize', checkPosition);
+    });
+};
+
 onMounted(async () => {
-    await fetchSimilarListings()
+    await fetchSimilarListings();
+    // Add tooltip positioning after component is mounted
+    setTimeout(handleTooltipPosition, 100);
 });
 
 watch<Listing | undefined>(
@@ -681,9 +778,7 @@ watch<Listing | undefined>(
 }
 
 .rent-main-card {
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
+    background: none;
     padding: 24px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
@@ -715,6 +810,15 @@ watch<Listing | undefined>(
     color: #6b7280;
     cursor: help;
     transition: color 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tooltip-icon svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
 }
 
 .tooltip-icon:hover {
@@ -749,6 +853,17 @@ watch<Listing | undefined>(
     border-width: 5px;
     border-style: solid;
     border-color: #1f2937 transparent transparent transparent;
+}
+
+.tooltip-content.tooltip-below {
+    bottom: auto;
+    top: 125%;
+}
+
+.tooltip-content.tooltip-below::after {
+    top: auto;
+    bottom: 100%;
+    border-color: transparent transparent #1f2937 transparent;
 }
 
 .tooltip-container:hover .tooltip-content {
@@ -842,13 +957,13 @@ watch<Listing | undefined>(
 .per-person-amount {
     font-size: 1.1rem;
     font-weight: 600;
-    color: #059669;
+    color: black;
     margin-bottom: 2px;
 }
 
 .per-person-label {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: black;
     font-weight: 500;
 }
 
@@ -878,6 +993,24 @@ watch<Listing | undefined>(
     background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
     color: #16a34a;
     border: 1px solid #bbf7d0;
+}
+
+.pill-underpriced {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+}
+
+.pill-overpriced {
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.pill-fair {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    color: #475569;
+    border: 1px solid #cbd5e1;
 }
 
 .badge-fair {
@@ -926,69 +1059,241 @@ watch<Listing | undefined>(
     color: #16a34a;
 }
 
-/* CMA Prediction Section Styles */
-.cma-prediction-section {
+/* CMA Section Styles */
+.cma-section {
     margin-top: 20px;
     padding-top: 20px;
     border-top: 2px solid #e5e7eb;
 }
 
-.cma-prediction-box {
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 20px;
-    text-align: center;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+.cma-header {
+    margin-bottom: 16px;
 }
 
-.prediction-header {
-    margin-bottom: 12px;
-}
-
-.prediction-header strong {
+.cma-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #374151;
+    margin: 0 0 12px 0;
+    letter-spacing: 0.025em;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    color: #374151;
-    font-size: 1.1rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-    letter-spacing: 0.025em;
 }
 
-.prediction-badge {
-    display: inline-block;
-    background: rgba(107, 114, 128, 0.1);
+.cma-average {
+    text-align: center;
+    padding: 12px 16px;
+    background: none;
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.average-label {
+    font-size: 0.85rem;
     color: #6b7280;
-    font-size: 0.85rem;
-    font-weight: 600;
-    padding: 4px 8px;
-    border-radius: 12px;
-    border: 1px solid rgba(107, 114, 128, 0.2);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.prediction-value {
-    font-size: 1.4rem;
-    font-weight: bold;
-    color: #111827;
+    font-weight: 500;
     margin-bottom: 8px;
 }
 
-.prediction-diff {
-    font-size: 0.85rem;
+.cma-split-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+}
+
+.cma-price-section {
+    flex: 1;
+    text-align: left;
+}
+
+.cma-pill-section {
+    flex: 1;
+    text-align: right;
+}
+
+.average-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #1e40af;
+    margin-bottom: 2px;
+}
+
+.per-person-label {
+    font-size: 0.75rem;
+    color: #6b7280;
     font-weight: 500;
 }
 
-.prediction-diff .text-green {
-    color: #059669;
+.cma-listings-grid {
+    display: grid;
+    gap: 12px;
 }
 
-.prediction-diff .text-red {
-    color: #dc2626;
+.cma-listing-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+    min-height: 100px;
+}
+
+.cma-listing-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+    border-color: #3b82f6;
+}
+
+.cma-listing-image {
+    width: 20%;
+    max-height: 250px;
+    object-fit: cover;
+}
+
+.card-left {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.card-left:hover {
+    opacity: 0.8;
+}
+
+.card-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-shrink: 0;
+    gap: 8px;
+}
+
+
+.cma-photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+.cma-photo-placeholder {
+    width: 100%;
+    height: 100%;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #9ca3af;
+}
+
+.listing-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.listing-address {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.listing-details {
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+.listing-amenities {
+    font-size: 0.75rem;
+    color: black;
+    font-weight: 500;
+}
+
+.listing-walk-time {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+.listing-rent {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #000000;
+    text-align: right;
+}
+
+.per-person-text {
+    font-size: 0.75rem;
+    color: #6b7280;
+    font-weight: 500;
+    margin-top: 2px;
+}
+
+.view-more-btn {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.view-more-btn:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.cma-comparison {
+    margin-top: 16px;
+    text-align: center;
+}
+
+.comparison-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    white-space: nowrap;
+}
+
+.pill-arrow {
+    font-size: 0.9rem;
+}
+
+.pill-text {
+    font-size: 0.8rem;
+}
+
+.comparison-arrow {
+    font-size: 1rem;
+}
+
+.comparison-text {
+    font-weight: 500;
 }
 
 
@@ -1144,14 +1449,6 @@ watch<Listing | undefined>(
   justify-content: center;
   overflow: hidden;
   border-radius: 12px;
-}
-
-.listing-image {
-  width: 100%;
-  height: auto;
-  object-fit: cover;
-  border-radius: 12px;
-  transition: opacity 0.3s ease-in-out;
 }
 
 /* 🔹 Modern Navigation Arrows */
@@ -1326,6 +1623,38 @@ watch<Listing | undefined>(
     .difference-badge {
         font-size: 0.8rem;
         padding: 6px 10px;
+    }
+
+    .cma-average {
+        text-align: center;
+        padding: 8px 12px;
+    }
+
+    .cma-split-container {
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .cma-price-section {
+        text-align: center;
+    }
+
+    .cma-pill-section {
+        text-align: center;
+    }
+
+    .average-value {
+        font-size: 1.1rem;
+    }
+
+    .comparison-pill {
+        font-size: 0.75rem;
+        padding: 4px 12px;
+    }
+
+    .per-person-text {
+        font-size: 0.7rem;
     }
 
     .info-table {

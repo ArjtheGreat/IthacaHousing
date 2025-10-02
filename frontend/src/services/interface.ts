@@ -13,6 +13,8 @@ export interface Listing {
     differenceInFairValue: number;
     rentAmountAdjusted: number;
     listingaddress: Text;
+    amenities_score: number,
+    walk_time: number,
     rent_per_person: number;
     num_people: number;
     
