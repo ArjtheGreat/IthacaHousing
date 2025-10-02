@@ -9,17 +9,31 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import random
 from typing import List
+from dotenv import load_dotenv
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent  
 sys.path.append(str(BASE_DIR))
 
+load_dotenv()
+
 from main import app
 from db import get_db, HousingListing, Base
 
-TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/housing_test"
+USE_POSTGRES_TEST = os.getenv("USE_POSTGRES_TEST", "false").lower() == "true"
 
-engine = create_engine(TEST_DATABASE_URL)
+if USE_POSTGRES_TEST:
+    TEST_DATABASE_URL = "postgresql://postgres:password@localhost:5432/test_db"
+    print("🐘 Using PostgreSQL for tests (matching CI/CD config)")
+    print("   Make sure PostgreSQL is running locally with:")
+    print("   - User: postgres")
+    print("   - Password: password") 
+    print("   - Database: test_db")
+else:
+    TEST_DATABASE_URL = "sqlite:///:memory:"
+    print("📱 Using SQLite in-memory for tests (no setup needed)")
+
+engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in TEST_DATABASE_URL else {})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @pytest.fixture(scope="session", autouse=True)
