@@ -92,19 +92,42 @@ def mock_listings(n: int = 10) -> List[HousingListing]:
     listings = []
 
     for i in range(n):
+        rent_amount = round(random.uniform(800, 3000), 2)
+        predicted_rent = round(random.uniform(800, 3000), 2)
+        bedrooms = random.randint(1, 5)
+        
         listings.append(mock_listing(
             listingid=i + 1,
-            bedrooms=random.randint(1, 5),
+            listingaddress=f"{random.randint(100, 999)} Test St",
+            listingcity="Ithaca",
+            listingzip="14850",
+            shortdescription=f"Test listing {i + 1}",
+            bedrooms=bedrooms,
             bathrooms=round(random.choice([1.0, 1.5, 2.0, 2.5, 3.0, 3.5]), 1),
             pets=random.choice(pets_options),
-            avg_walking_time=random.randint(5, 20),
-            transit_score=random.randint(40, 100),
             housingtype=random.choice(housing_types),
-            rentamount=round(random.uniform(800, 3000), 2),
-            predictedrent=round(random.uniform(800, 3000), 2),
-            rentamountadjusted=round(random.uniform(800, 3000), 2),
+            renttype="Monthly",
+            rentamount=rent_amount,
+            rentamountadjusted=rent_amount,
+            predictedrent=predicted_rent,
+            differenceinfairvalue=predicted_rent - rent_amount,
+            predicted_rent_cma=round(random.uniform(800, 3000), 2),
+            rent_per_person=round(rent_amount / bedrooms, 2),
+            num_people=bedrooms,
             latitude=42.44 + random.uniform(-0.01, 0.01),
-            longitude=-76.5 + random.uniform(-0.01, 0.01)
+            longitude=-76.5 + random.uniform(-0.01, 0.01),
+            walk_time=random.randint(5, 20),
+            walk_routes=f"LINESTRING ({random.uniform(-76.5, -76.4)} {random.uniform(42.43, 42.45)}, {random.uniform(-76.5, -76.4)} {random.uniform(42.43, 42.45)})",
+            bike_time=random.randint(3, 15),
+            bike_routes=f"LINESTRING ({random.uniform(-76.5, -76.4)} {random.uniform(42.43, 42.45)}, {random.uniform(-76.5, -76.4)} {random.uniform(42.43, 42.45)})",
+            drive_time=random.randint(2, 10),
+            drive_routes=f"LINESTRING ({random.uniform(-76.5, -76.4)} {random.uniform(42.43, 42.45)}, {random.uniform(-76.5, -76.4)} {random.uniform(42.43, 42.45)})",
+            transit_score=random.randint(40, 100),
+            amenities_score=round(random.uniform(0, 100), 2),
+            overallsafetyratingpct=round(random.uniform(60, 100), 2),
+            amenities='["WiFi", "Parking", "Laundry"]',
+            listingphotos='[{"PhotoUrl": "https://example.com/photo1.jpg"}]',
+            nearest_neighbor_listingids='[1, 2, 3]'
         ))
 
     return listings
@@ -155,7 +178,7 @@ def test_get_listing_walk(client):
     res = client.get("/listing/walks")
     assert res.status_code == 200
     data = res.json()
-    assert all(listing["avg_walking_time"] < 15 for listing in data)
+    assert all(listing["walk_time"] < 15 for listing in data)
 
 
 def test_get_listing_transit(client):
