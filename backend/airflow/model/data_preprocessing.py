@@ -8,6 +8,18 @@ numerical_columns = [
 categorical_columns = [
     "Pets"
 ]
+
+def calc_adjusted_bed_bath_values(apartments_for_rent):
+    """
+    Returns new combined bedroom and bathrooms columns
+    """
+    print("Calculating rent adjustments using extracted data...")    
+    apartments_for_rent["combined_bedrooms_bathrooms"] = (
+        1.5 * apartments_for_rent["available_bedrooms"] + apartments_for_rent["available_bathrooms"]
+    )
+
+    return apartments_for_rent
+
 def clean_up_x_y(X, y):
     """
     Just a bit of clean up for X and y

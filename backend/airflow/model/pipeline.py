@@ -75,6 +75,7 @@ def housing_data_pipeline():
     print("📥 Fetching housing data...")
     apartments_for_rent = fetch_housing_data.housing_data_preprocessing()
     apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)
+    apartments_for_rent = data_preprocessing.calc_adjusted_bed_bath_values(apartments_for_rent)
     
     existing_ids = get_existing_listing_ids()
     existing_calculated_data = get_existing_calculated_data()

@@ -32,7 +32,21 @@
         <div class="rent-main-card">
             <!-- Header -->
             <div class="rent-card-header">
-                <h4 class="rent-comparison-title">Rent Comparison</h4>
+                <h4 class="rent-comparison-title">
+                    Rent Comparison
+                    <div class="tooltip-container">
+                        <span class="tooltip-icon">❓</span>
+                        <div class="tooltip-content">
+                            <div class="tooltip-title">How Rent Comparison Works</div>
+                            <div class="tooltip-text">
+                                <strong>Actual Rent</strong> is what the landlord is asking for.<br><br>
+                                <strong>Predicted Rent</strong> is what our AI model considers fair based on the listing's attributes (location, amenities, size, etc.).<br><br>
+                                <strong>If predicted rent > actual rent:</strong> The listing is <span class="tooltip-green">underpriced</span> because you are paying less than what the model considers fair - AKA, you're getting a good deal!<br><br>
+                                <strong>If predicted < actual:</strong> The listing is <span class="tooltip-red">overpriced</span> because you are paying less than what the model considers fair - AKA, you might be paying too much.
+                            </div>
+                        </div>
+                    </div>
+                </h4>
             </div>
             
             <!-- Main Rent Display -->
@@ -63,13 +77,13 @@
                     </div>
                     <div class="prediction-difference">
                         <div class="difference-badge" :class="{
-                            'badge-overpriced': percentChange > 0,
-                            'badge-underpriced': percentChange < 0,
+                            'badge-overpriced': percentChange < 0,
+                            'badge-underpriced': percentChange > 0,
                             'badge-fair': percentChange === 0
                         }">
-                            <span class="difference-arrow">{{ percentChange > 0 ? '🔻' : (percentChange < 0 ? '🔼' : '⚖') }}</span>
+                            <span class="difference-arrow">{{ percentChange > 0 ? '🔼' : (percentChange < 0 ? '🔻' : '⚖') }}</span>
                             <span class="difference-percent">{{ Math.abs(percentChange).toFixed(1) }}%</span>
-                            <span class="difference-label">{{ percentChange > 0 ? 'Overpriced' : (percentChange < 0 ? 'Underpriced' : 'Fair Price') }}</span>
+                            <span class="difference-label">{{ percentChange > 0 ? 'Underpriced' : (percentChange < 0 ? 'Overpriced' : 'Fair Price') }}</span>
                         </div>
                     </div>
                 </div>
@@ -103,17 +117,17 @@
                 </tr> -->
                 <tr>
                     <td><i class="fa-solid fa-person-walking text-yellow-500"></i></td>
-                    <td>Walk Time:</td>
+                    <td>Walk Time (Uris):</td>
                     <td>{{ (listing?.walk_time) ?? "N/A" }} min</td>
                 </tr>
                 <tr>
                     <td><i class="fa-solid fa-car text-yellow-500"></i></td>
-                    <td>Drive Time:</td>
+                    <td>Drive Time (Uris):</td>
                     <td>{{ (listing?.drive_time) ?? "N/A" }} min</td>
                 </tr>
                 <tr>
                     <td><i class="fa-solid fa-bicycle text-yellow-500"></i></td>
-                    <td>Bike Time:</td>
+                    <td>Bike Time (Uris):</td>
                     <td>{{ (listing?.bike_time) ?? "N/A" }} min</td>
                 </tr>
                 <tr>
@@ -278,7 +292,20 @@
         <div class="cma-prediction-section">
             <div class="cma-prediction-box">
                 <div class="prediction-header">
-                    <strong>CMA Predicted Rent</strong>
+                    <strong>
+                        CMA Predicted Rent
+                        <div class="tooltip-container">
+                            <span class="tooltip-icon">❓</span>
+                            <div class="tooltip-content">
+                                <div class="tooltip-title">What is CMA?</div>
+                                <div class="tooltip-text">
+                                    Comparative Market Analysis (CMA) is another valuation method.<br><br>
+                                    We look at the 4 most similar rental listings based on location, size, amenities, and other attributes, then average their rent.<br><br>
+                                    This gives you a market-based estimate of fair rent value, complementing our AI model's prediction.
+                                </div>
+                            </div>
+                        </div>
+                    </strong>
                     <span class="prediction-badge">Comparative Market Analysis</span>
                 </div>
                 <div class="prediction-value">
@@ -672,6 +699,87 @@ watch<Listing | undefined>(
     color: #374151;
     margin: 0;
     letter-spacing: 0.025em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.tooltip-container {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip-icon {
+    font-size: 0.9rem;
+    color: #6b7280;
+    cursor: help;
+    transition: color 0.2s ease;
+}
+
+.tooltip-icon:hover {
+    color: #374151;
+}
+
+.tooltip-content {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1f2937;
+    color: white;
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: 320px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    z-index: 1000;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.tooltip-content::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #1f2937 transparent transparent transparent;
+}
+
+.tooltip-container:hover .tooltip-content {
+    visibility: visible;
+    opacity: 1;
+}
+
+.tooltip-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #f9fafb;
+    font-size: 0.9rem;
+}
+
+.tooltip-text {
+    color: #e5e7eb;
+}
+
+.tooltip-text strong {
+    color: #f9fafb;
+    font-weight: 600;
+}
+
+.tooltip-green {
+    color: #10b981;
+    font-weight: 600;
+}
+
+.tooltip-red {
+    color: #ef4444;
+    font-weight: 600;
 }
 
 .rent-comparison-grid {
@@ -826,18 +934,12 @@ watch<Listing | undefined>(
 }
 
 .cma-prediction-box {
-    background: #f8f9fa;
-    border: 2px solid #3b82f6;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid #e2e8f0;
     border-radius: 12px;
-    padding: 16px;
+    padding: 20px;
     text-align: center;
-    transition: all 0.3s ease;
-    background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
-}
-
-.cma-prediction-box:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .prediction-header {
@@ -845,22 +947,28 @@ watch<Listing | undefined>(
 }
 
 .prediction-header strong {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     color: #374151;
-    font-size: 1rem;
-    font-weight: 700;
-    margin-bottom: 4px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: 0.025em;
 }
 
 .prediction-badge {
     display: inline-block;
-    background: rgba(59, 130, 246, 0.1);
-    color: #1e40af;
-    font-size: 0.75rem;
-    font-weight: 500;
-    padding: 2px 8px;
+    background: rgba(107, 114, 128, 0.1);
+    color: #6b7280;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 4px 8px;
     border-radius: 12px;
-    border: 1px solid rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(107, 114, 128, 0.2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .prediction-value {
@@ -1203,6 +1311,12 @@ watch<Listing | undefined>(
 
     .rent-comparison-title {
         font-size: 1rem;
+    }
+
+    .tooltip-content {
+        width: 280px;
+        font-size: 0.8rem;
+        padding: 12px;
     }
 
     .column-label {
