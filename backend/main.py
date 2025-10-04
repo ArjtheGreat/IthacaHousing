@@ -67,7 +67,7 @@ def get_top_ten_listings(db: Session = Depends(get_db)):
     Gets top ten listings in Database
     """
     top_listings = db.query(HousingListing).order_by(
-        ((HousingListing.predictedrent - HousingListing.rentamountadjusted) / HousingListing.rentamountadjusted).desc()
+        ((HousingListing.predictedrent - HousingListing.rent_per_person) / HousingListing.rent_per_person).desc()
     ).limit(10).all()
 
     return [serialize_listing(listing) for listing in top_listings] 
@@ -78,7 +78,7 @@ def get_bottom_ten_listings(db: Session = Depends(get_db)):
     Gets bottom ten listings in Database
     """
     bottom_listings = db.query(HousingListing).order_by(
-        ((HousingListing.predictedrent - HousingListing.rentamountadjusted) / HousingListing.rentamountadjusted)
+        ((HousingListing.predictedrent - HousingListing.rent_per_person) / HousingListing.rent_per_person)
     ).limit(10).all()
 
     return [serialize_listing(listing) for listing in bottom_listings] 
@@ -88,7 +88,7 @@ def cluster_neighborhoods(db: Session = Depends(get_db)):
     """
     Clusters Neighborhoods by Price to find "natural pricing neighborhoods"
     """
-    listings = db.query(HousingListing.latitude, HousingListing.longitude, HousingListing.rentamountadjusted).all()
+    listings = db.query(HousingListing.latitude, HousingListing.longitude, HousingListing.rent_per_person).all()
 
     df = pd.DataFrame(listings, columns=["latitude", "longitude", "rentamount"])
 
@@ -106,7 +106,7 @@ def heatmap_neighborhoods(db: Session = Depends(get_db)):
     """
     Heatmaps Neighborhoods by Price to find "natural pricing neighborhoods"
     """
-    listings = db.query(HousingListing.latitude, HousingListing.longitude, HousingListing.rentamountadjusted).all()
+    listings = db.query(HousingListing.latitude, HousingListing.longitude, HousingListing.rent_per_person).all()
 
     df = pd.DataFrame(listings, columns=["latitude", "longitude", "rentamount"])
 
@@ -127,7 +127,7 @@ def voronoi_neighborhoods(db: Session = Depends(get_db)):
     """
     Generates Voronoi polygons based on rental pricing data.
     """
-    listings = db.query(HousingListing.latitude, HousingListing.longitude, HousingListing.rentamountadjusted).all()
+    listings = db.query(HousingListing.latitude, HousingListing.longitude, HousingListing.rent_per_person).all()
 
     df = pd.DataFrame(listings, columns=["latitude", "longitude", "rentamount"])
 
@@ -161,9 +161,9 @@ def get_listing_beds(n_beds: int, db: Session = Depends(get_db)):
     if n_beds == 0:
         listings = db.query(HousingListing).all()
     elif n_beds != 5:
-        listings = db.query(HousingListing).filter(HousingListing.bedrooms==n_beds).all()
+        listings = db.query(HousingListing).filter(HousingListing.available_bedrooms==n_beds).all()
     else:
-        listings = db.query(HousingListing).filter(HousingListing.bedrooms>=n_beds).all()
+        listings = db.query(HousingListing).filter(HousingListing.available_bedrooms>=n_beds).all()
     if not listings:
         raise HTTPException(status_code=404, detail="Listing not found")
     return [serialize_listing(listing) for listing in listings]
@@ -322,7 +322,7 @@ def get_sum_of_squares_error(db: Session = Depends(get_db)):
     """
     listings = db.query(HousingListing).all()
     squared_residuals = [
-        (np.log(float(listing.rentamountadjusted)) - np.log(float(listing.predictedrent)))**2
+        (np.log(float(listing.rent_per_person)) - np.log(float(listing.predictedrent)))**2
         for listing in listings
     ]
     return np.sum(squared_residuals)
@@ -333,7 +333,7 @@ def get_sum_of_squares_regression(db: Session = Depends(get_db)):
     Measures how much of the variance in log(actual) is captured by the predictions.
     """
     listings = db.query(HousingListing).all()
-    log_rents = [np.log(float(listing.rentamountadjusted)) for listing in listings]
+    log_rents = [np.log(float(listing.rent_per_person)) for listing in listings]
     log_preds = [np.log(float(listing.predictedrent)) for listing in listings]
     mean_log_rent = np.mean(log_rents)
     squared_regression_residuals = [(pred - mean_log_rent)**2 for pred in log_preds]
@@ -345,7 +345,7 @@ def get_sum_of_squares_total(db: Session = Depends(get_db)):
     Measures the total variance in log(actual).
     """
     listings = db.query(HousingListing).all()
-    log_rents = [np.log(float(listing.rentamountadjusted)) for listing in listings]
+    log_rents = [np.log(float(listing.rent_per_person)) for listing in listings]
     mean_log_rent = np.mean(log_rents)
     total_squared_errors = [(rent - mean_log_rent)**2 for rent in log_rents]
     return np.sum(total_squared_errors)

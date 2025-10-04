@@ -517,18 +517,24 @@ const hideSuggestions = () => {
  * Fetches Data from API and initializes Map
  */
  onMounted(async () => {
+  const startTime = performance.now();
+  console.log('🚀 Map initialization started');
+
   messageInterval = setInterval(() => {
     messageIndex = (messageIndex + 1) % messages.length;
     loadingMessage.value = messages[messageIndex];
   }, 2500);
 
   try {
+    const mapInitStart = performance.now();
     map.value = L.map("map", {
       center: [42.455, -76.48],
       zoom: 14,
       maxZoom: 20,
     });
+    console.log(`🗺️ Map created: ${(performance.now() - mapInitStart).toFixed(2)}ms`);
 
+    const tileStart = performance.now();
     const JAWG_API_KEY = import.meta.env.VITE_JAWG_API_KEY;
     const tileLayer = L.tileLayer(`https://tile.jawg.io/f67529a2-5ea7-4b7a-81a7-c5147a45b5f0/{z}/{x}/{y}{r}.png?access-token=${JAWG_API_KEY}`, {
       attribution: '<a href="https://jawg.io" target="_blank">&copy; Jawg Maps</a> &copy; OpenStreetMap contributors',
@@ -537,23 +543,53 @@ const hideSuggestions = () => {
       accessToken: JAWG_API_KEY
     });
     tileLayer.addTo(map.value);
+    console.log(`🗺️ Tile layer added: ${(performance.now() - tileStart).toFixed(2)}ms`);
 
-    const [listings, top, bottom, clusters, heat] = await Promise.all([
-      fetchListings(),
-      fetchTopTenListings(),
-      fetchBottomTenListings(),
-      fetchClusters(),
-      fetchHeatMap()
-    ]);
+    const fetchStart = performance.now();
+    console.log('📡 Starting API calls...');
+    
+    // Individual timing for each API call
+    const listingsStart = performance.now();
+    const listings = await fetchListings();
+    console.log(`📊 fetchListings: ${(performance.now() - listingsStart).toFixed(2)}ms`);
+    
+    const topStart = performance.now();
+    const top = await fetchTopTenListings();
+    console.log(`📊 fetchTopTenListings: ${(performance.now() - topStart).toFixed(2)}ms`);
+    
+    const bottomStart = performance.now();
+    const bottom = await fetchBottomTenListings();
+    console.log(`📊 fetchBottomTenListings: ${(performance.now() - bottomStart).toFixed(2)}ms`);
+    
+    const clustersStart = performance.now();
+    const clusters = await fetchClusters();
+    console.log(`📊 fetchClusters: ${(performance.now() - clustersStart).toFixed(2)}ms`);
+    
+    const heatStart = performance.now();
+    const heat = await fetchHeatMap();
+    console.log(`📊 fetchHeatMap: ${(performance.now() - heatStart).toFixed(2)}ms`);
+    
+    console.log(`📡 All API calls completed: ${(performance.now() - fetchStart).toFixed(2)}ms`);
+    console.log(`📊 Data received:`, {
+      listings: listings?.length || 0,
+      top: top?.length || 0,
+      bottom: bottom?.length || 0,
+      clusters: clusters?.length || 0,
+      heat: heat?.length || 0
+    });
 
-    // Store values and add to map
     allListings.value = listings;
     topTenListings.value = top;
     bottomTenListings.value = bottom;
     clusteredListings.value = clusters;
     heatmapData.value = heat;
 
+    const markersStart = performance.now();
     addMarkers(listings, false);
+    console.log(`📍 Markers added: ${(performance.now() - markersStart).toFixed(2)}ms`);
+
+    const totalTime = performance.now() - startTime;
+    console.log(`✅ Map fully loaded in: ${totalTime.toFixed(2)}ms`);
 
   } catch (error) {
     console.error("Error loading data:", error);
