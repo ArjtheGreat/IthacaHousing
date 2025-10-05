@@ -177,7 +177,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
-import { fetchListings, fetchTopTenListings, fetchBottomTenListings, fetchClusters, fetchHeatMap, fetchBedFilter, fetchBathFilter, fetchWalkFilter, fetchTransitFilter, fetchPetsFilter, fetchRentListings, fetchRoomToRentListings, fetchSharedListings } from "@/services/fetch";
+import { fetchListings, fetchListing, fetchListingsMinimal, fetchTopTenListings, fetchBottomTenListings, fetchClusters, fetchHeatMap, fetchBedFilter, fetchBathFilter, fetchWalkFilter, fetchTransitFilter, fetchPetsFilter, fetchRentListings, fetchRoomToRentListings, fetchSharedListings } from "@/services/fetch";
 import NavBar from "@/components/NavBar.vue";
 import RentalSidebar from "@/components/RentalSidebar.vue";
 import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
@@ -412,11 +412,15 @@ function addMarkers(listings, filtered) {
         }).addTo(map.value);
 
 
-        marker.on("click", () => {
-            selectedListing.value = listing;
-            highlightSelectedMarker(listing);
-            currentRoute.value = plotRoute(listing).addTo(map.value);
-            isSidebarVisible.value = true;
+        marker.on("click", async () => {
+            // Load full listing data when clicked
+            const fullListing = await fetchListing(listing.listingid);
+            if (fullListing) {
+                selectedListing.value = fullListing;
+                highlightSelectedMarker(listing);
+                currentRoute.value = plotRoute(fullListing).addTo(map.value);
+                isSidebarVisible.value = true;
+            }
         });
 
         markers.value.push(marker); 
@@ -542,18 +546,21 @@ const handleSearchInput = () => {
   highlightedIndex.value = -1;
 };
 
-const selectSuggestion = (suggestion) => {
+const selectSuggestion = async (suggestion) => {
   showSuggestions.value = false;
   
   // Center map on the selected listing (without zooming)
   if (suggestion.listing && suggestion.listing.latitude && suggestion.listing.longitude) {
     map.value.setView([suggestion.listing.latitude, suggestion.listing.longitude], map.value.getZoom());
     
-    selectedListing.value = suggestion.listing;
-    console.log(suggestion.listing)
-    highlightSelectedMarker(suggestion.listing);
-    currentRoute.value = plotRoute(suggestion.listing).addTo(map.value);
-    isSidebarVisible.value = true;
+    // Load full listing data when selected from search
+    const fullListing = await fetchListing(suggestion.listing.listingid);
+    if (fullListing) {
+      selectedListing.value = fullListing;
+      highlightSelectedMarker(suggestion.listing);
+      currentRoute.value = plotRoute(fullListing).addTo(map.value);
+      isSidebarVisible.value = true;
+    }
 
     // clear Text
     searchQuery.value = ""
@@ -605,8 +612,8 @@ const hideSuggestions = () => {
     
     // Individual timing for each API call
     const listingsStart = performance.now();
-    const listings = await fetchListings();
-    console.log(`📊 fetchListings: ${(performance.now() - listingsStart).toFixed(2)}ms`);
+    const listings = await fetchListingsMinimal();
+    console.log(`📊 fetchListingsMinimal: ${(performance.now() - listingsStart).toFixed(2)}ms`);
     
     const topStart = performance.now();
     const top = await fetchTopTenListings();

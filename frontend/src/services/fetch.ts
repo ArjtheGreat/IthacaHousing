@@ -21,6 +21,24 @@ export const fetchListings = async (): Promise<Listing[]> => {
     }
 };
 
+/**
+ * Fetches minimal listing data for map display - only essential fields
+ * @returns Minimal listing data with only latitude, longitude, rent_per_person, rentamount, predictedrent
+ */
+export const fetchListingsMinimal = async (): Promise<any[]> => {
+    try {
+        const response: AxiosResponse<any[]> = await axios.get(`${baseURL}/listings-minimal/`);
+        if (response.status === 200) {
+            return response.data; 
+        } else {
+            throw new Error(`Unexpected status code: ${response.status}`);
+        }
+    } catch (error) {
+        console.error("Error fetching minimal listings:", error);
+        return []; 
+    }
+};
+
 
 /**
  * Fetches listing with specific ID from PostgreSQL Database

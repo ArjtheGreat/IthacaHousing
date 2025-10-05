@@ -60,6 +60,41 @@ def get_listings(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e) + "\n" + traceback.format_exc())
 
+@app.get("/listings-minimal/")
+def get_listings_minimal(db: Session = Depends(get_db)):
+    """
+    Gets minimal listing data for map display - only essential fields
+    """
+    try:
+        listings = db.query(
+            HousingListing.listingid,
+            HousingListing.listingaddress,
+            HousingListing.listingcity,
+            HousingListing.latitude,
+            HousingListing.longitude,
+            HousingListing.rent_per_person,
+            HousingListing.bedrooms,
+            HousingListing.rentamount,
+            HousingListing.predictedrent,
+        ).all()
+        
+        return [
+            {
+                "listingid": listing.listingid,
+                "listingaddress": listing.listingaddress,
+                "listingcity": listing.listingcity,
+                "latitude": float(listing.latitude) if listing.latitude else None,
+                "longitude": float(listing.longitude) if listing.longitude else None,
+                "rent_per_person": float(listing.rent_per_person) if listing.rent_per_person else None,
+                "rentamount": float(listing.rentamount) if listing.rentamount else None,
+                "bedrooms": float(listing.bedrooms) if listing.bedrooms else None,
+                "predictedrent": float(listing.predictedrent) if listing.predictedrent else None
+            }
+            for listing in listings
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e) + "\n" + traceback.format_exc())
+
 
 @app.get("/top-ten-listings/")
 def get_top_ten_listings(db: Session = Depends(get_db)):
