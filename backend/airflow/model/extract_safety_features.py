@@ -63,13 +63,21 @@ def calculate_safety_score(apartments_for_rent):
 
     apartments_for_rent = pd.concat([apartments_for_rent, safety_df], axis=1)
 
-    apartments_for_rent.fillna({
-        "OverallSafetyRating": apartments_for_rent["OverallSafetyRating"].mean(),
-        "HasValidCertificateOfOccupancy": 0,
-        "MeetsMinimumRequirements": 0,
-        "ExceedsRequirements": 0,
-        "HasFireResistantConstructionType": 0,
-        "SatisfiesApplicableCode": 0
-    }, inplace=True)
+    fillna_dict = {}
+    if "overallsafetyratingpct" in apartments_for_rent.columns:
+        fillna_dict["overallsafetyratingpct"] = apartments_for_rent["overallsafetyratingpct"].mean()
+    if "HasValidCertificateOfOccupancy" in apartments_for_rent.columns:
+        fillna_dict["HasValidCertificateOfOccupancy"] = 0
+    if "MeetsMinimumRequirements" in apartments_for_rent.columns:
+        fillna_dict["MeetsMinimumRequirements"] = 0
+    if "ExceedsRequirements" in apartments_for_rent.columns:
+        fillna_dict["ExceedsRequirements"] = 0
+    if "HasFireResistantConstructionType" in apartments_for_rent.columns:
+        fillna_dict["HasFireResistantConstructionType"] = 0
+    if "SatisfiesApplicableCode" in apartments_for_rent.columns:
+        fillna_dict["SatisfiesApplicableCode"] = 0
+    
+    if fillna_dict:
+        apartments_for_rent.fillna(fillna_dict, inplace=True)
     
     return apartments_for_rent

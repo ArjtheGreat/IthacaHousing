@@ -67,7 +67,7 @@
                         <div class="rent-label-small">per person</div>
                     </div>
                     <div class="rent-per-person-section">
-                        <div class="per-person-amount">${{ listing?.rent_per_person ? listing.rent_per_person.toFixed(2) : 'N/A' }}</div>
+                        <div class="per-person-amount">${{ listing?.total_rent_amount ? listing.total_rent_amount.toFixed(2) : 'N/A' }}</div>
                         <div class="per-person-label">Total Rent (<span class="people-count">{{ listing?.num_people || 'N/A' }} {{ (listing?.num_people === 1) ? 'person' : 'people' }} </span>)</div>
                     </div>
                 </div>

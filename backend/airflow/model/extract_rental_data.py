@@ -171,5 +171,6 @@ def extract_rental_data(apartments_for_rent):
     extracted_df = pd.json_normalize(apartments_for_rent["extracted_rental_data"])
 
     apartments_for_rent = pd.concat([apartments_for_rent, extracted_df], axis=1)
+    apartments_for_rent["total_rent_amount"] = apartments_for_rent["rent_per_person"]*apartments_for_rent["num_people"]
 
     return apartments_for_rent

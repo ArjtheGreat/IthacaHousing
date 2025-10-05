@@ -75,6 +75,7 @@ def get_listings_minimal(db: Session = Depends(get_db)):
             HousingListing.rent_per_person,
             HousingListing.bedrooms,
             HousingListing.rentamount,
+            HousingListing.total_rent_amount,
             HousingListing.predictedrent,
         ).all()
         
@@ -88,6 +89,7 @@ def get_listings_minimal(db: Session = Depends(get_db)):
                 "rent_per_person": float(listing.rent_per_person) if listing.rent_per_person else None,
                 "rentamount": float(listing.rentamount) if listing.rentamount else None,
                 "bedrooms": float(listing.bedrooms) if listing.bedrooms else None,
+                "total_rent_amount": float(listing.total_rent_amount) if listing.total_rent_amount else None,
                 "predictedrent": float(listing.predictedrent) if listing.predictedrent else None
             }
             for listing in listings

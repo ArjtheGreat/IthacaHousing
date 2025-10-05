@@ -66,5 +66,5 @@ def serialize_listing(listing):
         "nearest_neighbor_listingids": listing.nearest_neighbor_listingids,
         "rent_per_person": safe_float(listing.rent_per_person),
         "num_people": safe_float(listing.num_people),
-        
+        "total_rent_amount": safe_float(listing.total_rent_amount),
     }
