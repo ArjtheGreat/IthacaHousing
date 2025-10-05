@@ -77,7 +77,6 @@ backend/
     transit_score: numeric     # Transit accessibility score
     amenities_score: numeric   # Nearby amenities score
     overallsafetyratingpct: numeric  # Safety rating percentage
-    rentamountadjusted: numeric      # Log-transformed rent
     predictedrent: numeric     # ML-predicted rent
     differenceinfairvalue: numeric   # Predicted - Actual rent
     nearest_neighbor_listingids: text  # CMA neighbor IDs

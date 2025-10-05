@@ -60,7 +60,6 @@ def serialize_listing(listing):
         "transit_score": safe_float(listing.transit_score),
         "amenities_score": safe_float(listing.amenities_score),
         "overallsafetyratingpct": safe_float(listing.overallsafetyratingpct),
-        "rentamountadjusted": safe_float(listing.rentamountadjusted),
         "predictedrent": safe_float(listing.predictedrent),
         "differenceinfairvalue": safe_float(listing.differenceinfairvalue),
         "predicted_rent_cma": safe_float(listing.predicted_rent_cma),

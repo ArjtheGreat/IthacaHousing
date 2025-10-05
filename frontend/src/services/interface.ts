@@ -11,7 +11,6 @@ export interface Listing {
     longitude: number;
     listingphotos: String;
     differenceInFairValue: number;
-    rentAmountAdjusted: number;
     listingaddress: Text;
     amenities_score: number,
     walk_time: number,

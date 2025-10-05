@@ -131,7 +131,7 @@ best_model = select_best_model(
 
 #### y (Target)
 ```python
-"RentAmountAdjusted"  # Log-transformed rent
+"rent_per_person"  # Log-transformed rent
 ```
 
 ### Spatial Features

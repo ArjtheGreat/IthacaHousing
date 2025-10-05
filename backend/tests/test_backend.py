@@ -108,7 +108,6 @@ def mock_listings(n: int = 10) -> List[HousingListing]:
             housingtype=random.choice(housing_types),
             renttype="Monthly",
             rentamount=rent_amount,
-            rentamountadjusted=rent_amount,
             predictedrent=predicted_rent,
             differenceinfairvalue=predicted_rent - rent_amount,
             predicted_rent_cma=round(random.uniform(800, 3000), 2),

@@ -538,7 +538,7 @@ const handleSearchInput = () => {
     .map(listing => ({
       address: `${listing.listingaddress}, ${listing.listingcity}`,
       bedrooms: listing.bedrooms || 'N/A',
-      rent: listing.rent_per_person || listing.rentamountadjusted || listing.rentamount || 'N/A',
+      rent: listing.rent_per_person || listing.rentamount || 'N/A',
       listing: listing
     }));
   

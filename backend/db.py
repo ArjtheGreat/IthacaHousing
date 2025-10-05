@@ -57,7 +57,6 @@ class HousingListing(Base):
     transit_score = Column(Numeric)
     amenities_score = Column(Numeric)
     overallsafetyratingpct = Column(Numeric)
-    rentamountadjusted = Column(Numeric)
     predictedrent = Column(Numeric)
     differenceinfairvalue = Column(Numeric)
     predicted_rent_cma = Column(Numeric)
