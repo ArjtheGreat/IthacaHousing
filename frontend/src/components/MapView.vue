@@ -186,7 +186,9 @@ import "leaflet.heat";
 const map = ref(null); // Holds the ref for the map
 const isSidebarVisible = ref(false); // Toggle state for whether the Rental Sidebar is visible or not
 const selectedListing = ref(null); // Holds the prop state for the selected listing to pass to RentalSidebar
+const selectedMarker = ref(null); // Holds the currently selected marker for highlighting
 const markers = ref([]); // Store all markers
+const dispersedListings = ref([]); // Store dispersed listings for search matching
 const allListings = ref([]); // Store all listings
 const topTenListings = ref([]); // Store top 10 listings
 const bottomTenListings = ref([]); // Store bottom 10 listings
@@ -286,6 +288,55 @@ function changeTab(tab) {
 }
 
 /**
+ * Clears all marker highlights
+ */
+function clearAllHighlights() {
+    markers.value.forEach(marker => {
+        if (marker.options.originalRadius) {
+            marker.setStyle({
+                weight: 2,
+                radius: marker.options.originalRadius,
+                color: marker.options.originalColor || marker.options.fillColor,
+                fillColor: marker.options.fillColor
+            });
+        }
+    });
+    selectedMarker.value = null;
+}
+
+/**
+ * Highlights the selected marker
+ */
+function highlightSelectedMarker(listing) {
+    // Clear ALL highlights first
+    clearAllHighlights();
+
+    // Find and highlight the new marker
+    const marker = markers.value.find(m => 
+        m.getLatLng().lat === listing.displayLat && 
+        m.getLatLng().lng === listing.displayLng
+    );
+
+    console.log(listing.displayLat, listing.displayLng)
+
+    
+    if (marker) {
+        selectedMarker.value = marker;
+        // Store original properties if not already stored
+        if (!marker.options.originalRadius) {
+            marker.options.originalRadius = marker.options.radius;
+            marker.options.originalColor = marker.options.color;
+        }
+        marker.setStyle({
+            weight: 4,
+            radius: marker.options.originalRadius + 5,
+            color: '#124a10',
+            fillColor: marker.options.fillColor
+        });
+    }
+}
+
+/**
  * Group listings by exact coordinates and apply dispersion offset
  */
 function groupListingsByLocation(listings) {
@@ -344,9 +395,10 @@ function addMarkers(listings, filtered) {
     }
 
     // Apply dispersion to overlapping listings
-    const dispersedListings = groupListingsByLocation(listings);
+    const dispersed = groupListingsByLocation(listings);
+    dispersedListings.value = dispersed; // Store for search matching
 
-    dispersedListings.forEach(listing => {
+    dispersed.forEach(listing => {
         const color = getColor(listing.rent_per_person, listing.predictedrent);
 
         const marker = L.circleMarker([listing.displayLat, listing.displayLng], {
@@ -362,6 +414,7 @@ function addMarkers(listings, filtered) {
 
         marker.on("click", () => {
             selectedListing.value = listing;
+            highlightSelectedMarker(listing);
             currentRoute.value = plotRoute(listing).addTo(map.value);
             isSidebarVisible.value = true;
         });
@@ -466,7 +519,7 @@ const handleSearchInput = () => {
   }
   
   const query = searchQuery.value.toLowerCase();
-  const suggestions = allListings.value
+  const suggestions = dispersedListings.value
     .map(listing => ({
       ...listing,
       score: Math.max(
@@ -497,6 +550,8 @@ const selectSuggestion = (suggestion) => {
     map.value.setView([suggestion.listing.latitude, suggestion.listing.longitude], map.value.getZoom());
     
     selectedListing.value = suggestion.listing;
+    console.log(suggestion.listing)
+    highlightSelectedMarker(suggestion.listing);
     currentRoute.value = plotRoute(suggestion.listing).addTo(map.value);
     isSidebarVisible.value = true;
 
@@ -931,6 +986,9 @@ const filterOptions = [
 const closePopup = () => {
     isSidebarVisible.value = false;
     currentRoute.value?.remove();
+    
+    // Clear all marker highlights
+    clearAllHighlights();
 };
 
 /**
