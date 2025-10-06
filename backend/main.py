@@ -23,7 +23,8 @@ import numpy as np
 import os
 from pathlib import Path
 import sys
-from decimal import Decimal
+from sqlalchemy import text
+
 
 app = FastAPI()
 
@@ -63,39 +64,31 @@ def get_listings(db: Session = Depends(get_db)):
 @app.get("/listings-minimal/")
 def get_listings_minimal(db: Session = Depends(get_db)):
     """
-    Gets minimal listing data for map display - only essential fields
+    Get minimal listing data for entire dataset — optimized raw SQL version.
     """
     try:
-        listings = db.query(
-            HousingListing.listingid,
-            HousingListing.listingaddress,
-            HousingListing.listingcity,
-            HousingListing.latitude,
-            HousingListing.longitude,
-            HousingListing.rent_per_person,
-            HousingListing.bedrooms,
-            HousingListing.rentamount,
-            HousingListing.total_rent_amount,
-            HousingListing.predictedrent,
-        ).all()
-        
-        return [
-            {
-                "listingid": listing.listingid,
-                "listingaddress": listing.listingaddress,
-                "listingcity": listing.listingcity,
-                "latitude": float(listing.latitude) if listing.latitude else None,
-                "longitude": float(listing.longitude) if listing.longitude else None,
-                "rent_per_person": float(listing.rent_per_person) if listing.rent_per_person else None,
-                "rentamount": float(listing.rentamount) if listing.rentamount else None,
-                "bedrooms": float(listing.bedrooms) if listing.bedrooms else None,
-                "total_rent_amount": float(listing.total_rent_amount) if listing.total_rent_amount else None,
-                "predictedrent": float(listing.predictedrent) if listing.predictedrent else None
-            }
-            for listing in listings
-        ]
+        query = text("""
+            SELECT 
+                listingid,
+                listingaddress,
+                listingcity,
+                latitude,
+                longitude,
+                rent_per_person,
+                bedrooms,
+                rentamount,
+                total_rent_amount,
+                predictedrent
+            FROM housing_listings
+            WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+        """)
+
+        rows = db.execute(query).mappings().all()
+        return [dict(row) for row in rows]
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e) + "\n" + traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.get("/top-ten-listings/")
