@@ -120,7 +120,7 @@
 
     <!-- Map Container -->
     <div class="relative flex z-[0] border-b-2 border-black overflow-hidden">
-      <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" :listing="selectedListing" v-if="isSidebarVisible" />
+      <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" @select-listing="selectListingFromSidebar" :listing="selectedListing" v-if="isSidebarVisible" />
 
       <!-- Address Search Bar -->
       <div class="search-container">
@@ -311,13 +311,21 @@ function highlightSelectedMarker(listing) {
     // Clear ALL highlights first
     clearAllHighlights();
 
-    // Find and highlight the new marker
-    const marker = markers.value.find(m => 
-        m.getLatLng().lat === listing.displayLat && 
-        m.getLatLng().lng === listing.displayLng
-    );
+    // Use displayLat/displayLng if available, otherwise fall back to latitude/longitude
+    const lat = listing.displayLat || listing.latitude;
+    const lng = listing.displayLng || listing.longitude;
 
-    console.log(listing.displayLat, listing.displayLng)
+    // Find and highlight the new marker (with small tolerance for floating point precision)
+    const marker = markers.value.find(m => {
+        const markerLat = m.getLatLng().lat;
+        const markerLng = m.getLatLng().lng;
+        const latDiff = Math.abs(markerLat - lat);
+        const lngDiff = Math.abs(markerLng - lng);
+        return latDiff < 0.0001 && lngDiff < 0.0001; // Very small tolerance
+    });
+
+    console.log('Looking for marker at:', lat, lng);
+    console.log('Available markers:', markers.value.length);
 
     
     if (marker) {
@@ -1006,6 +1014,21 @@ const closePopup = () => {
 */
 const zoomToListing = (coords) => {
     map.value.setView([coords.lat, coords.lng], 16);
+};
+
+/**
+ * Selects a listing from the sidebar (e.g., when clicking "View More" on similar listings)
+ * @param listing - The listing to select
+ */
+const selectListingFromSidebar = async (listing) => {
+    // Load full listing data
+    const fullListing = await fetchListing(listing.listingid);
+    if (fullListing) {
+        selectedListing.value = fullListing;
+        highlightSelectedMarker(listing);
+        currentRoute.value = plotRoute(fullListing).addTo(map.value);
+        isSidebarVisible.value = true;
+    }
 };
 
 /**

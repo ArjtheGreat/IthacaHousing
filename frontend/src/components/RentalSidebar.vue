@@ -46,7 +46,7 @@
                             <div class="tooltip-title">How Rent Comparison Works</div>
                             <div class="tooltip-text">
                                 <strong>Actual Rent</strong> is what the landlord is asking for.<br><br>
-                                <strong>Predicted Rent</strong> is what our AI model considers fair based on the listing's attributes (location, amenities, size, etc.).<br><br>
+                                <strong>Predicted Rent</strong> is what our proprietary machine learning model considers fair based on the listing's attributes (location, amenities, size, etc.).<br><br>
                                 <strong>If predicted rent > actual rent:</strong> The listing is <span class="tooltip-green">underpriced</span> because you are paying less than what the model considers fair - AKA, you're getting a good deal!<br><br>
                                 <strong>If predicted < actual:</strong> The listing is <span class="tooltip-red">overpriced</span> because you are paying less than what the model considers fair - AKA, you might be paying too much.
                             </div>
@@ -75,11 +75,11 @@
                 <!-- Predicted Rent Column -->
                 <div class="rent-column predicted-rent">
                     <div class="rent-column-header">
-                        <span class="column-label">Fair Rent</span>
+                        <span class="column-label">Fair Rent Estimation</span>
                     </div>
                     <div class="rent-total-section">
                         <div class="rent-amount-large predicted-amount">${{ listing?.predictedrent ? listing.predictedrent.toFixed(2) : 'N/A' }}</div>
-                        <div class="rent-label-small">per person (Predicted using AI)</div>
+                        <div class="rent-label-small">per person</div>
                     </div>
                     <div class="prediction-difference">
                         <div class="difference-badge" :class="{
@@ -87,7 +87,7 @@
                             'badge-underpriced': percentChange > 0,
                             'badge-fair': percentChange === 0
                         }">
-                            <span class="difference-arrow">{{ percentChange > 0 ? '🔼' : (percentChange < 0 ? '🔻' : '⚖') }}</span>
+                            <span class="difference-arrow"></span>
                             <span class="difference-percent">{{ Math.abs(percentChange).toFixed(1) }}%</span>
                             <span class="difference-label">{{ percentChange > 0 ? 'Underpriced' : (percentChange < 0 ? 'Overpriced' : 'Fair Price') }}</span>
                         </div>
@@ -323,7 +323,7 @@
                     </div>
                     <div class="rent-total-section">
                         <div class="rent-amount-large predicted-amount">${{ listing?.predicted_rent_cma ? listing.predicted_rent_cma.toFixed(2) : 'N/A' }}</div>
-                        <div class="rent-label-small">per person (Market Average)</div>
+                        <div class="rent-label-small">per person</div>
                     </div>
                     <div class="prediction-difference">
                         <div class="difference-badge" :class="{
@@ -331,7 +331,7 @@
                             'badge-underpriced': listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) < 0,
                             'badge-fair': listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) === 0
                         }">
-                            <span class="difference-arrow">{{ listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) < 0 ? '🔼' : (listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) > 0 ? '🔻' : '⚖') }}</span>
+                            <span class="difference-arrow"></span>
                             <span class="difference-percent">{{ listing?.rent_per_person && listing?.predicted_rent_cma ? Math.abs(((listing.rent_per_person - listing.predicted_rent_cma) / listing.predicted_rent_cma) * 100).toFixed(1) : '0.0' }}%</span>
                             <span class="difference-label">{{ listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) < 0 ? 'Underpriced' : (listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) > 0 ? 'Overpriced' : 'Fair Price') }}</span>
                         </div>
@@ -401,7 +401,6 @@ const showListingDetails = (listing: Listing) => {
 };
 
 const selectListing = (listing: Listing) => {
-    // Emit to parent to select this listing
     emit('select-listing', listing);
     emit('close'); // Close current sidebar to show selected listing
 };  
@@ -901,7 +900,7 @@ watch<Listing | undefined>(
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
-    align-items: start;
+    align-items: stretch;
 }
 
 .rent-column {
@@ -910,6 +909,7 @@ watch<Listing | undefined>(
     border-radius: 10px;
     padding: 16px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    
 }
 
 .rent-column-header {
@@ -935,19 +935,33 @@ watch<Listing | undefined>(
 .rent-amount-large {
     font-size: 1.8rem;
     font-weight: 700;
-    color: #1f2937;
+    color: #000000;
     line-height: 1;
     margin-bottom: 4px;
 }
 
 .rent-label-small {
     font-size: 0.8rem;
-    color: #6b7280;
+    color: #000000;
     font-weight: 500;
 }
 
+.estimation-text {
+    font-size: 0.7rem;
+    color: #9ca3af;
+    font-style: italic;
+}
+
+.model-credit {
+    font-size: 0.65rem;
+    color: #9ca3af;
+    font-weight: 400;
+    margin-top: 2px;
+    opacity: 0.8;
+}
+
 .predicted-amount {
-    color: #4b5563 !important; /* Neutral color for predicted rent */
+    color: #000000 !important; /* Neutral color for predicted rent */
 }
 
 .rent-per-person-section {

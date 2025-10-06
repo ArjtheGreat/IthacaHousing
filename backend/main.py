@@ -80,11 +80,29 @@ def get_listings_minimal(db: Session = Depends(get_db)):
                 total_rent_amount,
                 predictedrent
             FROM housing_listings
-            WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+            WHERE latitude IS NOT NULL 
+            AND longitude IS NOT NULL
+            AND rent_per_person IS NOT NULL
         """)
 
-        rows = db.execute(query).mappings().all()
-        return [dict(row) for row in rows]
+        result = db.execute(query)
+        rows = result.fetchall()
+        
+        return [
+            {
+                "listingid": row[0],
+                "listingaddress": row[1],
+                "listingcity": row[2],
+                "latitude": float(row[3]) if row[3] else None,
+                "longitude": float(row[4]) if row[4] else None,
+                "rent_per_person": float(row[5]) if row[5] else None,
+                "bedrooms": float(row[6]) if row[6] else None,
+                "rentamount": float(row[7]) if row[7] else None,
+                "total_rent_amount": float(row[8]) if row[8] else None,
+                "predictedrent": float(row[9]) if row[9] else None
+            }
+            for row in rows
+        ]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
