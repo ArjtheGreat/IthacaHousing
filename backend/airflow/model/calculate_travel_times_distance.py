@@ -55,7 +55,7 @@ def compute_all_travel_times(apartments_for_rent, graphs):
             continue
 
         for ref in CAMPUS_POINTS:
-            ref_name = ref["name"].replace(" ", "")
+            ref_name = ref["name"].replace(" ", "").lower() 
             ref_lat, ref_lon = ref["lat"], ref["lon"]
             print(f"  → Computing travel times to {ref['name']}")
 
@@ -66,18 +66,20 @@ def compute_all_travel_times(apartments_for_rent, graphs):
                 apartments_for_rent[f"{mode}_time_{ref_name}"] = [None]*len(apartments_for_rent)
                 continue
 
-            times = []
-            for apt_node in apartment_nodes:
+            times = [None] * len(apartments_for_rent)
+            
+            valid_indices = apartments_for_rent.index[valid_mask]
+            for i, apt_node in enumerate(apartment_nodes):
                 try:
                     time_min = nx.shortest_path_length(G, apt_node, ref_node, weight="travel_time") / 60
                     if mode == "drive":
                         time_min *= 1.8
-                    times.append(round(time_min, 2))
+                    times[valid_indices[i]] = round(time_min, 2)
                 except (nx.NetworkXNoPath, nx.NodeNotFound):
-                    times.append(None)
+                    times[valid_indices[i]] = None
                 except Exception as e:
                     print(f"❌ Failed route to {ref['name']}: {e}")
-                    times.append(None)
+                    times[valid_indices[i]] = None
 
             apartments_for_rent[f"{mode}_time_{ref_name}"] = times
 

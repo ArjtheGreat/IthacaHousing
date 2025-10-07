@@ -1904,20 +1904,12 @@ watch<Listing | undefined>(
     color: #374151;
 }
 
-.quad-times {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;                /* ensures consistent width in each column */
-}
-
-/* each row perfectly balanced */
 .time-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 28px 1fr;   /* fixed icon column + flexible text */
   align-items: center;
-  justify-content: space-between;   /* icon left, time right */
   background: #f8fafc;
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid #e2e8f0;
   font-size: 0.9rem;
@@ -1929,36 +1921,23 @@ watch<Listing | undefined>(
   box-sizing: border-box;
 }
 
-/* icons stay fixed width — alignment never drifts */
 .time-item i {
   font-size: 1.1rem;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-/* text (the time) right-aligned */
 .time-item span {
-  flex: 1;
-  text-align: right;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
   font-size: 0.9rem;
   font-weight: 600;
-}
-
-/* optional: ensure all cards line up in a grid row */
-.accessibility-container {
+  color: #1f2937;
   display: flex;
-  gap: 20px;
-  align-items: stretch;
-  justify-content: center;
+  align-items: center;
 }
-
 
 /* 📌 SIMILAR LISTINGS SECTION */
 .popup-similar-listings {
