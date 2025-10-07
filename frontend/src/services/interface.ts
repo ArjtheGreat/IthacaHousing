@@ -5,8 +5,8 @@ export interface Listing {
     id: number;
     address: string;
     price: number;
-    bedrooms: number;
-    bathrooms: number;
+    available_bedrooms: number;
+    available_bathrooms: number;
     latitude: number;
     longitude: number;
     listingphotos: String;

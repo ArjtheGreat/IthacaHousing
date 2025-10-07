@@ -75,7 +75,7 @@ def get_listings_minimal(db: Session = Depends(get_db)):
                 latitude,
                 longitude,
                 rent_per_person,
-                bedrooms,
+                available_bedrooms,
                 rentamount,
                 total_rent_amount,
                 predictedrent
@@ -96,7 +96,7 @@ def get_listings_minimal(db: Session = Depends(get_db)):
                 "latitude": float(row[3]) if row[3] else None,
                 "longitude": float(row[4]) if row[4] else None,
                 "rent_per_person": float(row[5]) if row[5] else None,
-                "bedrooms": float(row[6]) if row[6] else None,
+                "available_bedrooms": float(row[6]) if row[6] else None,
                 "rentamount": float(row[7]) if row[7] else None,
                 "total_rent_amount": float(row[8]) if row[8] else None,
                 "predictedrent": float(row[9]) if row[9] else None
@@ -225,9 +225,9 @@ def get_listing_baths(n_baths: int, db: Session = Depends(get_db)):
     if n_baths == 0:
         listings = db.query(HousingListing).all()
     elif n_baths != 3:
-        listings = db.query(HousingListing).filter(HousingListing.bathrooms==n_baths).all()
+        listings = db.query(HousingListing).filter(HousingListing.available_bathrooms==n_baths).all()
     else:
-        listings = db.query(HousingListing).filter(HousingListing.bathrooms>=n_baths).all()
+        listings = db.query(HousingListing).filter(HousingListing.available_bathrooms>=n_baths).all()
     if not listings:
         raise HTTPException(status_code=404, detail="Listing not found")
     return [serialize_listing(listing) for listing in listings]

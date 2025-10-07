@@ -3,57 +3,83 @@ import osmnx as ox
 import shapely
 from shapely import MultiLineString
 
+CAMPUS_POINTS = [
+    {"name": "Uris Hall",        "lat": 42.4472,   "lon": -76.4822 },
+    {"name": "Agriculture Quad", "lat": 42.448796, "lon": -76.478018},
+    {"name": "Arts Quad",        "lat": 42.448966, "lon": -76.484175},
+    {"name": "Engineering Quad", "lat": 42.444668, "lon": -76.482570},
+]
 
-uris_lat, uris_lon = 42.4475, -76.4836
-
-def get_graph_and_uris_node(mode, dist, uris_lat, uris_lon):
+def build_graphs(dist=2000, center_lat=42.4472, center_lon=-76.4822):
     """
-    Creates graph from ithaca street network and identifies connections from starting node to uris
+    Builds graphs using NetworkX for different modes (walk, bike, drive)
     """
-    G = ox.graph_from_point((uris_lat, uris_lon), dist=dist, network_type=mode)
+    modes = ["walk", "bike", "drive"]
+    graphs = {}
 
-    speed_kph = {'walk': 3.5, 'bike': 10, 'drive': 25}[mode]
-    for u, v, k, data in G.edges(keys=True, data=True):
-        data["speed_kph"] = speed_kph
-    G = ox.add_edge_travel_times(G)
+    for mode in modes:
+        try:
+            print(f"Building base {mode} graph…")
+            G = ox.graph_from_point((center_lat, center_lon), dist=dist, network_type=mode)
+            speed_kph = {'walk': 3.5, 'bike': 10, 'drive': 25}[mode]
+            for _, _, _, data in G.edges(keys=True, data=True):
+                data["speed_kph"] = speed_kph
+            G = ox.add_edge_travel_times(G)
+            graphs[mode] = G
+        except Exception as e:
+            print(f"⚠️ Failed to build {mode} graph: {e}")
+            graphs[mode] = None
+    return graphs
 
-    uris_node = ox.distance.nearest_nodes(G, uris_lon, uris_lat)
-    return G, uris_node
 
-def compute_all_travel_times(apartments_for_rent,  dist=2000):
+def compute_all_travel_times(apartments_for_rent, graphs):
     """
-    Computes travel times for all three modes using OSMNX
+    Iterates through each mode graph and for each reference point calculates the time for each mode from each apartment 
     """
-    for mode in ['walk', 'bike', 'drive']:
-        print(f"Processing mode: {mode}")
-        G, uris_node = get_graph_and_uris_node(mode, dist, uris_lat, uris_lon)
-        times = []
-        routes = []
+    for mode, G in graphs.items():
+        if G is None:
+            print(f"⚠️ No {mode} graph available — skipping.")
+            continue
 
-        apartment_nodes = ox.distance.nearest_nodes(G, apartments_for_rent['longitude'], apartments_for_rent['latitude'])
+        print(f"\n🚶‍♂️ Processing mode: {mode}")
 
-        for apt_node in apartment_nodes:
+        try:
+            valid_mask = apartments_for_rent["longitude"].notna() & apartments_for_rent["latitude"].notna()
+            apartment_nodes = ox.distance.nearest_nodes(
+                G,
+                apartments_for_rent.loc[valid_mask, "longitude"],
+                apartments_for_rent.loc[valid_mask, "latitude"]
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to map apartment nodes for {mode}: {e}")
+            continue
+
+        for ref in CAMPUS_POINTS:
+            ref_name = ref["name"].replace(" ", "")
+            ref_lat, ref_lon = ref["lat"], ref["lon"]
+            print(f"  → Computing travel times to {ref['name']}")
+
             try:
-                route = nx.shortest_path(G, apt_node, uris_node, weight="travel_time")
-                G_proj = ox.project_graph(G)
-                route_gdf = ox.routing.route_to_gdf(G_proj, route)
-                route_gdf = route_gdf.to_crs("EPSG:4326")
-                lines = list(route_gdf["geometry"])
+                ref_node = ox.distance.nearest_nodes(G, ref_lon, ref_lat)
+            except Exception as e:
+                print(f"⚠️ Could not find {ref['name']} node: {e}")
+                apartments_for_rent[f"{mode}_time_{ref_name}"] = [None]*len(apartments_for_rent)
+                continue
 
-                multi_line = MultiLineString(lines)
+            times = []
+            for apt_node in apartment_nodes:
+                try:
+                    time_min = nx.shortest_path_length(G, apt_node, ref_node, weight="travel_time") / 60
+                    if mode == "drive":
+                        time_min *= 1.8
+                    times.append(round(time_min, 2))
+                except (nx.NetworkXNoPath, nx.NodeNotFound):
+                    times.append(None)
+                except Exception as e:
+                    print(f"❌ Failed route to {ref['name']}: {e}")
+                    times.append(None)
 
-                merged_line = shapely.line_merge(multi_line)
-  
-                time_min = sum(G[u][v][k]["travel_time"] for u, v, k in zip(route[:-1], route[1:], [0]*len(route)))
-                if mode == "drive":
-                    time_min *= 1.8
-                times.append(round(time_min / 60, 2))
-                routes.append(merged_line)
-            except (nx.NetworkXNoPath, nx.NodeNotFound):
-                times.append(None)
-                routes.append(None)  # Add None to routes list to match length
-
-        apartments_for_rent[f"{mode}_time"] = times
-        apartments_for_rent[f"{mode}_routes"] = routes
+            apartments_for_rent[f"{mode}_time_{ref_name}"] = times
 
     return apartments_for_rent
+

@@ -76,7 +76,16 @@ def psql_insert_copy(df):
         lambda x: json.dumps(x) if isinstance(x, (list, dict)) else x
     )
 
-    df = df[["ListingId", "ListingAddress", "ListingCity", "ListingZip", "CreateDate", "ShortDescription", "RentAmount", "RentType", "Pets", "Amenities", "Bedrooms", "Bathrooms", "available_bedrooms", "available_bathrooms", "HousingType", "latitude", "longitude", "ListingPhotos",  "walk_time", "walk_routes", "bike_time", "bike_routes", "drive_time", "drive_routes", "transit_score", "amenities_score", "overallsafetyratingpct", "PredictedRent", "DifferenceinFairValue", "predicted_rent_cma", "nearest_neighbor_listingIds", "rent_per_person", "num_people", "total_rent_amount"]]
+    base_columns = ["ListingId", "ListingAddress", "ListingCity", "ListingZip", "CreateDate", "ShortDescription", "RentAmount", "RentType", "Pets", "Amenities", "Bedrooms", "Bathrooms", "available_bedrooms", "available_bathrooms", "HousingType", "latitude", "longitude", "ListingPhotos", "walk_routes", "bike_routes", "drive_routes", "transit_score", "amenities_score", "overallsafetyratingpct", "PredictedRent", "DifferenceinFairValue", "predicted_rent_cma", "nearest_neighbor_listingIds", "rent_per_person", "num_people", "total_rent_amount"]
+    
+    new_travel_columns = [
+        "walk_time_urishall", "walk_time_agriculturequad", "walk_time_artsquad", "walk_time_engineeringquad",
+        "bike_time_urishall", "bike_time_agriculturequad", "bike_time_artsquad", "bike_time_engineeringquad", 
+        "drive_time_urishall", "drive_time_agriculturequad", "drive_time_artsquad", "drive_time_engineeringquad"
+    ]
+    
+    available_columns = [col for col in base_columns + new_travel_columns if col in df.columns]
+    df = df[available_columns]
 
     df.columns = (
         df.columns

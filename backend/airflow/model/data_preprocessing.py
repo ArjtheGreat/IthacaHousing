@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 numerical_columns = [
-    "LengthAvailable", "combined_bedrooms_bathrooms", "drive_time", "transit_score", "amenities_score", "overallsafetyratingpct"
+    "LengthAvailable", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score", "overallsafetyratingpct"
 ]
 
 categorical_columns = [
@@ -54,7 +54,7 @@ def median_mode_imputation(X):
                 median = 12  # Default 12 months
             elif col == "combined_bedrooms_bathrooms":
                 median = 3.0  # Default 2 bedrooms + 1 bathroom
-            elif col == "drive_time":
+            elif col == "drive_time_urishall":
                 median = 30  # Default 30 minutes
             elif col == "transit_score":
                 median = 50  # Default middle score

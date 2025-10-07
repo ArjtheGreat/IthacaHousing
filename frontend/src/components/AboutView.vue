@@ -76,7 +76,7 @@ import vivianImg from '@/assets/avatars/vivianguo.jpeg';
 const teamMembers = [
   {
     name: 'Arjun Maitra',
-    role: 'Data Scientist',
+    role: 'Head of Data Science',
     avatar: arjunImg
   },
   {

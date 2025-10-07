@@ -6,114 +6,75 @@
       <div class="spinner"></div>
       <p class="loading-text">{{ loadingMessage }}</p>
     </div>
-    <div class="filter-container">
-      <!-- Tab Navigation -->
-      <div class="tab-header">
-        <button
-          class="tab-button"
-          :class="{ active: activeTab === 'Explore Ithaca' }"
-          @click="changeTab('Explore Ithaca')"
-        >
-          Explore Ithaca
-        </button>
-        <button
-          class="tab-button"
-          :class="{ active: activeTab === 'Personal Taste' }"
-          @click="changeTab('Personal Taste')"
-        >
-          Personal Taste
-        </button>
-      </div>
-
-      <!-- Tab Content -->
-      <div class="tab-content">
-        <!-- Explore Ithaca Tab -->
-        <div v-if="activeTab === 'Explore Ithaca'">
-          <RadioGroup v-model="activeFilter">
-            <RadioGroupLabel class="filter-title">Explore Ithaca</RadioGroupLabel>
-            <div class="radio-options">
-              <RadioGroupOption 
-                as="template" 
-                v-for="option in filterOptions" 
-                :key="option.value" 
-                :value="option.value" 
-                v-slot="{ checked }"
-              >
-                <button 
-                  class="filter-button"
-                  :class="{ active: checked }"
-                  @click="option.action"
-                >
-                  <span class="filter-label">{{ option.label }}</span>
-                  <span v-if="checked" class="checkmark">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="12" fill="white" fill-opacity="0.2"/>
-                      <path d="M7 13l3 3 7-7" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                  </span>
-                </button>
-              </RadioGroupOption>
-            </div>
-          </RadioGroup>
-        </div>
-
-        <!-- Personal Taste Tab -->
-        <div v-if="activeTab === 'Personal Taste'">
-          <h3 class="filter-title">Personal Taste</h3>
-          <div class="personal-filters">
+    <!-- Personal Taste Filters -->
+    <div class="personal-filters-container">
+      <h3 class="filter-title">Personal Preference</h3>
+      <div class="personal-filters">
+        <div class="filter-row">
+          <div class="filter-group">
             <label for="bed-filter" class="filter-label">Beds</label>
             <select id="bed-filter" v-model="selectedBeds" @change="updateBedFilter" class="filter-select">
               <option :value="0">N/A Beds</option>
               <option v-for="n in bedOptions" :key="n" :value="n">{{ n }} Beds</option>
             </select>
+          </div>
 
+          <div class="filter-group">
             <label for="bath-filter" class="filter-label">Baths</label>
             <select id="bath-filter" v-model="selectedBaths" @change="updateBathFilter" class="filter-select">
               <option :value="0">N/A Baths</option>
               <option v-for="n in bathOptions" :key="n" :value="n">{{ n }} Baths</option>
             </select>
-
-            <div class="icon-buttons">
-              <button 
-                @click="toggleWalk" 
-                :class="['icon-button', { active: activeFilters.walk !== null }]"
-              >
-                🚶‍♂️ Walk
-              </button>
-              <button 
-                @click="toggleTransit" 
-                :class="['icon-button', { active: activeFilters.transit !== null }]"
-              >
-                🚌 TCAT
-              </button>
-              <button 
-                @click="togglePets" 
-                :class="['icon-button', { active: activeFilters.pets !== null }]"
-              >
-                🐶 Pets
-              </button>
-            </div>
-            <!-- <div class="icon-buttons">
-              <button 
-                @click="toggleRoomToRent" 
-                :class="['icon-button', { active: activeFilters.roomtorent !== null }]"
-              >
-                🚶‍♂️ Room
-              </button>
-              <button 
-                @click="toggleRent" 
-                :class="['icon-button', { active: activeFilters.rent !== null }]"
-              >
-                🚌 Full
-              </button>
-              <button 
-                @click="toggleShared" 
-                :class="['icon-button', { active: activeFilters.shared !== null }]"
-              >
-                🐶 Shared
-              </button>
-            </div> -->
           </div>
+        </div>
+
+        <div class="filter-row">
+          <div class="filter-group">
+            <label for="location-filter" class="filter-label">Location</label>
+            <select id="location-filter" v-model="selectedLocation" @change="updateLocationFilter" class="filter-select">
+              <option value="">Any Location</option>
+              <option value="Collegetown">Collegetown</option>
+              <option value="Commons">Commons</option>
+              <option value="Downtown">Downtown</option>
+              <option value="Fall Creek">Fall Creek</option>
+              <option value="Belle Sherman">Belle Sherman</option>
+              <option value="South Hill">South Hill</option>
+              <option value="Northside">Northside</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="vibe-filter" class="filter-label">Vibe</label>
+            <select id="vibe-filter" v-model="selectedVibe" @change="updateVibeFilter" class="filter-select">
+              <option value="">Any Vibe</option>
+              <option value="Modern">Modern</option>
+              <option value="Historic">Historic</option>
+              <option value="Student">Student</option>
+              <option value="Family">Family</option>
+              <option value="Luxury">Luxury</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="icon-buttons">
+          <!-- <button 
+            @click="toggleWalk" 
+            :class="['icon-button', { active: activeFilters.walk !== null }]"
+          >
+            🚶‍♂️ Walk
+          </button>
+          <button 
+            @click="toggleTransit" 
+            :class="['icon-button', { active: activeFilters.transit !== null }]"
+          >
+            🚌 TCAT
+          </button> -->
+          <button 
+            @click="togglePets" 
+            :class="['icon-button', { active: activeFilters.pets !== null }]"
+          >
+            🐶 Pets
+          </button>
         </div>
       </div>
     </div>
@@ -143,7 +104,7 @@
               :class="{ highlighted: index === highlightedIndex }"
             >
               <div class="suggestion-address">{{ suggestion.address }}</div>
-              <div class="suggestion-details">{{ suggestion.bedrooms }} bed • ${{ suggestion.rent }}</div>
+              <div class="suggestion-details">{{ suggestion.available_bedrooms }} bed • ${{ suggestion.rent }}</div>
             </div>
           </div>
         </div>
@@ -182,6 +143,7 @@ import NavBar from "@/components/NavBar.vue";
 import RentalSidebar from "@/components/RentalSidebar.vue";
 import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
 import "leaflet.heat";
+import "@fortawesome/fontawesome-svg-core/styles.css";
 
 const map = ref(null); // Holds the ref for the map
 const isSidebarVisible = ref(false); // Toggle state for whether the Rental Sidebar is visible or not
@@ -189,27 +151,30 @@ const selectedListing = ref(null); // Holds the prop state for the selected list
 const selectedMarker = ref(null); // Holds the currently selected marker for highlighting
 const markers = ref([]); // Store all markers
 const dispersedListings = ref([]); // Store dispersed listings for search matching
+const cornellBoundaryLayer = ref(null); // Store the Cornell boundary layer
 const allListings = ref([]); // Store all listings
 const topTenListings = ref([]); // Store top 10 listings
 const bottomTenListings = ref([]); // Store bottom 10 listings
 const clusteredListings = ref([]); // Store Clustered Listings
 const heatmapData = ref(null); // Stores the Heatmap Data
 const heatmapLayer = ref(null); // Stores the Heatmap Layer
-const activeTab = ref("Explore Ithaca"); // Default tab
+// Tab functionality moved to InsideIthacaView
 let activeFilter = ref(null); // Tracks which filter is selected
 
 const activeFilters = ref({ beds: null, baths: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null }); // Holds Bath and Bed Data for Dynamic Filtering
 const filteredListings = ref([]); // Keeps track of the filtered listings
 const selectedBeds = ref(0); // Number of Selected Beds
 const bedOptions = [1, 2, 3, 4, 5]; // Adjust based on available data
+const selectedBaths = ref(0); // Number of Selected Baths
+const bathOptions = [1, 1.5, 2, 2.5, 3]; // Adjust based on available data
+const selectedLocation = ref(''); // Selected Location
+const selectedVibe = ref(''); // Selected Vibe
 
 // Search functionality
 const searchQuery = ref('');
 const searchSuggestions = ref([]);
 const showSuggestions = ref(false);
 const highlightedIndex = ref(-1);
-const selectedBaths = ref(0); // Number of Selected Beds
-const bathOptions = [1, 1.5, 2, 2.5, 3]; // Adjust based on available data
 const currentRoute = ref(null);
 
 const isLoading = ref(true); // Add loading state
@@ -280,12 +245,7 @@ function interpolateColor(color1, color2, factor) {
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
-function changeTab(tab) {
-  activeFilters.value = { beds: null, baths: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null };
-  activeTab.value = tab
-  activeFilter.value = "";
-  addMarkers(allListings.value, false);
-}
+// Tab functionality moved to InsideIthacaView
 
 /**
  * Clears all marker highlights
@@ -388,6 +348,67 @@ function groupListingsByLocation(listings) {
     });
     
     return dispersedListings;
+}
+
+/**
+ * Add quad icons to the map
+ */
+function addQuadIcons() {
+  // Define quad locations and icons
+  const quads = [
+    {
+      name: "Agriculture Quad",
+      coordinates: [42.448796, -76.478018],
+      icon: "fas fa-seedling", // Agriculture icon
+      size: 20
+    },
+    {
+      name: "Arts Quad", 
+      coordinates: [42.448966, -76.484175],
+      icon: "fas fa-book", // Book icon
+      size: 20
+    },
+    {
+      name: "Engineering Quad",
+      coordinates: [42.444668, -76.482570], 
+      icon: "fas fa-cogs", // Engineering/gears icon
+      size: 20
+    }
+  ];
+
+  quads.forEach(quad => {
+    // Create a subtle quad icon that blends with the map
+    const quadIcon = L.divIcon({
+      html: `<div style="
+        font-size: ${quad.size}px; 
+        text-align: center; 
+        line-height: 1;
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 50%;
+        padding: 6px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        border: 1px solid rgba(217, 119, 6, 0.6);
+        color: #d97706;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: ${quad.size + 12}px;
+        height: ${quad.size + 12}px;
+        opacity: 0.9;
+      "><i class="${quad.icon}"></i></div>`,
+      className: 'quad-icon',
+      iconSize: [quad.size + 24, quad.size + 24],
+      iconAnchor: [(quad.size + 24) / 2, (quad.size + 24) / 2]
+    });
+
+    // Add marker to map
+    const marker = L.marker(quad.coordinates, { icon: quadIcon }).addTo(map.value);
+    
+    // Add popup with quad name
+    marker.bindPopup(quad.name, {
+      className: 'quad-popup'
+    });
+  });
 }
 
 /**
@@ -545,7 +566,7 @@ const handleSearchInput = () => {
     .slice(0, 5)
     .map(listing => ({
       address: `${listing.listingaddress}, ${listing.listingcity}`,
-      bedrooms: listing.bedrooms || 'N/A',
+      bedrooms: listing.available_bedrooms || 'N/A',
       rent: listing.rent_per_person || listing.rentamount || 'N/A',
       listing: listing
     }));
@@ -614,6 +635,29 @@ const hideSuggestions = () => {
     });
     tileLayer.addTo(map.value);
     console.log(`🗺️ Tile layer added: ${(performance.now() - tileStart).toFixed(2)}ms`);
+
+    // Add Cornell boundary layer
+    const boundaryStart = performance.now();
+    try {
+      const response = await fetch('/src/assets/cornell_main_boundary.geojson');
+      const cornellBoundary = await response.json();
+      
+      cornellBoundaryLayer.value = L.geoJSON(cornellBoundary, {
+        style: {
+          color: '#d97706', // Orange color
+          weight: 3,
+          opacity: 0.8,
+          fillColor: 'transparent',
+          fillOpacity: 0
+        }
+      }).addTo(map.value);
+      console.log(`🏛️ Cornell boundary added: ${(performance.now() - boundaryStart).toFixed(2)}ms`);
+    } catch (error) {
+      console.error('Failed to load Cornell boundary:', error);
+    }
+
+    // Add quad icons
+    addQuadIcons();
 
     const fetchStart = performance.now();
     console.log('📡 Starting API calls...');
@@ -749,6 +793,18 @@ const updateBathFilter = async () => {
   const bathData = await fetchBathFilter(bathFilterInput);
   activeFilters.value.baths = bathData; 
   mergeFilters(bathData, true);
+};
+
+const updateLocationFilter = async () => {
+  // TODO: Implement location filtering logic
+  console.log('Location filter updated:', selectedLocation.value);
+  // You can add the actual filtering logic here later
+};
+
+const updateVibeFilter = async () => {
+  // TODO: Implement vibe filtering logic based on year built
+  console.log('Vibe filter updated:', selectedVibe.value);
+  // You can add the actual filtering logic here later
 };
 
 /**
@@ -924,15 +980,7 @@ function mergeFilters() {
   addMarkers(filteredListings.value);
 }
 
-/**
- * Define Options For Filter
- */
-const filterOptions = [
-    { value: "topTen", label: "Best Bang For Your Buck", action: showTopTenListings },
-    { value: "bottomTen", label: "Avoid These Listings", action: showBottomTenListings },
-    { value: "heatmap", label: "Market Hotspots", action: plotHeatmap },
-    { value: "cluster", label: "Rental Neighborhoods", action: showClusters },
-];
+// Filter options moved to InsideIthacaView
 
 
 /**
@@ -1134,6 +1182,19 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 /* FILTER BUTTON */
+.personal-filters-container {
+  position: absolute;
+  top: 100px;
+  left: 20px;
+  z-index: 1000;
+  width: 320px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+}
+
 .filter-container {
   position: absolute;
   top: 100px;
@@ -1148,11 +1209,89 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 .filter-title {
-  font-size: 1.6rem;
-  color: #333;
-  font-weight: bold;
-  margin-bottom: 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #000000;
+  margin-bottom: 16px;
+  text-align: left;
 }
+
+.filter-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.filter-group {
+  flex: 1;
+}
+
+.filter-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #000000;
+  margin-bottom: 8px;
+}
+
+.filter-select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  background: #ffffff;
+  color: #000000;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-select:hover {
+  border-color: #cbd5e1;
+  background: #ffffff;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  background: #ffffff;
+}
+
+.icon-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.icon-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #000000;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.icon-button:hover {
+  border-color: #cbd5e1;
+  background: #ffffff;
+}
+
+.icon-button.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+/* Duplicate filter-title removed */
 
 
 /* Tab Navigation */
@@ -1548,6 +1687,24 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
       opacity: 1;
     }
   }
+}
+
+/* Quad icon styling */
+.quad-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.quad-popup .leaflet-popup-content-wrapper {
+  background: #d97706;
+  color: white;
+  border-radius: 8px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.quad-popup .leaflet-popup-tip {
+  background: #d97706;
 }
 
 </style>

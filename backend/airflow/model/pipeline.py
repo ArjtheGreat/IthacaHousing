@@ -45,15 +45,35 @@ def get_existing_calculated_data():
     engine = create_engine(DB_URI)
     try:
         with engine.connect() as conn:
-            query = text("""
-                SELECT listingid, walk_time, walk_routes, bike_time, bike_routes, 
-                       drive_time, drive_routes, transit_score, amenities_score,
-                       overallsafetyratingpct, nearest_neighbor_listingids
+            table_info = conn.execute(text("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'housing_listings'
+            """)).fetchall()
+            existing_columns = [row[0] for row in table_info]
+            
+            base_columns = ['listingid', 'walk_routes', 'bike_routes', 'drive_routes', 
+                           'transit_score', 'amenities_score', 'overallsafetyratingpct', 'nearest_neighbor_listingids']
+            new_travel_columns = [
+                'walk_time_urishall', 'walk_time_agriculturequad', 'walk_time_artsquad', 'walk_time_engineeringquad',
+                'bike_time_urishall', 'bike_time_agriculturequad', 'bike_time_artsquad', 'bike_time_engineeringquad',
+                'drive_time_urishall', 'drive_time_agriculturequad', 'drive_time_artsquad', 'drive_time_engineeringquad'
+            ]
+            
+            columns_to_select = [col for col in base_columns + new_travel_columns if col in existing_columns]
+            
+            if not columns_to_select:
+                print("⚠️ No calculated columns found in database")
+                return pd.DataFrame()
+                
+            query = text(f"""
+                SELECT {', '.join(columns_to_select)}
                 FROM housing_listings
             """)
             result = conn.execute(query)
             existing_data = pd.DataFrame(result.fetchall(), columns=result.keys())
             print(f"📊 Fetched calculated data for {len(existing_data)} existing listings")
+            print(f"📊 Available columns: {columns_to_select}")
             return existing_data
     except Exception as e:
         print(f"⚠️ Error fetching existing calculated data: {e}")
@@ -88,7 +108,8 @@ def housing_data_pipeline():
     
     if len(new_listings) > 0:        
         print("🗺️ Calculating travel times for new listings...")
-        new_listings = calculate_travel_times_distance.compute_all_travel_times(new_listings)
+        graphs = calculate_travel_times_distance.build_graphs()
+        new_listings = calculate_travel_times_distance.compute_all_travel_times(new_listings, graphs)
         
         print("🚌 Calculating transit scores for new listings...")
         new_listings = calculate_transit_score.calculate_transit_score(new_listings)
@@ -109,14 +130,17 @@ def housing_data_pipeline():
             suffixes=('', '_existing')
         )
         
-        calc_fields = ['walk_time', 'walk_routes', 'bike_time', 'bike_routes', 
-                      'drive_time', 'drive_routes', 'transit_score', 'amenities_score',
-                      'overallsafetyratingpct', 'nearest_neighbor_listingids']
+        calc_fields = ['walk_routes', 'bike_routes', 'drive_routes', 'transit_score', 'amenities_score',
+                      'overallsafetyratingpct', 'nearest_neighbor_listingids',
+                      'walk_time_urishall', 'walk_time_agriculturequad', 'walk_time_artsquad', 'walk_time_engineeringquad',
+                      'bike_time_urishall', 'bike_time_agriculturequad', 'bike_time_artsquad', 'bike_time_engineeringquad',
+                      'drive_time_urishall', 'drive_time_agriculturequad', 'drive_time_artsquad', 'drive_time_engineeringquad']
         
-        for field in calc_fields:
-            if f'{field}_existing' in existing_listings.columns:
-                existing_listings[field] = existing_listings[f'{field}_existing'].fillna(existing_listings[field])
-                existing_listings.drop(columns=[f'{field}_existing'], inplace=True)
+        available_calc_fields = [field for field in calc_fields if f'{field}_existing' in existing_listings.columns]
+        
+        for field in available_calc_fields:
+            existing_listings[field] = existing_listings[f'{field}_existing'].fillna(existing_listings[field])
+            existing_listings.drop(columns=[f'{field}_existing'], inplace=True)
         
         existing_listings.drop(columns=['listingid'], inplace=True, errors='ignore')
     

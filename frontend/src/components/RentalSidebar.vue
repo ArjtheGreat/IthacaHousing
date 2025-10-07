@@ -96,83 +96,33 @@
             </div>
         </div>
     </div>
-    <!-- Main Content (2-Column Layout) -->
-    <div class="popup-content grid grid-cols-2 gap-4">
-    <!-- Left Column (Transit & Walking Info) -->
-        <div class="popup-left">
-            <table class="info-table">
-                <tr>
-                    <td><i class="fa-solid fa-bus text-blue-500"></i></td>
-                    <td><span class="stat-label">Transit Score:</span></td>
-                    <td>{{ listing?.transit_score ?? "N/A" }}</td>
-                </tr>
-                <!-- <tr>
-                    <td><i class="fa-solid fa-person-walking text-green-500"></i></td>
-                    <td>Arts Quad:</td>
-                    <td>{{ listing?.ag_quad_time ? (listing.ag_quad_time/60).toFixed(0) : "N/A" }} min</td>
-                </tr>
-                <tr>
-                    <td><i class="fa-solid fa-person-walking text-green-500"></i></td>
-                    <td>Ag Quad:</td>
-                    <td>{{ listing?.arts_quad_time ? (listing.arts_quad_time/60).toFixed(0) : "N/A" }} min</td>
-                </tr>
-                <tr>
-                    <td><i class="fa-solid fa-person-walking text-green-500"></i></td>
-                    <td>Uris Hall:</td>
-                    <td>{{ listing?.uris_hall_time ? (listing.uris_hall_time/60).toFixed(0) : "N/A" }} min</td>
-                </tr> -->
-                <tr>
-                    <td><i class="fa-solid fa-person-walking text-yellow-500"></i></td>
-                    <td>Walk Time (Uris):</td>
-                    <td>{{ (listing?.walk_time) ?? "N/A" }} min</td>
-                </tr>
-                <tr>
-                    <td><i class="fa-solid fa-car text-yellow-500"></i></td>
-                    <td>Drive Time (Uris):</td>
-                    <td>{{ (listing?.drive_time) ?? "N/A" }} min</td>
-                </tr>
-                <tr>
-                    <td><i class="fa-solid fa-bicycle text-yellow-500"></i></td>
-                    <td>Bike Time (Uris):</td>
-                    <td>{{ (listing?.bike_time) ?? "N/A" }} min</td>
-                </tr>
-                <tr>
-                    <td><i class="fa-solid fa-shield-halved text-yellow-500"></i></td>
-                    <td>Amenities Score:</td>
-                    <td>{{ listing?.amenities_score ? listing.amenities_score.toFixed(2) : "N/A" }}/100</td>
-                </tr>
-            </table>
+    <!-- Property Details -->
+    <div class="property-details">
+        <div class="property-details-header">
+            Property Details
         </div>
-
-        <!-- Right Column (Bedrooms, Pets, Amenities) -->
-        <div class="popup-right">
-            <table class="info-table">
-                <tr>
-                    <td><i class="fa-solid fa-bed text-indigo-500"></i></td>
-                    <td>Bedrooms:</td>
-                    <td>{{ listing?.bedrooms }}</td>
-                </tr>
-                <tr>
-                    <td><i class="fa-solid fa-toilet text-purple-500"></i></td>
-                    <td>Bathrooms:</td>
-                    <td>{{ listing?.bathrooms }}</td>
-                </tr>
-                <tr>
-                    <td><i class="fa fa-paw text-yellow-600"></i></td>
-                    <td>Pets:</td>
-                    <td>{{ listing?.pets === "Yes" ? "Allowed" : "Not Allowed" }}</td>
-                </tr>
-                <tr>
-                    <td><i class="fa fa-home text-indigo-600"></i></td>
-                    <td>Housing Type:</td>
-                    <td>{{ listing?.housingtype ?? "N/A" }}</td>
-                </tr>
-                <tr>
-                    <td><i class="fa fa-home text-indigo-600"></i></td>
-                    <td>Rent Type:</td>
-                    <td>{{ listing?.renttype ?? "N/A" }}</td>
-                </tr>
-            </table>
+        <div class="details-grid">
+            <div class="detail-card bedroom-card">
+                <div class="detail-icon">
+                    <i class="fa-solid fa-bed"></i>
+                </div>
+                <div class="detail-content">
+                    <div class="detail-number">
+                        {{ listing?.available_bedrooms || 'N/A' }} {{ (listing?.available_bedrooms === 1) ? 'Bedroom' : 'Bedrooms' }}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="detail-card bathroom-card">
+                <div class="detail-icon">
+                    <i class="fa-solid fa-bath"></i>
+                </div>
+                <div class="detail-content">
+                    <div class="detail-number">
+                        {{ listing?.available_bathrooms || 'N/A' }} {{ (listing?.available_bathrooms === 1) ? 'Bathroom' : 'Bathrooms' }}
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -210,68 +160,221 @@
             </div>
         </div>
 
-        <div class="info-row">
-            <i class="fa-solid fa-shield-halved text-yellow-500"></i>
-            <div class="info-text">
-            <div class="label">Luxury Score</div>
-            <div class="value">{{ listing?.amenities_score ? listing.amenities_score.toFixed(2) : "N/A" }}/100</div>
+        <!-- Organized Two-Column Layout -->
+        <div class="info-grid">
+            <!-- Left Column: Transit -->
+            <div class="info-column">
+                <div class="section-header">
+                    <h4>Transit</h4>
+                </div>
+                
+                <div class="info-row">
+                    <i class="fa-solid fa-bus text-blue-500"></i>
+                    <div class="info-text">
+                    <div class="label">Transit Score</div>
+                    <div class="value">{{ listing?.transit_score ? listing.transit_score.toFixed(2) : "N/A" }}/100</div>
+                    </div>
+                </div>
+
+                <div class="info-row">
+                    <i class="fa-solid fa-walking text-green-500"></i>
+                    <div class="info-text">
+                    <div class="label">Walk Time</div>
+                    <div class="value">{{ listing?.walk_time ?? "N/A" }} min</div>
+                    </div>
+                </div>
+
+                <div class="info-row">
+                    <i class="fa-solid fa-car text-red-500"></i>
+                    <div class="info-text">
+                    <div class="label">Drive Time</div>
+                    <div class="value">{{ listing?.drive_time ?? "N/A" }} min</div>
+                    </div>
+                </div>
+
+                <div class="info-row">
+                    <i class="fa-solid fa-bicycle text-yellow-500"></i>
+                    <div class="info-text">
+                    <div class="label">Bike Time</div>
+                    <div class="value">{{ listing?.bike_time ?? "N/A" }} min</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Amenities & Details -->
+            <div class="info-column">
+                <div class="section-header">
+                    <h4>Amenities & Details</h4>
+                </div>
+
+                <div class="info-row">
+                    <i class="fa-solid fa-shield-halved text-yellow-500"></i>
+                    <div class="info-text">
+                    <div class="label">Amenities Score</div>
+                    <div class="value">{{ listing?.amenities_score ? listing.amenities_score.toFixed(2) : "N/A" }}/100</div>
+                    </div>
+                </div>
+
+                <div class="info-row">
+                    <i class="fa-solid fa-bed text-indigo-500"></i>
+                    <div class="info-text">
+                    <div class="label">Bedrooms</div>
+                    <div class="value">{{ listing?.available_bedrooms }}</div>
+                    </div>
+                </div>
+
+                <div class="info-row">
+                    <i class="fa-solid fa-toilet text-purple-500"></i>
+                    <div class="info-text">
+                    <div class="label">Bathrooms</div>
+                    <div class="value">{{ listing?.available_bathrooms }}</div>
+                    </div>
+                </div>
+
+                <!-- Pets information moved to amenities section -->
             </div>
         </div>
-
-        <!-- Housing Info -->
-        <div class="info-row">
-            <i class="fa-solid fa-bed text-indigo-500"></i>
-            <div class="info-text">
-            <div class="label">Bedrooms</div>
-            <div class="value">{{ listing?.bedrooms }}</div>
-            </div>
-        </div>
-
-        <div class="info-row">
-            <i class="fa-solid fa-toilet text-purple-500"></i>
-            <div class="info-text">
-            <div class="label">Bathrooms</div>
-            <div class="value">{{ listing?.bathrooms }}</div>
-            </div>
-        </div>
-
-        <div class="info-row">
-            <i class="fa fa-paw text-yellow-600"></i>
-            <div class="info-text">
-            <div class="label">Pets</div>
-            <div class="value">{{ listing?.pets === "Yes" ? "Allowed" : "Not Allowed" }}</div>
-            </div>
-        </div>
-
-        <div class="info-row">
-            <i class="fa fa-home text-indigo-600"></i>
-            <div class="info-text">
-            <div class="label">Housing Type</div>
-            <div class="value">{{ listing?.housingtype ?? "N/A" }}</div>
-            </div>
-        </div>
-
-        <div class="info-row">
-            <i class="fa fa-home text-indigo-600"></i>
-            <div class="info-text">
-            <div class="label">Rent Type</div>
-            <div class="value">{{ listing?.renttype ?? "N/A" }}</div>
-            </div>
-        </div>
-        </div>
-
-
-    <!-- Description -->
-    <div class="popup-description">
-        {{ listing?.shortdescription }}
     </div>
+
 
     <!-- Amenities Section -->
     <div class="popup-amenities">
-        <strong>Amenities: </strong>
-        <span class="amenities-list">
-            {{ formatAmenities(listing?.amenities) }}
-        </span>
+        <div class="amenities-header">
+            <strong>Amenities</strong>
+            <div class="amenities-score">
+                <div class="score-visual">
+                    <div class="score-bar">
+                        <div 
+                            class="score-fill" 
+                            :style="{ width: (listing?.amenities_score || 0) + '%' }"
+                        ></div>
+                    </div>
+                    <span class="score-text">{{ listing?.amenities_score ? listing.amenities_score.toFixed(0) : "0" }}/100</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="amenities-categories" v-if="formatAmenities(listing?.amenities, listing?.pets).length > 0">
+            <div 
+                v-for="(category, index) in formatAmenities(listing?.amenities, listing?.pets)" 
+                :key="category.category" 
+                class="amenity-category"
+                :class="{ 'category-other': category.category === 'Other' && formatAmenities(listing?.amenities, listing?.pets).length % 2 === 1 }"
+            >
+                <div class="category-header">
+                    <i :class="category.icon" class="category-icon" :style="{ color: category.color }"></i>
+                    <span class="category-name">{{ category.category }}</span>
+                </div>
+                <div class="amenity-pills">
+                    <div 
+                        v-for="amenity in category.amenities" 
+                        :key="amenity.name" 
+                        class="amenity-pill"
+                        :style="{ '--pill-color': category.color }"
+                    >
+                        {{ amenity.name }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div v-else class="no-amenities">
+            <i class="fa-solid fa-info-circle"></i>
+            <span>No amenities listed</span>
+        </div>
+    </div>
+
+    <!-- Transit Section -->
+    <div class="popup-transit">
+        <div class="transit-header">
+            <strong>Accessibility</strong>
+            <div class="transit-score">
+                <div class="score-visual">
+                    <div class="score-bar">
+                        <div 
+                            class="score-fill" 
+                            :style="{ width: (listing?.transit_score || 0) + '%' }"
+                        ></div>
+                    </div>
+                    <span class="score-text">{{ listing?.transit_score ? listing.transit_score.toFixed(0) : "0" }}/100</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="transit-quads">
+            <div class="transit-quad">
+                <div class="quad-header">
+                    <i class="fa-solid fa-graduation-cap" style="color: #8b5cf6;"></i>
+                    <span class="quad-name">Arts Quad</span>
+                </div>
+                <div class="quad-times">
+                    <div class="time-item">
+                        <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
+                        <span>{{ listing?.walk_time_artsquad ? listing.walk_time_artsquad.toFixed(0) : "N/A" }} min</span>
+                    </div>
+                    <div class="time-item">
+                        <i class="fa-solid fa-bicycle" style="color: #3b82f6;"></i>
+                        <span>{{ listing?.bike_time_artsquad ? listing.bike_time_artsquad.toFixed(0) : "N/A" }} min</span>
+                    </div>
+                    <div class="time-item">
+                        <i class="fa-solid fa-car" style="color: #ef4444;"></i>
+                        <span>{{ listing?.drive_time_artsquad ? listing.drive_time_artsquad.toFixed(0) : "N/A" }} min</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="transit-quad">
+                <div class="quad-header">
+                    <i class="fa-solid fa-seedling" style="color: #10b981;"></i>
+                    <span class="quad-name">Ag Quad</span>
+                </div>
+                <div class="quad-times">
+                    <div class="time-item">
+                        <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
+                        <span>{{ listing?.walk_time_agriculturequad ? listing.walk_time_agriculturequad.toFixed(0) : "N/A" }} min</span>
+                    </div>
+                    <div class="time-item">
+                        <i class="fa-solid fa-bicycle" style="color: #3b82f6;"></i>
+                        <span>{{ listing?.bike_time_agriculturequad ? listing.bike_time_agriculturequad.toFixed(0) : "N/A" }} min</span>
+                    </div>
+                    <div class="time-item">
+                        <i class="fa-solid fa-car" style="color: #ef4444;"></i>
+                        <span>{{ listing?.drive_time_agriculturequad ? listing.drive_time_agriculturequad.toFixed(0) : "N/A" }} min</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="transit-quad">
+                <div class="quad-header">
+                    <i class="fa-solid fa-cogs" style="color: #f59e0b;"></i>
+                    <span class="quad-name">Eng Quad</span>
+                </div>
+                <div class="quad-times">
+                    <div class="time-item">
+                        <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
+                        <span>{{ listing?.walk_time_engineeringquad ? listing.walk_time_engineeringquad.toFixed(0) : "N/A" }} min</span>
+                    </div>
+                    <div class="time-item">
+                        <i class="fa-solid fa-bicycle" style="color: #3b82f6;"></i>
+                        <span>{{ listing?.bike_time_engineeringquad ? listing.bike_time_engineeringquad.toFixed(0) : "N/A" }} min</span>
+                    </div>
+                    <div class="time-item">
+                        <i class="fa-solid fa-car" style="color: #ef4444;"></i>
+                        <span>{{ listing?.drive_time_engineeringquad ? listing.drive_time_engineeringquad.toFixed(0) : "N/A" }} min</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Description -->
+    <div class="popup-description">
+        <div class="description-header">
+            <strong>From the owner:</strong>
+        </div>
+        <div class="description-content">
+            {{ listing?.shortdescription }}
+        </div>
     </div>
 
     <!-- Removed duplicate similar listings section - using CMA section instead -->
@@ -354,7 +457,7 @@
                     </div>
                     <div class="listing-info">
                         <div class="listing-address">{{ similarListing?.listingaddress }}</div>
-                        <div class="listing-details">{{ similarListing?.bedrooms }} bed, {{ similarListing?.bathrooms }} bath</div>
+                        <div class="listing-details">{{ similarListing?.available_bedrooms }} bed, {{ similarListing?.available_bathrooms }} bath</div>
                         <div class="listing-amenities" v-if="similarListing?.amenities_score">
                             Amenities: {{ similarListing?.amenities_score.toFixed(1) }}/100
                         </div>
@@ -419,16 +522,140 @@ const percentChange = computed(() => {
 
 
 /**
- * Formats amenities data for display.
- * @param {any} amenitiesData - JSON object, array, or string of amenities.
- * @returns {string} - Formatted amenities string for display.
+ * Categorizes and maps amenities to their appropriate category and icon
+ * @param {string} amenity - The amenity name
+ * @returns {object} - Object with category, icon, and color
  */
-const formatAmenities = (amenitiesData: any): string => {
-  if (!amenitiesData) return "None Listed";
+const categorizeAmenity = (amenity: string): {category: string, icon: string, color: string} => {
+  const amenityLower = amenity.toLowerCase();
   
+  // Kitchen & Cooking
+  if (amenityLower.includes('dishwasher') || amenityLower.includes('dish') || 
+      amenityLower.includes('microwave') || amenityLower.includes('refrigerator') || 
+      amenityLower.includes('fridge') || amenityLower.includes('stove') || 
+      amenityLower.includes('oven') || amenityLower.includes('cooking')) {
+    return {
+      category: 'Kitchen',
+      icon: 'fa-solid fa-utensils',
+      color: '#f59e0b' // amber
+    };
+  }
+  
+  // Laundry
+  if (amenityLower.includes('washer') || amenityLower.includes('laundry') || 
+      amenityLower.includes('dryer')) {
+    return {
+      category: 'Laundry',
+      icon: 'fa-solid fa-tshirt',
+      color: '#3b82f6' // blue
+    };
+  }
+  
+  // Internet & Technology
+  if (amenityLower.includes('wifi') || amenityLower.includes('internet') || 
+      amenityLower.includes('wireless') || amenityLower.includes('cable') || 
+      amenityLower.includes('tv')) {
+    return {
+      category: 'Technology',
+      icon: 'fa-solid fa-wifi',
+      color: '#8b5cf6' // purple
+    };
+  }
+  
+  // Parking & Transportation
+  if (amenityLower.includes('parking') || amenityLower.includes('garage') || 
+      amenityLower.includes('elevator')) {
+    return {
+      category: 'Transportation',
+      icon: 'fa-solid fa-car',
+      color: '#6b7280' // gray
+    };
+  }
+  
+  // Utilities
+  if (amenityLower.includes('heat') || amenityLower.includes('heating') || 
+      amenityLower.includes('air') || amenityLower.includes('ac') || 
+      amenityLower.includes('cooling') || amenityLower.includes('water') || 
+      amenityLower.includes('electric')) {
+    return {
+      category: 'Utilities',
+      icon: 'fa-solid fa-bolt',
+      color: '#f59e0b' // yellow/amber
+    };
+  }
+  
+  // Security & Safety
+  if (amenityLower.includes('security') || amenityLower.includes('alarm') || 
+      amenityLower.includes('smoke') || amenityLower.includes('detector')) {
+    return {
+      category: 'Security',
+      icon: 'fa-solid fa-shield-halved',
+      color: '#10b981' // green
+    };
+  }
+  
+  // Outdoor & Recreation
+  if (amenityLower.includes('balcony') || amenityLower.includes('patio') || 
+      amenityLower.includes('deck') || amenityLower.includes('pool') || 
+      amenityLower.includes('swimming') || amenityLower.includes('gym') || 
+      amenityLower.includes('fitness') || amenityLower.includes('exercise')) {
+    return {
+      category: 'Recreation',
+      icon: 'fa-solid fa-dumbbell',
+      color: '#06b6d4' // cyan
+    };
+  }
+  
+  // Storage & Space
+  if (amenityLower.includes('storage') || amenityLower.includes('closet') || 
+      amenityLower.includes('walk')) {
+    return {
+      category: 'Storage',
+      icon: 'fa-solid fa-archive',
+      color: '#84cc16' // lime
+    };
+  }
+  
+  // Pets (moved to Other category)
+  if (amenityLower.includes('pet') || amenityLower.includes('dog') || 
+      amenityLower.includes('cat')) {
+    return {
+      category: 'Other',
+      icon: 'fa-solid fa-check-circle',
+      color: '#6b7280' // gray
+    };
+  }
+  
+  // Accessibility
+  if (amenityLower.includes('accessible') || amenityLower.includes('handicap') || 
+      amenityLower.includes('wheelchair')) {
+    return {
+      category: 'Accessibility',
+      icon: 'fa-solid fa-wheelchair',
+      color: '#ec4899' // pink
+    };
+  }
+  
+  // Default category for unmatched amenities
+  return {
+    category: 'Other',
+    icon: 'fa-solid fa-check-circle',
+    color: '#6b7280' // gray
+  };
+};
+
+/**
+ * Formats amenities data grouped by category for display.
+ * @param {any} amenitiesData - JSON object, array, or string of amenities.
+ * @param {any} petsData - Pets information from listing.
+ * @returns {Array} - Array of category objects with amenities grouped.
+ */
+const formatAmenities = (amenitiesData: any, petsData?: any): Array<{category: string, icon: string, color: string, amenities: Array<{name: string}>}> => {
   try {
-    let amenities;
+    let amenities: string[] = [];
     
+    // Process amenities data
+    if (amenitiesData) {
     if (typeof amenitiesData === 'object') {
       amenities = Array.isArray(amenitiesData) ? amenitiesData : [];
     } else {
@@ -437,13 +664,48 @@ const formatAmenities = (amenitiesData: any): string => {
         amenities = JSON.parse(amenitiesStr);
       } else {
         amenities = [amenitiesStr];
+        }
       }
     }
     
-    return Array.isArray(amenities) ? amenities.join(', ') : "None Listed";
+    // Add pets information if available
+    if (petsData && petsData === "Yes") {
+      amenities.push("Pets Allowed");
+    }
+    
+    if (!Array.isArray(amenities)) return [];
+    
+    // Group amenities by category
+    const categoryMap = new Map();
+    
+    amenities.forEach(amenity => {
+      const trimmedAmenity = amenity.trim();
+      const categoryInfo = categorizeAmenity(trimmedAmenity);
+      const categoryKey = categoryInfo.category;
+      
+      if (!categoryMap.has(categoryKey)) {
+        categoryMap.set(categoryKey, {
+          category: categoryKey,
+          icon: categoryInfo.icon,
+          color: categoryInfo.color,
+          amenities: []
+        });
+      }
+      
+      categoryMap.get(categoryKey).amenities.push({
+        name: trimmedAmenity
+      });
+    });
+    
+    // Convert map to array and sort by category name, with "Other" always last
+    return Array.from(categoryMap.values()).sort((a, b) => {
+      if (a.category === 'Other') return 1;
+      if (b.category === 'Other') return -1;
+      return a.category.localeCompare(b.category);
+    });
   } catch (error) {
     console.warn('Error formatting amenities:', error);
-    return "None Listed";
+    return [];
   }
 };
 
@@ -676,7 +938,7 @@ watch<Listing | undefined>(
 }
 
 .close-btn:hover {
-    color: #555;
+    color: #000000;
 }
 
 /* Image Section */
@@ -734,7 +996,7 @@ watch<Listing | undefined>(
   gap: 24px;
   margin-bottom: 24px;
   font-size: 1rem;
-  color: #444;
+  color: #000000;
 }
 
 .popup-mobile-stats {
@@ -771,15 +1033,73 @@ watch<Listing | undefined>(
 
 /* 💰 RENT INFO BOX */
 .rent-section {
-    margin-bottom: 20px;
-    padding: 16px 0;
+    margin-bottom: 12px;
+    padding: 12px 0;
     border-bottom: 2px solid #e5e7eb;
+}
+
+/* 🏠 PROPERTY DETAILS */
+.property-details {
+    margin-bottom: 12px;
+    padding: 12px 0;
+}
+
+.property-details-header {
+    margin-bottom: 12px;
+    font-size: 1.1rem;
+    color: #000000;
+    font-weight: 600;
+}
+
+.details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.detail-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.2s ease;
+}
+
+.detail-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.detail-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    background: #f3f4f6;
+    color: #000000;
+}
+
+.detail-content {
+    flex: 1;
+}
+
+.detail-number {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1;
 }
 
 .rent-main-card {
     background: none;
-    padding: 24px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    padding: 8px;
 }
 
 .rent-card-header {
@@ -790,7 +1110,7 @@ watch<Listing | undefined>(
 .rent-comparison-title {
     font-size: 1.1rem;
     font-weight: 600;
-    color: #374151;
+    color: #000000;
     margin: 0;
     letter-spacing: 0.025em;
     display: flex;
@@ -806,7 +1126,7 @@ watch<Listing | undefined>(
 
 .tooltip-icon {
     font-size: 0.9rem;
-    color: #6b7280;
+    color: #000000;
     cursor: help;
     transition: color 0.2s ease;
     display: inline-flex;
@@ -821,7 +1141,7 @@ watch<Listing | undefined>(
 }
 
 .tooltip-icon:hover {
-    color: #374151;
+    color: #000000;
 }
 
 .tooltip-content {
@@ -920,7 +1240,7 @@ watch<Listing | undefined>(
 .column-label {
     font-size: 0.85rem;
     font-weight: 600;
-    color: #6b7280;
+    color: #000000;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
@@ -1037,7 +1357,7 @@ watch<Listing | undefined>(
 
 .badge-fair {
     background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    color: #6b7280;
+    color: #000000;
     border: 1px solid #d1d5db;
 }
 
@@ -1066,7 +1386,7 @@ watch<Listing | undefined>(
     grid-column: span 2;
     font-size: 1rem;
     font-weight: bold;
-    color: #374151;
+    color: #000000;
     background: none;
     padding: 10px;
     border: 2px solid #e5e7eb;
@@ -1083,8 +1403,9 @@ watch<Listing | undefined>(
 
 /* CMA Section Styles */
 .cma-section {
-    margin-top: 20px;
-    padding-top: 20px;
+    margin-top: 12px;
+    padding-top: 12px;
+    padding-bottom: 12px;
     border-top: 2px solid #e5e7eb;
 }
 
@@ -1095,7 +1416,7 @@ watch<Listing | undefined>(
 .cma-title {
     font-size: 1.1rem;
     font-weight: 600;
-    color: #374151;
+    color: #000000;
     margin: 0 0 12px 0;
     letter-spacing: 0.025em;
     display: flex;
@@ -1114,7 +1435,7 @@ watch<Listing | undefined>(
 
 .average-label {
     font-size: 0.85rem;
-    color: #6b7280;
+    color: #000000;
     font-weight: 500;
     margin-bottom: 8px;
 }
@@ -1339,20 +1660,305 @@ watch<Listing | undefined>(
     font-size: 1rem;
     color: #555;
     border-top: 2px solid #e5e7eb;
-    padding-top: 16px;
-    margin-top: 16px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    margin-top: 12px;
+    margin-bottom: 12px;
+}
+
+.description-header {
+    margin-bottom: 8px;
+}
+
+.description-header strong {
+    font-size: 1.1rem;
+    color: #000000;
+    font-weight: 600;
+}
+
+.description-content {
+    color: #555;
+    line-height: 1.5;
 }
 
 
 /* 📌 AMENITIES SECTION */
 .popup-amenities {
-    /* border-top: 2px solid #e5e7eb; */
-    padding-top: 16px;
-    padding-bottom: 8px;
-    margin-top: 16px;
+    border-top: 2px solid #e5e7eb;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    margin-top: 12px;
+    margin-bottom: 12px;
     font-size: 1rem;
     color: #444;
 }
+
+.amenities-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.amenities-header strong {
+    font-size: 1.1rem;
+    color: #000000;
+    font-weight: 600;
+}
+
+.amenities-score {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.score-visual {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.score-bar {
+    width: 60px;
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.score-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981 0%, #3b82f6 100%);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.score-text {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #374151;
+    min-width: 35px;
+}
+
+.amenities-categories {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 20px;
+}
+
+.amenity-category {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+    transition: all 0.2s ease;
+}
+
+.amenity-category:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.category-other {
+    grid-column: span 2;
+}
+
+.category-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.category-icon {
+    font-size: 1.1rem;
+    width: 20px;
+    text-align: center;
+}
+
+.category-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.amenity-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-left: 0; /* No margin needed with container padding */
+}
+
+.amenity-pill {
+    background: rgba(59, 130, 246, 0.1);
+    color: #1e40af;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    transition: all 0.2s ease;
+    background: color-mix(in srgb, var(--pill-color) 10%, white);
+    color: var(--pill-color);
+    border-color: color-mix(in srgb, var(--pill-color) 20%, transparent);
+}
+
+.amenity-pill:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.no-amenities {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #9ca3af;
+    font-style: italic;
+    font-size: 0.9rem;
+    padding: 20px;
+    text-align: center;
+    justify-content: center;
+}
+
+.no-amenities i {
+    color: #d1d5db;
+}
+
+/* 🚌 TRANSIT SECTION */
+.popup-transit {
+    border-top: 2px solid #e5e7eb;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    margin-top: 12px;
+    margin-bottom: 12px;
+    font-size: 1rem;
+    color: #444;
+}
+
+.transit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.transit-header strong {
+    font-size: 1.1rem;
+    color: #000000;
+    font-weight: 600;
+}
+
+.transit-score {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.transit-quads {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+}
+
+.transit-quad {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.transit-quad:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.quad-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.quad-header i {
+    font-size: 1.2rem;
+    width: 24px;
+    text-align: center;
+}
+
+.quad-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.quad-times {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;                /* ensures consistent width in each column */
+}
+
+/* each row perfectly balanced */
+.time-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;   /* icon left, time right */
+  background: #f8fafc;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1f2937;
+  min-height: 44px;
+  line-height: 1.2;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* icons stay fixed width — alignment never drifts */
+.time-item i {
+  font-size: 1.1rem;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* text (the time) right-aligned */
+.time-item span {
+  flex: 1;
+  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* optional: ensure all cards line up in a grid row */
+.accessibility-container {
+  display: flex;
+  gap: 20px;
+  align-items: stretch;
+  justify-content: center;
+}
+
 
 /* 📌 SIMILAR LISTINGS SECTION */
 .popup-similar-listings {
@@ -1513,6 +2119,11 @@ watch<Listing | undefined>(
 }
 
 @media (max-width: 768px) {
+    .info-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
     .popup-container {
         position: fixed;
         bottom: 0;
@@ -1580,6 +2191,31 @@ watch<Listing | undefined>(
         padding: 12px 0;
     }
 
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin: 1rem 0;
+    }
+
+    .info-column {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .section-header {
+        margin: 0 0 15px 0;
+        padding: 8px 0;
+        border-bottom: 2px solid #e5e7eb;
+    }
+
+    .section-header h4 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1f2937;
+        margin: 0;
+    }
+
     .info-row {
         display: flex;
         align-items: center;
@@ -1630,6 +2266,41 @@ watch<Listing | undefined>(
 
     .rent-comparison-title {
         font-size: 1rem;
+    }
+
+    .property-details {
+        padding: 12px 0;
+    }
+
+    .property-details-header {
+        margin-bottom: 10px;
+    }
+
+    .property-details-header strong {
+        font-size: 1rem;
+    }
+
+    .details-grid {
+        gap: 10px;
+    }
+
+    .detail-card {
+        padding: 12px;
+        gap: 10px;
+    }
+
+    .detail-icon {
+        width: 28px;
+        height: 28px;
+        font-size: 1rem;
+    }
+
+    .detail-number {
+        font-size: 1.2rem;
+    }
+
+    .detail-label {
+        font-size: 0.8rem;
     }
 
     .tooltip-content {
@@ -1690,6 +2361,131 @@ watch<Listing | undefined>(
     .popup-description,
         .popup-amenities {
         font-size: 0.95rem;
+    }
+
+    .description-header {
+        margin-bottom: 6px;
+    }
+
+    .description-header strong {
+        font-size: 1rem;
+    }
+
+    .description-content {
+        font-size: 0.9rem;
+    }
+
+    .amenities-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .amenities-score {
+        align-self: stretch;
+    }
+
+    .score-visual {
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .score-bar {
+        width: 50px;
+        height: 5px;
+    }
+
+    .score-text {
+        font-size: 0.8rem;
+    }
+
+    .amenities-categories {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .amenity-category {
+        gap: 6px;
+        padding: 10px;
+    }
+
+    .category-header {
+        gap: 6px;
+    }
+
+    .category-icon {
+        font-size: 1rem;
+        width: 18px;
+    }
+
+    .category-name {
+        font-size: 0.9rem;
+    }
+
+    .amenity-pills {
+        margin-left: 0;
+        gap: 4px;
+    }
+
+    .amenity-pill {
+        font-size: 0.8rem;
+        padding: 3px 8px;
+    }
+
+    .transit-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .transit-score {
+        align-self: stretch;
+    }
+
+    .transit-quads {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .transit-quad {
+        padding: 10px;
+    }
+
+    .quad-header i {
+        font-size: 1.1rem;
+        width: 20px;
+    }
+
+    .quad-name {
+        font-size: 0.85rem;
+    }
+
+    .quad-times {
+        gap: 4px;
+    }
+
+    .time-item {
+        font-size: 0.85rem;
+        padding: 8px 10px;
+        gap: 10px;
+        min-height: 40px;
+        line-height: 1.2;
+    }
+
+    .time-item i {
+        font-size: 1rem;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .time-item span {
+        display: flex;
+        align-items: center;
+        height: 100%;
+        font-size: 0.85rem;
     }
 
     .popup-similar-listings {
