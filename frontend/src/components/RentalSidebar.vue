@@ -1989,7 +1989,7 @@ watch<Listing | undefined>(
 .listing-address {
   margin-top: 0.5rem;
   font-size: 1rem;
-  text-align: center;
+  text-align: left;
   color: #333;
 }
 
