@@ -78,4 +78,10 @@ def serialize_listing(listing):
         "rent_per_person": safe_float(listing.rent_per_person),
         "num_people": safe_float(listing.num_people),
         "total_rent_amount": safe_float(listing.total_rent_amount),
+        "owner_name": listing.owner_name,
+        "nearest_stop_name": listing.nearest_stop_name,
+        "walk_time_to_nearest_stop": safe_float(listing.walk_time_to_nearest_stop),
+        "transit_time_to_ag_quad": safe_float(listing.transit_time_to_ag_quad),
+        "transit_time_to_arts_quad": safe_float(listing.transit_time_to_arts_quad),
+        "transit_time_to_eng_quad": safe_float(listing.transit_time_to_eng_quad),
     }

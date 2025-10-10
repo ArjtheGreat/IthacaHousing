@@ -3,9 +3,9 @@ import { RouterLink, RouterView } from 'vue-router'
 import { useHead } from '@vueuse/head';
 
 useHead({
-  title: 'Ithaca Insights | Cornell Data Journal',
+  title: 'Ithaca Insights | Maitrix Labs',
   meta: [
-    { property: 'og:title', content: 'Ithaca Insights | Cornell Data Journal' },
+    { property: 'og:title', content: 'Ithaca Insights | Maitrix Labs' },
     { property: 'og:description', content: 'All the key info and history you need tok now about Ithaca and Cornell.' },
     { property: 'og:image', content: 'https://ithacainsights.com/favicon.ico' },
     { property: 'og:url', content: 'https://ithacainsights.com/' },

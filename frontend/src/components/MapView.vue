@@ -194,7 +194,7 @@ const messages = [
   "Scanning for deals in the wild...",
   "Counting beds, baths and beyond...",
   "Texting your ex-girlfriend you miss her",
-  "Visit cornelldatajournal.org!",
+  "Powered by Maitrix Labs",
 ];
 
 

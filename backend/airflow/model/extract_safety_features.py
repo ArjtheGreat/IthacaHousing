@@ -64,8 +64,8 @@ def calculate_safety_score(apartments_for_rent):
     apartments_for_rent = pd.concat([apartments_for_rent, safety_df], axis=1)
 
     fillna_dict = {}
-    if "overallsafetyratingpct" in apartments_for_rent.columns:
-        fillna_dict["overallsafetyratingpct"] = apartments_for_rent["overallsafetyratingpct"].mean()
+    if "OverallSafetyRatingPct" in apartments_for_rent.columns:
+        fillna_dict["OverallSafetyRatingPct"] = apartments_for_rent["OverallSafetyRatingPct"].mean()
     if "HasValidCertificateOfOccupancy" in apartments_for_rent.columns:
         fillna_dict["HasValidCertificateOfOccupancy"] = 0
     if "MeetsMinimumRequirements" in apartments_for_rent.columns:

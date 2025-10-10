@@ -11,7 +11,6 @@
       </div>
     </div>
 
-
     <!--Value Prop Section-->
     <section class="value-prop-section">
       <div class="value-prop-container">

@@ -126,116 +126,6 @@
         </div>
     </div>
 
-    <div class="popup-mobile-stats">
-        <!-- Location Info -->
-        <div class="info-row">
-            <i class="fa-solid fa-bus text-blue-500"></i>
-            <div class="info-text">
-            <div class="label">Transit Score</div>
-            <div class="value">{{ listing?.transit_score ?? "N/A" }}</div>
-            </div>
-        </div>
-
-        <div class="info-row">
-            <i class="fa-solid fa-person-walking text-yellow-500"></i>
-            <div class="info-text">
-            <div class="label">Walk Time</div>
-            <div class="value">{{ listing?.walk_time ?? "N/A" }} min</div>
-            </div>
-        </div>
-
-        <div class="info-row">
-            <i class="fa-solid fa-car text-yellow-500"></i>
-            <div class="info-text">
-            <div class="label">Drive Time</div>
-            <div class="value">{{ listing?.drive_time ?? "N/A" }} min</div>
-            </div>
-        </div>
-
-        <div class="info-row">
-            <i class="fa-solid fa-bicycle text-yellow-500"></i>
-            <div class="info-text">
-            <div class="label">Bike Time</div>
-            <div class="value">{{ listing?.bike_time ?? "N/A" }} min</div>
-            </div>
-        </div>
-
-        <!-- Organized Two-Column Layout -->
-        <div class="info-grid">
-            <!-- Left Column: Transit -->
-            <div class="info-column">
-                <div class="section-header">
-                    <h4>Transit</h4>
-                </div>
-                
-                <div class="info-row">
-                    <i class="fa-solid fa-bus text-blue-500"></i>
-                    <div class="info-text">
-                    <div class="label">Transit Score</div>
-                    <div class="value">{{ listing?.transit_score ? listing.transit_score.toFixed(2) : "N/A" }}/100</div>
-                    </div>
-                </div>
-
-                <div class="info-row">
-                    <i class="fa-solid fa-walking text-green-500"></i>
-                    <div class="info-text">
-                    <div class="label">Walk Time</div>
-                    <div class="value">{{ listing?.walk_time ?? "N/A" }} min</div>
-                    </div>
-                </div>
-
-                <div class="info-row">
-                    <i class="fa-solid fa-car text-red-500"></i>
-                    <div class="info-text">
-                    <div class="label">Drive Time</div>
-                    <div class="value">{{ listing?.drive_time ?? "N/A" }} min</div>
-                    </div>
-                </div>
-
-                <div class="info-row">
-                    <i class="fa-solid fa-bicycle text-yellow-500"></i>
-                    <div class="info-text">
-                    <div class="label">Bike Time</div>
-                    <div class="value">{{ listing?.bike_time ?? "N/A" }} min</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right Column: Amenities & Details -->
-            <div class="info-column">
-                <div class="section-header">
-                    <h4>Amenities & Details</h4>
-                </div>
-
-                <div class="info-row">
-                    <i class="fa-solid fa-shield-halved text-yellow-500"></i>
-                    <div class="info-text">
-                    <div class="label">Amenities Score</div>
-                    <div class="value">{{ listing?.amenities_score ? listing.amenities_score.toFixed(2) : "N/A" }}/100</div>
-                    </div>
-                </div>
-
-                <div class="info-row">
-                    <i class="fa-solid fa-bed text-indigo-500"></i>
-                    <div class="info-text">
-                    <div class="label">Bedrooms</div>
-                    <div class="value">{{ listing?.available_bedrooms }}</div>
-                    </div>
-                </div>
-
-                <div class="info-row">
-                    <i class="fa-solid fa-toilet text-purple-500"></i>
-                    <div class="info-text">
-                    <div class="label">Bathrooms</div>
-                    <div class="value">{{ listing?.available_bathrooms }}</div>
-                    </div>
-                </div>
-
-                <!-- Pets information moved to amenities section -->
-            </div>
-        </div>
-    </div>
-
 
     <!-- Amenities Section -->
     <div class="popup-amenities">
@@ -250,6 +140,21 @@
                         ></div>
                     </div>
                     <span class="score-text">{{ listing?.amenities_score ? listing.amenities_score.toFixed(0) : "0" }}/100</span>
+                    <div class="tooltip-container">
+                        <span class="tooltip-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 16v-4"/>
+                                <path d="M12 8h.01"/>
+                            </svg>
+                        </span>
+                        <div class="tooltip-content">
+                            <div class="tooltip-title">Amenities Score</div>
+                            <div class="tooltip-text">
+                                Our amenities score is calculated using a proprietary ranking system that evaluates the quality and value of amenities available at each property. The score ranges from 0-100, with higher scores indicating better amenities relative to the local market.
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -287,7 +192,7 @@
     <!-- Transit Section -->
     <div class="popup-transit">
         <div class="transit-header">
-            <strong>Accessibility</strong>
+            <strong>Transit Accessibility</strong>
             <div class="transit-score">
                 <div class="score-visual">
                     <div class="score-bar">
@@ -300,6 +205,17 @@
                 </div>
             </div>
         </div>
+        <div class="public-transit-info">
+            <!-- Nearest Bus Stop -->
+            <div class="nearest-stop">
+                <span class="stop-label">Nearest Stop:</span>
+                <span class="stop-name">{{ listing.nearest_stop_name }}</span>
+                <span class="walk-time" v-if="listing?.walk_time_to_nearest_stop">
+                    <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
+                    {{ listing.walk_time_to_nearest_stop.toFixed(1) }} min walk
+                </span>
+            </div>
+        </div>
         
         <div class="transit-quads">
             <div class="transit-quad">
@@ -309,12 +225,12 @@
                 </div>
                 <div class="quad-times">
                     <div class="time-item">
-                        <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
-                        <span>{{ listing?.walk_time_artsquad ? listing.walk_time_artsquad.toFixed(0) : "N/A" }} min</span>
+                        <i class="fa-solid fa-bus" style="color: #3b82f6;"></i>
+                        <span>{{ listing?.transit_time_to_arts_quad ? listing.transit_time_to_arts_quad.toFixed(1) : "N/A" }} min</span>
                     </div>
                     <div class="time-item">
-                        <i class="fa-solid fa-bicycle" style="color: #3b82f6;"></i>
-                        <span>{{ listing?.bike_time_artsquad ? listing.bike_time_artsquad.toFixed(0) : "N/A" }} min</span>
+                        <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
+                        <span>{{ listing?.walk_time_artsquad ? listing.walk_time_artsquad.toFixed(0) : "N/A" }} min</span>
                     </div>
                     <div class="time-item">
                         <i class="fa-solid fa-car" style="color: #ef4444;"></i>
@@ -330,12 +246,12 @@
                 </div>
                 <div class="quad-times">
                     <div class="time-item">
-                        <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
-                        <span>{{ listing?.walk_time_agriculturequad ? listing.walk_time_agriculturequad.toFixed(0) : "N/A" }} min</span>
+                        <i class="fa-solid fa-bus" style="color: #3b82f6;"></i>
+                        <span>{{ listing?.transit_time_to_ag_quad ? listing.transit_time_to_ag_quad.toFixed(1) : "N/A" }} min</span>
                     </div>
                     <div class="time-item">
-                        <i class="fa-solid fa-bicycle" style="color: #3b82f6;"></i>
-                        <span>{{ listing?.bike_time_agriculturequad ? listing.bike_time_agriculturequad.toFixed(0) : "N/A" }} min</span>
+                        <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
+                        <span>{{ listing?.walk_time_agriculturequad ? listing.walk_time_agriculturequad.toFixed(0) : "N/A" }} min</span>
                     </div>
                     <div class="time-item">
                         <i class="fa-solid fa-car" style="color: #ef4444;"></i>
@@ -351,12 +267,12 @@
                 </div>
                 <div class="quad-times">
                     <div class="time-item">
-                        <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
-                        <span>{{ listing?.walk_time_engineeringquad ? listing.walk_time_engineeringquad.toFixed(0) : "N/A" }} min</span>
+                        <i class="fa-solid fa-bus" style="color: #3b82f6;"></i>
+                        <span>{{ listing?.transit_time_to_eng_quad ? listing.transit_time_to_eng_quad.toFixed(1) : "N/A" }} min</span>
                     </div>
                     <div class="time-item">
-                        <i class="fa-solid fa-bicycle" style="color: #3b82f6;"></i>
-                        <span>{{ listing?.bike_time_engineeringquad ? listing.bike_time_engineeringquad.toFixed(0) : "N/A" }} min</span>
+                        <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
+                        <span>{{ listing?.walk_time_engineeringquad ? listing.walk_time_engineeringquad.toFixed(0) : "N/A" }} min</span>
                     </div>
                     <div class="time-item">
                         <i class="fa-solid fa-car" style="color: #ef4444;"></i>
@@ -364,13 +280,13 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </div>       
     </div>
 
     <!-- Description -->
     <div class="popup-description">
         <div class="description-header">
-            <strong>From the owner:</strong>
+            <strong>From the owner<span v-if="listing?.owner_name"> ({{ listing.owner_name }})</span>:</strong>
         </div>
         <div class="description-content">
             {{ listing?.shortdescription }}
@@ -1149,8 +1065,8 @@ watch<Listing | undefined>(
     opacity: 0;
     position: absolute;
     bottom: 125%;
-    left: 50%;
-    transform: translateX(-50%);
+    right: 0;
+    transform: translateX(0);
     background: #1f2937;
     color: white;
     padding: 16px;
@@ -1167,8 +1083,7 @@ watch<Listing | undefined>(
     content: "";
     position: absolute;
     top: 100%;
-    left: 50%;
-    margin-left: -5px;
+    right: 20px;
     border-width: 5px;
     border-style: solid;
     border-color: #1f2937 transparent transparent transparent;
@@ -1683,6 +1598,118 @@ watch<Listing | undefined>(
 
 
 /* 📌 AMENITIES SECTION */
+.popup-transit {
+    border-top: 2px solid #e5e7eb;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    margin-top: 12px;
+    margin-bottom: 12px;
+    font-size: 1rem;
+    color: #444;
+}
+
+.transit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.transit-score {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.transit-fill {
+    background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+}
+
+.transit-details {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.transit-info-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.transit-info-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 8px;
+}
+
+.transit-info-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.stop-name {
+    font-weight: 500;
+    color: #1f2937;
+}
+
+.walk-time {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: #6b7280;
+}
+
+.transit-times {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.transit-times-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 12px;
+}
+
+.transit-times-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+.transit-time-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #f1f5f9;
+}
+
+.time-destination {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+}
+
+.time-value {
+    font-weight: 600;
+    color: #1f2937;
+}
+
 .popup-amenities {
     border-top: 2px solid #e5e7eb;
     padding-top: 12px;
@@ -1698,6 +1725,12 @@ watch<Listing | undefined>(
     justify-content: space-between;
     align-items: center;
     margin-bottom: 16px;
+}
+
+.amenities-title-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .amenities-header strong {
@@ -1914,6 +1947,97 @@ watch<Listing | undefined>(
   border: 1px solid #e2e8f0;
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+/* Public Transit Information Styles */
+.public-transit-info {
+  margin-top: 16px;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.public-transit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #000000;
+}
+
+.public-transit-header i {
+  font-size: 1.1rem;
+}
+
+.nearest-stop {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  background: #fafafa;           /* subtle background */
+  border-radius: 10px;           /* soft rounding */
+  padding: 6px 10px;             /* internal breathing room */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);  /* depth without heaviness */
+}
+
+.stop-label {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.stop-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.walk-time {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  color: #059669; /* Tailwind's emerald-600 for readability */
+  margin-left: auto; /* aligns it neatly to right edge on larger cards */
+}
+
+.walk-time i {
+  font-size: 0.9rem;
+  color: #10b981;
+}
+
+.bus-times-header {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.bus-times-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bus-time-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.bus-time-item i {
+  font-size: 1rem;
+  width: 16px;
+  text-align: center;
   color: #1f2937;
   min-height: 44px;
   line-height: 1.2;
@@ -2338,7 +2462,8 @@ watch<Listing | undefined>(
     }
 
     .popup-description,
-        .popup-amenities {
+    .popup-amenities,
+    .popup-transit {
         font-size: 0.95rem;
     }
 
@@ -2352,6 +2477,12 @@ watch<Listing | undefined>(
 
     .description-content {
         font-size: 0.9rem;
+    }
+
+    .transit-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
     }
 
     .amenities-header {

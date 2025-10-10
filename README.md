@@ -110,6 +110,4 @@ This project is open source and available under the MIT License.
 
 ## 👥 Team
 
-Built by the Cornell Data Journal team.
-
-[Visit cornelldatajournal.org!](https://cornelldatajournal.org)
+Built by the Maitrix Labs team.

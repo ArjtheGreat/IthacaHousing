@@ -3,10 +3,10 @@
     <div class="navbar-inner">
         <!-- Logo and Brand (Aligned to the far left) -->
         <div class="navbar-brand">
-            <img src="@/assets/CDJLogo.png" alt="Logo" class="navbar-logo" />
+            <img src="@/assets/MaitrixLabsLogo.png" alt="Logo" class="navbar-logo" />
             <div class="navbar-title">
             <router-link to="/" class="navbar-name">Ithaca Insights</router-link>
-            <span class="navbar-subtitle">by Cornell Data Journal</span>
+            <span class="navbar-subtitle">by Maitrix Labs</span>
             </div>
         </div>
 
@@ -64,7 +64,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 .navbar-brand {
     display: flex;
     align-items: center; 
-    gap: 0px; 
+    gap: 12px; 
 }
 
 /* Logo */
@@ -77,7 +77,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 .navbar-title {
     display: flex;
     flex-direction: column; 
-    gap: 0px;
+    gap: 2px;
     line-height: 1.2; 
 }
 

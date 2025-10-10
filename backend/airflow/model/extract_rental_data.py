@@ -3,6 +3,7 @@ import os
 import json
 import pandas as pd
 import ast
+import time
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -156,12 +157,74 @@ def safe_process(row, max_retries=5, delay=0.2):
     }
 
 
+def get_existing_rental_data():
+    """
+    Get existing rental extraction data from database
+    """
+    import os
+    from sqlalchemy import create_engine, text
+    
+    DB_URI = os.getenv("DB_URI")
+    if not DB_URI:
+        return {}
+    
+    engine = create_engine(DB_URI)
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT listingid, shortdescription, available_bedrooms, available_bathrooms, 
+                       rent_per_person, num_people, total_rent_amount
+                FROM housing_listings 
+                WHERE available_bedrooms IS NOT NULL
+            """))
+            
+            existing_data = {}
+            for row in result:
+                listing_id = row[0]
+                existing_data[listing_id] = {
+                    'shortdescription': row[1],
+                    'available_bedrooms': row[2],
+                    'available_bathrooms': row[3],
+                    'rent_per_person': row[4],
+                    'num_people': row[5],
+                    'total_rent_amount': row[6]
+                }
+            
+            print(f"📊 Loaded {len(existing_data)} existing rental extractions")
+            return existing_data
+    except Exception as e:
+        print(f"⚠️ Error fetching existing rental data: {e}")
+        return {}
+
 def extract_rental_data(apartments_for_rent):
     """
-    Run Apply to extract rental data
+    Run Apply to extract rental data - only for new listings or changed descriptions
     """
+    # Get existing data from database
+    existing_data = get_existing_rental_data()
+    
+    def smart_extract(row):
+        listing_id = row["ListingId"]
+        current_description = str(row["ShortDescription"]) if pd.notna(row["ShortDescription"]) else ""
+        
+        if listing_id in existing_data:
+            existing_desc = str(existing_data[listing_id]['shortdescription']) if pd.notna(existing_data[listing_id]['shortdescription']) else ""
+            
+            if current_description == existing_desc:
+                print(f"📋 Using cached data for listing {listing_id} (description unchanged)")
+                return {
+                    "available_bedrooms": existing_data[listing_id]['available_bedrooms'],
+                    "available_bathrooms": existing_data[listing_id]['available_bathrooms'],
+                    "rent_per_person": existing_data[listing_id]['rent_per_person'],
+                    "num_people": existing_data[listing_id]['num_people']
+                }
+        
+        # Description changed or new listing - run LLM extraction
+        print(f"🤖 Running LLM extraction for listing {listing_id} (new or description changed)")
+        return safe_process(row)
+    
     apartments_for_rent["extracted_rental_data"] = apartments_for_rent.apply(
-        safe_process, axis=1
+        smart_extract, axis=1
     )
 
     apartments_for_rent["extracted_rental_data"] = apartments_for_rent["extracted_rental_data"].apply(

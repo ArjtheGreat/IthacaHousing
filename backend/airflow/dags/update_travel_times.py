@@ -49,24 +49,9 @@ def fetch_current_listings():
     """
     
     with engine.connect() as conn:
-        df = pd.read_sql(query, conn)
+        df = pd.read_sql(query, conn.connection)
     
     print(f"✅ Fetched {len(df)} current listings from database")
-    
-    # Debug: Check coordinate data
-    valid_coords = df["longitude"].notna() & df["latitude"].notna()
-    print(f"📍 Listings with valid coordinates: {valid_coords.sum()}/{len(df)}")
-    
-    if valid_coords.sum() > 0:
-        print(f"📍 Sample coordinates:")
-        sample_df = df[valid_coords].head(3)
-        for _, row in sample_df.iterrows():
-            print(f"  Listing {row['listingid']}: lat={row['latitude']}, lon={row['longitude']}")
-    else:
-        print("❌ No listings have valid coordinates in the database!")
-        print("Sample data:")
-        print(df[['listingid', 'latitude', 'longitude']].head())
-    
     return df
 
 
@@ -96,24 +81,17 @@ def compute_travel_times_fixed(apartments_for_rent, graphs):
 
         try:
             valid_mask = apartments_for_rent["longitude"].notna() & apartments_for_rent["latitude"].notna()
-            print(f"  📍 Found {valid_mask.sum()} apartments with valid coordinates for {mode}")
-            
-            if valid_mask.sum() == 0:
-                print(f"  ⚠️ No valid coordinates for {mode} - skipping")
-                continue
-                
             apartment_nodes = ox.distance.nearest_nodes(
                 G,
                 apartments_for_rent.loc[valid_mask, "longitude"],
                 apartments_for_rent.loc[valid_mask, "latitude"]
             )
-            print(f"  🗺️ Mapped {len(apartment_nodes)} apartment nodes for {mode}")
         except Exception as e:
             print(f"⚠️ Failed to map apartment nodes for {mode}: {e}")
             continue
 
         for ref in CAMPUS_POINTS:
-            ref_name = ref["name"].replace(" ", "").lower()  # Convert to lowercase to match database
+            ref_name = ref["name"].replace(" ", "")
             ref_lat, ref_lon = ref["lat"], ref["lon"]
             print(f"  → Computing travel times to {ref['name']}")
 
@@ -129,14 +107,12 @@ def compute_travel_times_fixed(apartments_for_rent, graphs):
             
             # Calculate times only for valid apartments
             valid_indices = apartments_for_rent.index[valid_mask]
-            calculated_count = 0
             for i, apt_node in enumerate(apartment_nodes):
                 try:
                     time_min = nx.shortest_path_length(G, apt_node, ref_node, weight="travel_time") / 60
                     if mode == "drive":
                         time_min *= 1.8
                     times[valid_indices[i]] = round(time_min, 2)
-                    calculated_count += 1
                 except (nx.NetworkXNoPath, nx.NodeNotFound):
                     times[valid_indices[i]] = None
                 except Exception as e:
@@ -144,7 +120,6 @@ def compute_travel_times_fixed(apartments_for_rent, graphs):
                     times[valid_indices[i]] = None
 
             result_df[f"{mode}_time_{ref_name}"] = times
-            print(f"    ✅ Calculated {calculated_count} travel times for {ref['name']} ({mode})")
 
     return result_df
 
@@ -188,28 +163,14 @@ def update_travel_times():
         print(f"📋 Travel time columns created: {travel_time_cols}")
         
         # Debug: Check for non-null values
-        total_non_null = 0
         for col in travel_time_cols:
             non_null_count = updated_df[col].notna().sum()
-            total_non_null += non_null_count
             print(f"📊 {col}: {non_null_count}/{len(updated_df)} non-null values")
             if non_null_count > 0:
                 print(f"   Sample values: {updated_df[col].dropna().head(3).tolist()}")
         
-        print(f"🔍 Total non-null travel time values: {total_non_null}")
-        
-        # Check if we have any valid coordinates
-        valid_coords = listings_df["longitude"].notna() & listings_df["latitude"].notna()
-        print(f"📍 Listings with valid coordinates: {valid_coords.sum()}/{len(listings_df)}")
-        
-        if valid_coords.sum() == 0:
-            print("❌ No listings have valid coordinates - this is the problem!")
-            return
-        
     except Exception as e:
         print(f"❌ Error computing travel times: {e}")
-        import traceback
-        traceback.print_exc()
         return
     
     # Update database with new travel times
@@ -237,15 +198,23 @@ def update_database_travel_times(df):
         }
     )
     
-    # Define travel time columns (matching the database column names)
+    # Define travel time columns (matching actual generated column names)
     travel_time_columns = [
-        "walk_time_urishall", "walk_time_agriculturequad", "walk_time_artsquad", "walk_time_engineeringquad",
-        "bike_time_urishall", "bike_time_agriculturequad", "bike_time_artsquad", "bike_time_engineeringquad", 
-        "drive_time_urishall", "drive_time_agriculturequad", "drive_time_artsquad", "drive_time_engineeringquad"
+        "walk_time_UrisHall", "walk_time_AgricultureQuad", "walk_time_ArtsQuad", "walk_time_EngineeringQuad",
+        "bike_time_UrisHall", "bike_time_AgricultureQuad", "bike_time_ArtsQuad", "bike_time_EngineeringQuad", 
+        "drive_time_UrisHall", "drive_time_AgricultureQuad", "drive_time_ArtsQuad", "drive_time_EngineeringQuad"
     ]
     
     updated_count = 0
     skipped_count = 0
+    
+    # Debug: Check what columns are actually available
+    print(f"📋 Available columns in DataFrame: {list(df.columns)}")
+    print(f"📋 Looking for travel time columns: {travel_time_columns}")
+    
+    # Check which travel time columns exist
+    existing_travel_cols = [col for col in travel_time_columns if col in df.columns]
+    print(f"📋 Found travel time columns: {existing_travel_cols}")
     
     with engine.begin() as conn:
         for _, row in df.iterrows():
@@ -257,8 +226,14 @@ def update_database_travel_times(df):
             
             for col in travel_time_columns:
                 if col in df.columns and pd.notna(row[col]):
-                    update_parts.append(f"{col} = :{col}")
-                    values[col] = row[col]
+                    # Map generated column names to database column names (lowercase)
+                    db_col = col.lower()
+                    update_parts.append(f"{db_col} = :{col}")
+                    values[col] = float(row[col]) if pd.notna(row[col]) else None
+                elif col in df.columns:
+                    print(f"🔍 Column {col} exists but value is null: {row[col]}")
+                else:
+                    print(f"❌ Column {col} not found in DataFrame")
             
             if update_parts:
                 update_query = f"""
@@ -266,7 +241,7 @@ def update_database_travel_times(df):
                 SET {', '.join(update_parts)}
                 WHERE listingid = :listing_id
                 """
-                values['listing_id'] = listing_id
+                values['listing_id'] = int(listing_id)
                 
                 try:
                     result = conn.execute(text(update_query), values)

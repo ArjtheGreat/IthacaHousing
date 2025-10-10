@@ -30,10 +30,6 @@ def psql_insert_copy(df):
         }
     )
 
-    for col in ["walk_routes", "bike_routes", "drive_routes"]:
-        df[col] = df[col].apply(
-            lambda x: x.wkt if isinstance(x, LineString) else x
-        )
 
     def clean_json_field(x):
         """Clean and format JSON fields properly"""
@@ -46,23 +42,33 @@ def psql_insert_copy(df):
             elif isinstance(x, (list, dict)):
                 return json.dumps(x)
             elif isinstance(x, str):
+                # First try to parse as-is
                 try:
                     parsed = json.loads(x)
                     return json.dumps(parsed)
                 except (json.JSONDecodeError, ValueError):
-                    if x.startswith('[') and x.endswith(']'):
-                        try:
-                            import ast
-                            parsed = ast.literal_eval(x)
-                            return json.dumps(parsed)
-                        except (ValueError, SyntaxError):
-                            return json.dumps([x])
-                    else:
-                        return json.dumps([x])
+                    cleaned = x
+                    import re
+                    cleaned = re.sub(r'([^\\])"([^":,}\]]*)"([^":,}\]]*)', r'\1\\"\2\\"\3', cleaned)
+                    cleaned = re.sub(r'"([^":,}\]]*)"([^":,}\]]*)', r'\\"\1\\"\2', cleaned)
+                    
+                    try:
+                        parsed = json.loads(cleaned)
+                        return json.dumps(parsed)
+                    except (json.JSONDecodeError, ValueError):
+                        if cleaned.startswith('[') and cleaned.endswith(']'):
+                            try:
+                                import ast
+                                parsed = ast.literal_eval(cleaned)
+                                return json.dumps(parsed)
+                            except (ValueError, SyntaxError):
+                                pass
+                        escaped_str = str(x).replace('\\', '\\\\').replace('"', '\\"')
+                        return json.dumps([escaped_str])
             else:
                 return json.dumps([str(x)])
         except (ValueError, TypeError):
-                pass
+            return None
     
     for col in ["Amenities", "ListingPhotos"]:
         if col in df.columns:
@@ -76,7 +82,7 @@ def psql_insert_copy(df):
         lambda x: json.dumps(x) if isinstance(x, (list, dict)) else x
     )
 
-    base_columns = ["ListingId", "ListingAddress", "ListingCity", "ListingZip", "CreateDate", "ShortDescription", "RentAmount", "RentType", "Pets", "Amenities", "Bedrooms", "Bathrooms", "available_bedrooms", "available_bathrooms", "HousingType", "latitude", "longitude", "ListingPhotos", "walk_routes", "bike_routes", "drive_routes", "transit_score", "amenities_score", "overallsafetyratingpct", "PredictedRent", "DifferenceinFairValue", "predicted_rent_cma", "nearest_neighbor_listingIds", "rent_per_person", "num_people", "total_rent_amount"]
+    base_columns = ["ListingId", "ListingAddress", "ListingCity", "ListingZip", "CreateDate", "ShortDescription", "RentAmount", "RentType", "Pets", "Amenities", "Bedrooms", "Bathrooms", "available_bedrooms", "available_bathrooms", "HousingType", "latitude", "longitude", "ListingPhotos", "transit_score", "amenities_score", "OverallSafetyRatingPct", "PredictedRent", "DifferenceinFairValue", "predicted_rent_cma", "nearest_neighbor_listingIds", "rent_per_person", "num_people", "total_rent_amount", "owner_name", "nearest_stop_name", "walk_time_to_nearest_stop", "transit_time_to_ag_quad", "transit_time_to_arts_quad", "transit_time_to_eng_quad"]
     
     new_travel_columns = [
         "walk_time_urishall", "walk_time_agriculturequad", "walk_time_artsquad", "walk_time_engineeringquad",
@@ -95,24 +101,59 @@ def psql_insert_copy(df):
         .str.replace("_pct", "pct")
     )
 
-    with engine.begin() as conn: 
-        conn.execute(text("TRUNCATE TABLE housing_listings RESTART IDENTITY CASCADE;"))
-        
-        try:
-            df.to_sql("housing_listings", con=conn, if_exists="append", index=False)
-            print("✅ Data inserted successfully using to_sql")
-        except Exception as e:
-            print(f"❌ Error during data insertion: {e}")
-            print("Attempting to fix data issues...")
-            
-            df_clean = df.copy()
-            
+    def refresh_housing_listings(df, engine):
+        """
+        Refresh the housing_listings table with new data using parameterized SQL inserts.
+        Compatible with pandas 2.x + SQLAlchemy 2.x + PostgreSQL.
+        """
+
+        # 1️⃣ Truncate table
+        with engine.begin() as conn:
+            conn.execute(text("TRUNCATE TABLE housing_listings RESTART IDENTITY CASCADE;"))
+            print("🧹 Table truncated successfully")
+
+         # 2️⃣ Prepare parameterized insert
+        insert_query = text("""
+             INSERT INTO housing_listings (
+                 listingid, listingaddress, listingcity, listingzip, createdate, shortdescription,
+                 rentamount, renttype, pets, amenities, bedrooms, bathrooms, available_bedrooms,
+                 available_bathrooms, housingtype, latitude, longitude, listingphotos, transit_score, 
+                 amenities_score, overallsafetyratingpct, predictedrent, differenceinfairvalue, 
+                 predicted_rent_cma, nearest_neighbor_listingids, rent_per_person, num_people, 
+                 total_rent_amount, owner_name, nearest_stop_name, walk_time_to_nearest_stop, 
+                 transit_time_to_ag_quad, transit_time_to_arts_quad, transit_time_to_eng_quad,
+                 walk_time_urishall, walk_time_agriculturequad, walk_time_artsquad, walk_time_engineeringquad,
+                 bike_time_urishall, bike_time_agriculturequad, bike_time_artsquad, bike_time_engineeringquad,
+                 drive_time_urishall, drive_time_agriculturequad, drive_time_artsquad, drive_time_engineeringquad
+             ) VALUES (
+                 :listingid, :listingaddress, :listingcity, :listingzip, :createdate, :shortdescription,
+                 :rentamount, :renttype, :pets, :amenities, :bedrooms, :bathrooms, :available_bedrooms,
+                 :available_bathrooms, :housingtype, :latitude, :longitude, :listingphotos, :transit_score, 
+                 :amenities_score, :overallsafetyratingpct, :predictedrent, :differenceinfairvalue, 
+                 :predicted_rent_cma, :nearest_neighbor_listingids, :rent_per_person, :num_people, 
+                 :total_rent_amount, :owner_name, :nearest_stop_name, :walk_time_to_nearest_stop, 
+                 :transit_time_to_ag_quad, :transit_time_to_arts_quad, :transit_time_to_eng_quad,
+                 :walk_time_urishall, :walk_time_agriculturequad, :walk_time_artsquad, :walk_time_engineeringquad,
+                 :bike_time_urishall, :bike_time_agriculturequad, :bike_time_artsquad, :bike_time_engineeringquad,
+                 :drive_time_urishall, :drive_time_agriculturequad, :drive_time_artsquad, :drive_time_engineeringquad
+             )
+         """)
+
+        records = df.to_dict(orient="records")
+
+        for record in records:
             for col in ["amenities", "listingphotos", "nearest_neighbor_listingids"]:
-                if col in df_clean.columns:
-                    df_clean[col] = df_clean[col].astype(str).str.replace("'", '"').replace('""', '"')
-            
-            df_clean.to_sql("housing_listings", con=conn, if_exists="append", index=False)
-            print("✅ Data inserted successfully after cleanup")
+                if col in record and pd.notna(record[col]):
+                    record[col] = clean_json_field(record[col])
+                else:
+                    record[col] = None
+
+        # 5️⃣ Batch insert using executemany (faster & safer than to_sql)
+        with engine.begin() as conn:
+            conn.execute(insert_query, records)
+            print(f"✅ Inserted {len(records)} rows into housing_listings")
+    
+    refresh_housing_listings(df, engine)
 
 def confirmation():
     print("Confirmed Pipeline Complete!")

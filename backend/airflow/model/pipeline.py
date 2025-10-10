@@ -8,6 +8,7 @@ import extract_safety_features
 import model_training
 import comparative_market_analysis
 import extract_rental_data
+import landlord_extraction
 import insert_into_postgredb
 from sqlalchemy import create_engine, text
 import os
@@ -52,15 +53,18 @@ def get_existing_calculated_data():
             """)).fetchall()
             existing_columns = [row[0] for row in table_info]
             
-            base_columns = ['listingid', 'walk_routes', 'bike_routes', 'drive_routes', 
-                           'transit_score', 'amenities_score', 'overallsafetyratingpct', 'nearest_neighbor_listingids']
+            base_columns = ['listingid', 'transit_score', 'amenities_score', 'overallsafetyratingpct', 'nearest_neighbor_listingids']
             new_travel_columns = [
                 'walk_time_urishall', 'walk_time_agriculturequad', 'walk_time_artsquad', 'walk_time_engineeringquad',
                 'bike_time_urishall', 'bike_time_agriculturequad', 'bike_time_artsquad', 'bike_time_engineeringquad',
                 'drive_time_urishall', 'drive_time_agriculturequad', 'drive_time_artsquad', 'drive_time_engineeringquad'
             ]
+            transit_columns = [
+                'nearest_stop_name', 'walk_time_to_nearest_stop', 'transit_time_to_ag_quad', 
+                'transit_time_to_arts_quad', 'transit_time_to_eng_quad'
+            ]
             
-            columns_to_select = [col for col in base_columns + new_travel_columns if col in existing_columns]
+            columns_to_select = [col for col in base_columns + new_travel_columns + transit_columns if col in existing_columns]
             
             if not columns_to_select:
                 print("⚠️ No calculated columns found in database")
@@ -94,8 +98,9 @@ def housing_data_pipeline():
     
     print("📥 Fetching housing data...")
     apartments_for_rent = fetch_housing_data.housing_data_preprocessing()
-    apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)
-    apartments_for_rent = data_preprocessing.calc_adjusted_bed_bath_values(apartments_for_rent)
+    
+    print("🏠 Extracting landlord information...")
+    apartments_for_rent = landlord_extraction.extract_landlord_names(apartments_for_rent)
     
     existing_ids = get_existing_listing_ids()
     existing_calculated_data = get_existing_calculated_data()
@@ -130,11 +135,12 @@ def housing_data_pipeline():
             suffixes=('', '_existing')
         )
         
-        calc_fields = ['walk_routes', 'bike_routes', 'drive_routes', 'transit_score', 'amenities_score',
-                      'overallsafetyratingpct', 'nearest_neighbor_listingids',
+        calc_fields = ['transit_score', 'amenities_score', 'overallsafetyratingpct', 'nearest_neighbor_listingids',
                       'walk_time_urishall', 'walk_time_agriculturequad', 'walk_time_artsquad', 'walk_time_engineeringquad',
                       'bike_time_urishall', 'bike_time_agriculturequad', 'bike_time_artsquad', 'bike_time_engineeringquad',
-                      'drive_time_urishall', 'drive_time_agriculturequad', 'drive_time_artsquad', 'drive_time_engineeringquad']
+                      'drive_time_urishall', 'drive_time_agriculturequad', 'drive_time_artsquad', 'drive_time_engineeringquad',
+                      'nearest_stop_name', 'walk_time_to_nearest_stop', 'transit_time_to_ag_quad', 
+                      'transit_time_to_arts_quad', 'transit_time_to_eng_quad']
         
         available_calc_fields = [field for field in calc_fields if f'{field}_existing' in existing_listings.columns]
         
@@ -146,6 +152,10 @@ def housing_data_pipeline():
     
     apartments_for_rent = pd.concat([new_listings, existing_listings], ignore_index=True)
     
+    print("Extracting Rental Data...")
+    apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)
+    apartments_for_rent = data_preprocessing.calc_adjusted_bed_bath_values(apartments_for_rent)
+
     print(f"📊 Total listings ready for model processing: {len(apartments_for_rent)}")
 
     print("🧹 Preprocessing data for model training...")

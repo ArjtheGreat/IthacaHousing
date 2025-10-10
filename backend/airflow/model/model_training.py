@@ -13,7 +13,7 @@ def define_X_Y_variables(apartments_for_rent):
     """
     Define X and y features for model training
     """
-    X = apartments_for_rent[["LengthAvailable", "Pets", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score", "overallsafetyratingpct"]]
+    X = apartments_for_rent[["LengthAvailable", "Pets", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score", "OverallSafetyRatingPct"]]
     y = apartments_for_rent["rent_per_person"]
 
     return X, y

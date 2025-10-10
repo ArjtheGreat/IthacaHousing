@@ -11,7 +11,7 @@ export default defineConfig({
     vueDevTools(),
   ],
   define: {
-    'process.env.VITE_APP_TITLE': '"Ithaca Insights | Cornell Data Journal"',
+    'process.env.VITE_APP_TITLE': '"Ithaca Insights | Maitrix Labs"',
   },
   resolve: {
     alias: {

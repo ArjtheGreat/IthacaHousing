@@ -75,6 +75,12 @@ class HousingListing(Base):
     rent_per_person = Column(Numeric)
     num_people = Column(Numeric)
     total_rent_amount = Column(Numeric)
+    owner_name = Column(String)
+    nearest_stop_name = Column(String)
+    walk_time_to_nearest_stop = Column(Numeric)
+    transit_time_to_ag_quad = Column(Numeric)
+    transit_time_to_arts_quad = Column(Numeric)
+    transit_time_to_eng_quad = Column(Numeric)
 
 
 Base.metadata.create_all(bind=engine)
