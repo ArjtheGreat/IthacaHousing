@@ -212,7 +212,7 @@
                 <span class="stop-name">{{ listing?.nearest_stop_name }}</span>
                 <span class="walk-time" v-if="listing?.walk_time_to_nearest_stop">
                     <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
-                    {{ listing.walk_time_to_nearest_stop.toFixed(1) }} min walk
+                    {{ listing?.walk_time_to_nearest_stop?.toFixed(1) }} min walk
                 </span>
             </div>
         </div>
