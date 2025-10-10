@@ -85,9 +85,9 @@ def psql_insert_copy(df):
     base_columns = ["ListingId", "ListingAddress", "ListingCity", "ListingZip", "CreateDate", "ShortDescription", "RentAmount", "RentType", "Pets", "Amenities", "Bedrooms", "Bathrooms", "available_bedrooms", "available_bathrooms", "HousingType", "latitude", "longitude", "ListingPhotos", "transit_score", "amenities_score", "OverallSafetyRatingPct", "PredictedRent", "DifferenceinFairValue", "predicted_rent_cma", "nearest_neighbor_listingIds", "rent_per_person", "num_people", "total_rent_amount", "owner_name", "nearest_stop_name", "walk_time_to_nearest_stop", "transit_time_to_ag_quad", "transit_time_to_arts_quad", "transit_time_to_eng_quad"]
     
     new_travel_columns = [
-        "walk_time_urishall", "walk_time_agriculturequad", "walk_time_artsquad", "walk_time_engineeringquad",
-        "bike_time_urishall", "bike_time_agriculturequad", "bike_time_artsquad", "bike_time_engineeringquad", 
-        "drive_time_urishall", "drive_time_agriculturequad", "drive_time_artsquad", "drive_time_engineeringquad"
+        "walk_time_UrisHall", "walk_time_AgricultureQuad", "walk_time_ArtsQuad", "walk_time_EngineeringQuad",
+        "bike_time_UrisHall", "bike_time_AgricultureQuad", "bike_time_ArtsQuad", "bike_time_EngineeringQuad", 
+        "drive_time_UrisHall", "drive_time_AgricultureQuad", "drive_time_ArtsQuad", "drive_time_EngineeringQuad"
     ]
     
     available_columns = [col for col in base_columns + new_travel_columns if col in df.columns]
