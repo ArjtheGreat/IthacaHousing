@@ -50,8 +50,91 @@
       <!-- Right Half: Breaking Down the Rental Market -->
       <div class="market-analysis-section">
         <h2>Breaking Down the Rental Market</h2>
-        <div class="placeholder-content">
-          <p>Market analysis content will be added here...</p>
+        
+        <!-- Pipeline Metrics Display -->
+        <div v-if="pipelineMetrics" class="metrics-container">
+          <!-- Spatial Patterns -->
+          <div class="metric-card">
+            <h3>📍 Spatial Patterns</h3>
+            <div class="metric-row">
+              <div class="metric-item">
+                <span class="metric-label">Mean Rent</span>
+                <span class="metric-value">${{ Math.round(pipelineMetrics.spatial_patterns?.mean_rent || 0) }}</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">Moran's I</span>
+                <span class="metric-value">{{ (pipelineMetrics.spatial_patterns?.global_moran?.I || 0).toFixed(3) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Top Overpriced Landlords -->
+          <div v-if="topOverpricedLandlords.length > 0" class="metric-card">
+            <h3>🏢 Top Overpriced Landlords</h3>
+            <div class="landlord-list">
+              <div v-for="(landlord, index) in topOverpricedLandlords" :key="index" class="landlord-item">
+                <span class="landlord-name">{{ landlord.name }}</span>
+                <span class="landlord-price">+${{ Math.round(landlord.price) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Overpricing Split -->
+          <div class="metric-card">
+            <h3>💰 Market Pricing</h3>
+            <div class="pricing-split">
+              <div class="pricing-item overpriced">
+                <span class="pricing-label">Overpriced</span>
+                <span class="pricing-value">{{ Math.round(pipelineMetrics.overpricing?.percent_overpriced || 0) }}%</span>
+              </div>
+              <div class="pricing-item underpriced">
+                <span class="pricing-label">Underpriced</span>
+                <span class="pricing-value">{{ Math.round((100 - (pipelineMetrics.overpricing?.percent_overpriced || 0))) }}%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Best Model -->
+          <div class="metric-card">
+            <h3>🤖 Best Model</h3>
+            <div class="model-info">
+              <span class="model-name">{{ pipelineMetrics.model_performance?.best_model || 'N/A' }}</span>
+              <div class="model-metrics">
+                <div class="model-metric">
+                  <span class="metric-label">R²</span>
+                  <span class="metric-value">{{ ((pipelineMetrics.model_performance?.best_model_metrics?.R2 || 0) * 100).toFixed(1) }}%</span>
+                </div>
+                <div class="model-metric">
+                  <span class="metric-label">RMSE</span>
+                  <span class="metric-value">{{ (pipelineMetrics.model_performance?.best_model_metrics?.RMSE || 0).toFixed(3) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Feature Importance -->
+          <div v-if="topFeatures.length > 0" class="metric-card">
+            <h3>🎯 Key Features</h3>
+            <div class="feature-list">
+              <div v-for="(feature, index) in topFeatures" :key="index" class="feature-item">
+                <span class="feature-name">{{ feature.name }}</span>
+                <div class="feature-bar">
+                  <div class="feature-bar-fill" :style="{ width: `${feature.importance * 100}%` }"></div>
+                </div>
+                <span class="feature-value">{{ (feature.importance * 100).toFixed(1) }}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading State -->
+        <div v-else-if="loadingMetrics" class="loading-metrics">
+          <p>Loading market analysis...</p>
+        </div>
+
+        <!-- Error State -->
+        <div v-else class="error-metrics">
+          <p>Unable to load market analysis</p>
         </div>
       </div>
     </div>
@@ -64,8 +147,9 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
 import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
-import { fetchClusters, fetchHeatMap, fetchListingsMinimal } from '@/services/fetch';
+import { fetchClusters, fetchHeatMap, fetchListingsMinimal, fetchPipelineMetrics } from '@/services/fetch';
 import NavBar from "@/components/NavBar.vue";
+import { computed } from 'vue';
 
 // Map and data variables
 const exploreMap = ref(null);
@@ -75,6 +159,41 @@ const clusteredListings = ref([]);
 const heatmapData = ref(null);
 const heatmapLayer = ref(null);
 const markers = ref([]);
+
+// Pipeline metrics variables
+const pipelineMetrics = ref(null);
+const loadingMetrics = ref(false);
+
+// Computed properties for processed metrics
+const topOverpricedLandlords = computed(() => {
+  if (!pipelineMetrics.value?.landlord_behavior) return [];
+  
+  const landlords = Object.entries(pipelineMetrics.value.landlord_behavior)
+    .filter(([name, price]) => {
+      // Filter out empty strings, empty objects, and non-overpriced landlords
+      const cleanName = name.replace(/[\[\]'"]/g, '').trim();
+      return cleanName && cleanName !== 'nan' && cleanName !== '{}' && price > 0;
+    })
+    .map(([name, price]) => ({
+      name: name.replace(/[\[\]'"]/g, '').trim(),
+      price: price
+    }))
+    .sort((a, b) => b.price - a.price)
+    .slice(0, 3);
+    
+  return landlords;
+});
+
+const topFeatures = computed(() => {
+  if (!pipelineMetrics.value?.feature_importance?.all_features) return [];
+  
+  return pipelineMetrics.value.feature_importance.all_features
+    .slice(0, 5)
+    .map(feature => ({
+      name: feature.feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      importance: feature.importance
+    }));
+});
 
 // Filter functions (defined before filterOptions)
 const showClusters = () => {
@@ -138,13 +257,28 @@ async function initializeMap() {
   tileLayer.addTo(exploreMap.value);
 }
 
+async function loadPipelineMetrics() {
+  try {
+    loadingMetrics.value = true;
+    const metrics = await fetchPipelineMetrics();
+    if (metrics) {
+      pipelineMetrics.value = metrics;
+    }
+  } catch (error) {
+    console.error("Error loading pipeline metrics:", error);
+  } finally {
+    loadingMetrics.value = false;
+  }
+}
+
 async function loadData() {
   try {
     // Load all the data we need
-    const [listings, clusters, heatmap] = await Promise.all([
+    const [listings, clusters, heatmap, metrics] = await Promise.all([
       fetchListingsMinimal(),
       fetchClusters(),
-      fetchHeatMap()
+      fetchHeatMap(),
+      loadPipelineMetrics()
     ]);
     
     allListings.value = listings;
@@ -443,6 +577,233 @@ const getColor = (rentPerPerson, predictedRent) => {
   
   .placeholder-content {
     min-height: 300px;
+  }
+}
+
+/* Pipeline Metrics Styles */
+.metrics-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.metric-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+}
+
+.metric-card h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.metric-row {
+  display: flex;
+  gap: 2rem;
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.metric-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.metric-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+/* Landlord List Styles */
+.landlord-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.landlord-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border-left: 4px solid #ef4444;
+}
+
+.landlord-name {
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.landlord-price {
+  font-weight: 700;
+  color: #dc2626;
+}
+
+/* Pricing Split Styles */
+.pricing-split {
+  display: flex;
+  gap: 1rem;
+}
+
+.pricing-item {
+  flex: 1;
+  text-align: center;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.pricing-item.overpriced {
+  background: #fef2f2;
+  border: 2px solid #fecaca;
+}
+
+.pricing-item.underpriced {
+  background: #f0fdf4;
+  border: 2px solid #bbf7d0;
+}
+
+.pricing-label {
+  display: block;
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+
+.pricing-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.pricing-item.overpriced .pricing-value {
+  color: #dc2626;
+}
+
+.pricing-item.underpriced .pricing-value {
+  color: #16a34a;
+}
+
+/* Model Info Styles */
+.model-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.model-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.model-metrics {
+  display: flex;
+  gap: 2rem;
+}
+
+.model-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* Feature Importance Styles */
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.feature-name {
+  min-width: 150px;
+  font-size: 0.875rem;
+  color: #1f2937;
+  font-weight: 500;
+}
+
+.feature-bar {
+  flex: 1;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.feature-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.feature-value {
+  min-width: 50px;
+  text-align: right;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+/* Loading and Error States */
+.loading-metrics,
+.error-metrics {
+  text-align: center;
+  padding: 2rem;
+  color: #6b7280;
+}
+
+.error-metrics {
+  color: #dc2626;
+}
+
+@media (max-width: 768px) {
+  .metric-row {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .pricing-split {
+    flex-direction: column;
+  }
+  
+  .model-metrics {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .feature-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .feature-name {
+    min-width: auto;
+  }
+  
+  .feature-bar {
+    width: 100%;
   }
 }
 </style>

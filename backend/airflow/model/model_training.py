@@ -286,4 +286,4 @@ def train_and_evaluate_models(X, y, apartments_for_rent):
         print(f"Using regular features for {best_model_name}")
     
     apartments_for_rent, final_predictions = best_model_func(input_X, y, apartments_for_rent.copy())
-    return apartments_for_rent
+    return apartments_for_rent, results, X, X_spatial, y, best_model_name

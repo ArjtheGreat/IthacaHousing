@@ -337,5 +337,23 @@ export const fetchLots = async (): Promise<any[]> => {
     }
 };
 
+/**
+ * Fetches latest pipeline metrics from rental_model_runs table
+ * @returns Latest pipeline metrics data
+ */
+export const fetchPipelineMetrics = async (): Promise<any> => {
+    try {
+        const response: AxiosResponse<any> = await axios.get(`${baseURL}/pipeline-metrics/`);
+        if (response.status === 200) {
+            return response.data;
+        } else {
+            throw new Error(`Unexpected status code: ${response.status}`);
+        }
+    } catch (error) {
+        console.error("Error fetching pipeline metrics:", error);
+        return null;
+    }
+};
+
 
 

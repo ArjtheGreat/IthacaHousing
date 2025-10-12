@@ -10,6 +10,7 @@ import comparative_market_analysis
 import extract_rental_data
 import landlord_extraction
 import insert_into_postgredb
+import pipeline_metrics
 from sqlalchemy import create_engine, text
 import os
 
@@ -175,7 +176,7 @@ def housing_data_pipeline():
     y = data_preprocessing.log_transform_prices(y)
 
     print("🤖 Training models and generating predictions for all listings...")
-    apartments_for_rent = model_training.train_and_evaluate_models(X, y, apartments_for_rent)
+    apartments_for_rent, results_df, X, X_with_spatial, y_clean, best_model_name = model_training.train_and_evaluate_models(X, y, apartments_for_rent)
 
     print("📈 Performing comparative market analysis for all listings...")
     X_for_cma = comparative_market_analysis.define_X_for_cma(apartments_for_rent)
@@ -184,3 +185,15 @@ def housing_data_pipeline():
     print("💾 Inserting data into database...")
     insert_into_postgredb.psql_insert_copy(apartments_for_rent)
     insert_into_postgredb.confirmation()
+
+    print("📊 Generating and inserting pipeline metrics...")
+    try:
+        analysis_results = pipeline_metrics.analyze_market_and_model(
+            apartments_for_rent, results_df, X, X_with_spatial, y_clean, best_model_name
+        )
+        pipeline_metrics.insert_pipeline_metrics(analysis_results)
+        
+    except Exception as e:
+        print(f"⚠️ Error generating pipeline metrics: {e}")
+        import traceback
+        traceback.print_exc()

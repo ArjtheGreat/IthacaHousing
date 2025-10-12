@@ -25,6 +25,7 @@ from pathlib import Path
 import sys
 from sqlalchemy import text
 import math
+import json
 
 
 def safe_float(value):
@@ -402,6 +403,59 @@ ROWS = Gauge("rows", "Proportion of variation explained by regression model")
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+@app.get("/pipeline-metrics/")
+def get_pipeline_metrics(db: Session = Depends(get_db)):
+    """
+    Fetch the latest pipeline metrics from rental_model_runs table
+    """
+    try:
+        query = text("""
+            SELECT spatial_patterns, landlord_behavior, overpricing, 
+                   model_performance, feature_importance, spatial_residuals
+            FROM rental_model_runs 
+            ORDER BY run_timestamp DESC 
+            LIMIT 1
+        """)
+        
+        result = db.execute(query).fetchone()
+        
+        if not result:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "No pipeline metrics found"}
+            )
+        
+        def parse_json_column(value):
+            if value is None:
+                return {}
+            elif isinstance(value, dict):
+                return value
+            elif isinstance(value, str):
+                try:
+                    return json.loads(value)
+                except json.JSONDecodeError:
+                    return {}
+            else:
+                return {}
+        
+        metrics = {
+            "spatial_patterns": parse_json_column(result[0]),
+            "landlord_behavior": parse_json_column(result[1]),
+            "overpricing": parse_json_column(result[2]),
+            "model_performance": parse_json_column(result[3]),
+            "feature_importance": parse_json_column(result[4]),
+            "spatial_residuals": parse_json_column(result[5])
+        }
+        
+        return metrics
+        
+    except Exception as e:
+        logging.error(f"Error fetching pipeline metrics: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to fetch pipeline metrics: {str(e)}"}
+        )
 
 def get_sum_of_squares_error(db: Session = Depends(get_db)):
     """

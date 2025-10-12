@@ -1213,7 +1213,8 @@ watch<Listing | undefined>(
 .certificate-tooltip {
     position: absolute;
     top: -40px;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
     background: #1f2937;
     color: white;
     padding: 8px 12px;
@@ -1230,7 +1231,8 @@ watch<Listing | undefined>(
     content: '';
     position: absolute;
     top: 100%;
-    right: 12px;
+    left: 50%;
+    transform: translateX(-50%);
     border: 5px solid transparent;
     border-top-color: #1f2937;
 }
