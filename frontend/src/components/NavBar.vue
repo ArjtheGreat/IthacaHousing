@@ -21,7 +21,7 @@
         <ul class="navbar-menu" :class="{ 'menu-open': menuOpen }">
             <li><router-link to="/" active-class="active-link">Home</router-link></li>
             <li><router-link to="/rent" active-class="active-link">Rental Valuation</router-link></li>
-            <li><router-link to="/inside-ithaca" active-class="active-link">Inside Ithaca</router-link></li>
+            <!-- <li><router-link to="/inside-ithaca" active-class="active-link">Inside Ithaca</router-link></li> -->
             <!-- <li><router-link to="/history" active-class="active-link">Time Capsule</router-link></li>
             <li><router-link to="/urbangrowth" active-class="active-link">Zoning & Site Selection</router-link></li> -->
             <!-- <li><a href="https://cornelldatajournal.org/" target="_blank" active-class="active-link">Cornell Data Journal</a></li> -->

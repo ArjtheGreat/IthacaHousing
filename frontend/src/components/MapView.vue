@@ -8,55 +8,97 @@
     </div>
     <!-- Personal Taste Filters -->
     <div class="personal-filters-container">
-      <h3 class="filter-title">Personal Preference</h3>
-      <div class="personal-filters">
-        <div class="filter-row">
-          <div class="filter-group">
-            <label for="bed-filter" class="filter-label">Beds</label>
-            <select id="bed-filter" v-model="selectedBeds" @change="updateBedFilter" class="filter-select">
-              <option :value="0">N/A Beds</option>
-              <option v-for="n in bedOptions" :key="n" :value="n">{{ n }} Beds</option>
-            </select>
+      <!-- Main Personal Preferences Card -->
+      <div class="main-preferences-card">
+        <div class="card-header">
+          <h3 class="card-title">Personal Preferences</h3>
+          <span v-if="hasAnyActiveFilters" class="filter-badge">{{ filteredListings.length }} results</span>
+        </div>
+        
+        <div class="card-content">
+          <!-- Beds and Baths Row -->
+          <div class="filter-row">
+            <div class="filter-group">
+              <label for="bed-filter" class="filter-label">🛏️ Beds</label>
+              <select id="bed-filter" v-model="selectedBeds" @change="updateBedFilter" class="filter-select">
+                <option :value="0">Any</option>
+                <option v-for="n in bedOptions" :key="n" :value="n">{{ n }}</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="bath-filter" class="filter-label">🛁 Baths</label>
+              <select id="bath-filter" v-model="selectedBaths" @change="updateBathFilter" class="filter-select">
+                <option :value="0">Any</option>
+                <option v-for="n in bathOptions" :key="n" :value="n">{{ n }}</option>
+              </select>
+            </div>
           </div>
 
-          <div class="filter-group">
-            <label for="bath-filter" class="filter-label">Baths</label>
-            <select id="bath-filter" v-model="selectedBaths" @change="updateBathFilter" class="filter-select">
-              <option :value="0">N/A Baths</option>
-              <option v-for="n in bathOptions" :key="n" :value="n">{{ n }} Baths</option>
-            </select>
+          <!-- Location Row -->
+          <div class="filter-row">
+            <div class="filter-group">
+              <label for="location-filter" class="filter-label">📍 Neighborhood</label>
+              <select id="location-filter" v-model="selectedLocation" @change="updateLocationFilter" class="filter-select">
+                <option value="">Any neighborhood</option>
+                <option v-for="neighborhood in availableNeighborhoods" :key="neighborhood" :value="neighborhood">
+                  {{ neighborhood }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Commute Section -->
+          <div class="commute-section">
+            <div class="commute-header">
+              <h4 class="commute-title">🚶 Commute</h4>
+            </div>
+
+            <div class="filter-row-commute">
+              <div class="filter-group">
+                <label for="destination-filter" class="filter-label">Destination</label>
+                <select id="destination-filter" v-model="selectedDestination" @change="autoApplyCommuteFilter" class="filter-select">
+                  <option value="">Any</option>
+                  <option value="urishall">Uris Hall</option>
+                  <option value="agriculturequad">Agriculture Quad</option>
+                  <option value="artsquad">Arts Quad</option>
+                  <option value="engineeringquad">Engineering Quad</option>
+                </select>
+              </div>
+
+              <div class="filter-group">
+                <label for="commute-time-filter" class="filter-label">Max time</label>
+                <select id="commute-time-filter" v-model="selectedCommuteTime" @change="autoApplyCommuteFilter" class="filter-select">
+                  <option value="">Any</option>
+                  <option value="10">10 min</option>
+                  <option value="15">15 min</option>
+                  <option value="20">20 min</option>
+                  <option value="25">25 min</option>
+                  <option value="30">30 min</option>
+                </select>
+              </div>
+
+              <div class="filter-group">
+                <label for="transit-mode-filter" class="filter-label">Mode</label>
+                <select id="transit-mode-filter" v-model="selectedTransitMode" @change="autoApplyCommuteFilter" class="filter-select">
+                  <option value="">Any</option>
+                  <option value="walk">Walking</option>
+                  <option value="walk">TCAT</option>
+                  <option value="drive">Drive</option>
+                  <option value="bike">Bike</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reset Button -->
+          <div class="reset-section">
+            <button @click="resetAllFilters" class="reset-btn">Reset All Filters</button>
           </div>
         </div>
+      </div>
 
-        <div class="filter-row">
-          <div class="filter-group">
-            <label for="location-filter" class="filter-label">Location</label>
-            <select id="location-filter" v-model="selectedLocation" @change="updateLocationFilter" class="filter-select">
-              <option value="">Any Location</option>
-              <option value="Collegetown">Collegetown</option>
-              <option value="Commons">Commons</option>
-              <option value="Downtown">Downtown</option>
-              <option value="Fall Creek">Fall Creek</option>
-              <option value="Belle Sherman">Belle Sherman</option>
-              <option value="South Hill">South Hill</option>
-              <option value="Northside">Northside</option>
-            </select>
-          </div>
-
-          <div class="filter-group">
-            <label for="vibe-filter" class="filter-label">Vibe</label>
-            <select id="vibe-filter" v-model="selectedVibe" @change="updateVibeFilter" class="filter-select">
-              <option value="">Any Vibe</option>
-              <option value="Modern">Modern</option>
-              <option value="Historic">Historic</option>
-              <option value="Student">Student</option>
-              <option value="Family">Family</option>
-              <option value="Luxury">Luxury</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="icon-buttons">
+      <div class="icon-buttons">
           <!-- <button 
             @click="toggleWalk" 
             :class="['icon-button', { active: activeFilters.walk !== null }]"
@@ -69,14 +111,13 @@
           >
             🚌 TCAT
           </button> -->
-          <button 
+          <!-- <button 
             @click="togglePets" 
             :class="['icon-button', { active: activeFilters.pets !== null }]"
           >
             🐶 Pets
-          </button>
+          </button> -->
         </div>
-      </div>
     </div>
 
     <!-- Map Container -->
@@ -132,7 +173,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
@@ -158,17 +199,22 @@ const bottomTenListings = ref([]); // Store bottom 10 listings
 const clusteredListings = ref([]); // Store Clustered Listings
 const heatmapData = ref(null); // Stores the Heatmap Data
 const heatmapLayer = ref(null); // Stores the Heatmap Layer
+const isochronicLayer = ref(null); // Stores the isochronic map layer
 // Tab functionality moved to InsideIthacaView
 let activeFilter = ref(null); // Tracks which filter is selected
 
-const activeFilters = ref({ beds: null, baths: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null }); // Holds Bath and Bed Data for Dynamic Filtering
+const activeFilters = ref({ beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null }); // Holds Bath and Bed Data for Dynamic Filtering
 const filteredListings = ref([]); // Keeps track of the filtered listings
 const selectedBeds = ref(0); // Number of Selected Beds
 const bedOptions = [1, 2, 3, 4, 5]; // Adjust based on available data
 const selectedBaths = ref(0); // Number of Selected Baths
 const bathOptions = [1, 1.5, 2, 2.5, 3]; // Adjust based on available data
 const selectedLocation = ref(''); // Selected Location
-const selectedVibe = ref(''); // Selected Vibe
+const selectedDestination = ref(''); // Selected Destination for commute filter
+const selectedCommuteTime = ref(''); // Selected Max Commute Time
+const selectedTransitMode = ref(''); // Selected Transit Mode (walk/bike/drive)
+const showCommuteDrawer = ref(false); // Controls visibility of commute filter drawer (legacy)
+const showCommutePanel = ref(false); // Controls visibility of new commute panel
 
 // Search functionality
 const searchQuery = ref('');
@@ -178,6 +224,35 @@ const highlightedIndex = ref(-1);
 const currentRoute = ref(null);
 
 const isLoading = ref(true); // Add loading state
+
+// Computed property to check if any filters are active
+const hasAnyActiveFilters = computed(() => {
+  return Object.values(activeFilters.value).some(filter => filter !== null);
+});
+
+// Computed property to get unique neighborhoods from listings
+const availableNeighborhoods = computed(() => {
+  if (!allListings.value || allListings.value.length === 0) {
+    return [];
+  }
+  
+  // Get unique neighborhoods, filter out null/undefined/empty/NaN values
+  const neighborhoods = allListings.value
+    .map(listing => listing.neighborhood)
+    .filter(neighborhood => {
+      if (!neighborhood) return false;
+      if (typeof neighborhood !== 'string') return false;
+      if (neighborhood.trim() === '') return false;
+      if (neighborhood.toLowerCase() === 'nan') return false;
+      if (neighborhood === 'NaN') return false;
+      return true;
+    })
+    .filter((value, index, self) => self.indexOf(value) === index) // Remove duplicates
+    .sort(); // Sort alphabetically
+  
+  console.log('Available neighborhoods:', neighborhoods)
+  return neighborhoods;
+});
 
 // Funny Loading Messages Logic
 let messageIndex = 0;
@@ -351,6 +426,60 @@ function groupListingsByLocation(listings) {
 }
 
 /**
+ * Display isochronic map for a listing
+ * @param {Object} listing - The listing with iso15 data
+ */
+function displayIsochronicMap(listing) {
+    // Remove existing isochronic layer
+    if (isochronicLayer.value) {
+        map.value.removeLayer(isochronicLayer.value);
+        isochronicLayer.value = null;
+    }
+
+    // Check if listing has isochronic data
+    if (!listing.iso15) {
+        console.log('No isochronic data available for this listing');
+        return;
+    }
+
+    try {
+        // Parse the GeoJSON
+        const geoJsonData = JSON.parse(listing.iso15);
+        
+        // Create the isochronic polygon layer
+        isochronicLayer.value = L.geoJSON(geoJsonData, {
+            style: {
+                color: '#3b82f6', // Blue color
+                weight: 2,
+                opacity: 0.8,
+                fillColor: '#3b82f6',
+                fillOpacity: 0.2
+            }
+        }).addTo(map.value);
+
+        // Fit map to show the isochronic area
+        // if (geoJsonData.features && geoJsonData.features.length > 0) {
+        //     map.value.fitBounds(isochronicLayer.value.getBounds(), { padding: [20, 20] });
+        // }
+
+        console.log('Isochronic map displayed for listing:', listing.listingid);
+    } catch (error) {
+        console.error('Error parsing isochronic data:', error);
+    }
+}
+
+/**
+ * Hide the isochronic map
+ */
+function hideIsochronicMap() {
+    if (isochronicLayer.value) {
+        map.value.removeLayer(isochronicLayer.value);
+        isochronicLayer.value = null;
+        console.log('Isochronic map hidden');
+    }
+}
+
+/**
  * Add quad icons to the map
  */
 function addQuadIcons() {
@@ -448,6 +577,7 @@ function addMarkers(listings, filtered) {
                 selectedListing.value = fullListing;
                 highlightSelectedMarker(listing);
                 currentRoute.value = plotRoute(fullListing).addTo(map.value);
+                // displayIsochronicMap(fullListing); // Display isochronic map
                 isSidebarVisible.value = true;
             }
         });
@@ -588,6 +718,7 @@ const selectSuggestion = async (suggestion) => {
       selectedListing.value = fullListing;
       highlightSelectedMarker(suggestion.listing);
       currentRoute.value = plotRoute(fullListing).addTo(map.value);
+      // displayIsochronicMap(fullListing); // Display isochronic map
       isSidebarVisible.value = true;
     }
 
@@ -796,16 +927,22 @@ const updateBathFilter = async () => {
 };
 
 const updateLocationFilter = async () => {
-  // TODO: Implement location filtering logic
-  console.log('Location filter updated:', selectedLocation.value);
-  // You can add the actual filtering logic here later
+  if (!selectedLocation.value || selectedLocation.value === '') {
+    // Clear location filter
+    activeFilters.value.location = null;
+    mergeFilters();
+    return;
+  }
+
+  // Filter listings by neighborhood
+  const locationListings = allListings.value.filter(listing => 
+    listing.neighborhood && listing.neighborhood.toLowerCase() === selectedLocation.value.toLowerCase()
+  );
+
+  activeFilters.value.location = locationListings;
+  mergeFilters(locationListings, true);
 };
 
-const updateVibeFilter = async () => {
-  // TODO: Implement vibe filtering logic based on year built
-  console.log('Vibe filter updated:', selectedVibe.value);
-  // You can add the actual filtering logic here later
-};
 
 /**
  * Toggles Walkability Filter based on walking time
@@ -852,6 +989,104 @@ const toggleWalk = async () => {
   }
 };
 
+/**
+ * Toggle the commute filter drawer (legacy)
+ */
+const toggleCommuteDrawer = () => {
+  showCommuteDrawer.value = !showCommuteDrawer.value;
+};
+
+/**
+ * Toggle the new commute panel
+ */
+const toggleCommutePanel = () => {
+  showCommutePanel.value = !showCommutePanel.value;
+};
+
+/**
+ * Auto-apply commute filter when all three fields are filled, or clear if any is "Any"
+ */
+const autoApplyCommuteFilter = () => {
+  // If any field is set to "Any" (empty value), clear the commute filter
+  if (!selectedDestination.value || !selectedCommuteTime.value || !selectedTransitMode.value) {
+    // Clear the filter but don't reset the dropdown values
+    activeFilters.value.commute = null;
+    mergeFilters();
+    return;
+  }
+  
+  // If all three fields are filled, apply the filter
+  if (selectedDestination.value && selectedCommuteTime.value && selectedTransitMode.value) {
+    applyCommuteFilter();
+  }
+};
+
+/**
+ * Apply Commute Filter based on destination, time, and transit mode
+ */
+const applyCommuteFilter = () => {
+  if (!selectedDestination.value || !selectedCommuteTime.value || !selectedTransitMode.value) {
+    return;
+  }
+
+  // Build the column name based on transit mode and destination
+  const columnName = `${selectedTransitMode.value}_time_${selectedDestination.value}`;
+  const maxTime = parseFloat(selectedCommuteTime.value);
+
+  // Filter listings based on the selected criteria
+  const filtered = allListings.value.filter(listing => {
+    const travelTime = listing[columnName];
+    return travelTime !== null && travelTime !== undefined && travelTime < maxTime;
+  });
+
+  console.log(`Commute filter applied: ${columnName} < ${maxTime} minutes`);
+  console.log(`Found ${filtered.length} listings matching criteria`);
+
+  activeFilters.value.commute = filtered;
+  mergeFilters();
+};
+
+/**
+ * Clear Commute Filter
+ */
+const clearCommuteFilter = () => {
+  activeFilters.value.commute = null;
+  selectedDestination.value = '';
+  selectedCommuteTime.value = '';
+  selectedTransitMode.value = '';
+  showCommuteDrawer.value = false; // Close drawer when clearing
+  showCommutePanel.value = false; // Close panel when clearing
+  mergeFilters();
+};
+
+/**
+ * Apply all filters (placeholder for now)
+ */
+const applyAllFilters = () => {
+  // This can be expanded to apply all filters at once if needed
+  console.log('All filters applied');
+};
+
+/**
+ * Reset all filters
+ */
+const resetAllFilters = () => {
+  selectedBeds.value = 0;
+  selectedBaths.value = 0;
+  selectedLocation.value = '';
+  selectedDestination.value = '';
+  selectedCommuteTime.value = '';
+  selectedTransitMode.value = '';
+  
+  // Clear all active filters
+  activeFilters.value = { beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null };
+  
+  // Close panels
+  showCommuteDrawer.value = false;
+  showCommutePanel.value = false;
+  
+  mergeFilters();
+};
 
 /**
  * Toggles Room to Rent Filter
@@ -921,6 +1156,15 @@ function mergeFilters() {
     );
   }
 
+  // Merge Location
+  if (activeFilters.value.location) {
+    mergedListings = mergedListings.filter(listing =>
+      activeFilters.value.location.some(locationListing =>
+        locationListing.latitude === listing.latitude && locationListing.longitude === listing.longitude
+      )
+    );
+  }
+
   // Merge Walks
   if (activeFilters.value.walk) {
     mergedListings = mergedListings.filter(listing =>
@@ -944,6 +1188,15 @@ function mergeFilters() {
     mergedListings = mergedListings.filter(listing =>
       activeFilters.value.pets.some(petsListing =>
         petsListing.latitude === listing.latitude && petsListing.longitude === listing.longitude
+      )
+    );
+  }
+
+  // Merge Commute Filter
+  if (activeFilters.value.commute) {
+    mergedListings = mergedListings.filter(listing =>
+      activeFilters.value.commute.some(commuteListing =>
+        commuteListing.latitude === listing.latitude && commuteListing.longitude === listing.longitude
       )
     );
   }
@@ -1050,6 +1303,9 @@ const closePopup = () => {
     isSidebarVisible.value = false;
     currentRoute.value?.remove();
     
+    // Hide isochronic map
+    hideIsochronicMap();
+    
     // Clear all marker highlights
     clearAllHighlights();
 };
@@ -1075,6 +1331,7 @@ const selectListingFromSidebar = async (listing) => {
         selectedListing.value = fullListing;
         highlightSelectedMarker(listing);
         currentRoute.value = plotRoute(fullListing).addTo(map.value);
+        // displayIsochronicMap(fullListing); // Display isochronic map
         isSidebarVisible.value = true;
     }
 };
@@ -1193,6 +1450,23 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   padding: 20px;
   border: 1px solid #e2e8f0;
+  color: black;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #000000;
+  margin: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .filter-container {
@@ -1226,12 +1500,19 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   flex: 1;
 }
 
+.filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
 .filter-label {
   display: block;
   font-size: 0.875rem;
   font-weight: 500;
   color: #000000;
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .filter-select {
@@ -1571,6 +1852,178 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   100% {
     transform: rotate(360deg);
   }
+}
+
+/* Commute Filter Drawer Styles */
+.commute-filter-trigger {
+  margin: 12px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.commute-trigger-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #f3f4f6;
+  border: 2px solid #e5e7eb;
+  border-radius: 25px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.commute-trigger-btn:hover {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  transform: translateY(-1px);
+}
+
+.commute-trigger-btn.active {
+  background: #6366f1;
+  border-color: #4f46e5;
+  color: white;
+}
+
+.filter-badge {
+  background: #ef4444;
+  color: white;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  min-width: 20px;
+  text-align: center;
+}
+
+.commute-drawer {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  margin: 12px 0;
+  overflow: hidden;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.drawer-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.close-drawer-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: #64748b;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.close-drawer-btn:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.drawer-content {
+  padding: 20px;
+}
+
+/* Commute Section */
+.commute-section {
+  margin: 20px 0;
+  border-top: 2px solid #f3f4f6;
+  padding-top: 20px;
+}
+
+.commute-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.commute-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-badge {
+  background: #10b981;
+  color: white;
+  border-radius: 12px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.filter-row-commute {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+/* Reset Section */
+.reset-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 2px solid #f3f4f6;
+  display: flex;
+  justify-content: center;
+}
+
+.reset-btn {
+  padding: 12px 24px;
+  background: #f8fafc;
+  color: #64748b;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reset-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Hamburger Icon (Mobile only) */

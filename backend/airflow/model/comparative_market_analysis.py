@@ -48,7 +48,19 @@ def define_X_for_cma(apartments_for_rent):
     """
     Define X for CMA with data cleaning
     """
-    X = apartments_for_rent[["LengthAvailable", "Pets", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score", "OverallSafetyRatingPct", "GmapLatitude", "GmapLongitude"]]
+    safety_col = None
+    if "valid_certificate_of_compliance" in apartments_for_rent.columns:
+        safety_col = "valid_certificate_of_compliance"
+    elif "OverallSafetyRatingPct" in apartments_for_rent.columns:
+        safety_col = "OverallSafetyRatingPct"
+    elif "overallsafetyratingpct" in apartments_for_rent.columns:
+        safety_col = "overallsafetyratingpct"
+    
+    base_cols = ["LengthAvailable", "Pets", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score", "GmapLatitude", "GmapLongitude"]
+    if safety_col:
+        base_cols.append(safety_col)
+    
+    X = apartments_for_rent[base_cols]
 
     X_clean = X.copy()
     for col in X_clean.columns:

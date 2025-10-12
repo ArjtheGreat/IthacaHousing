@@ -61,7 +61,7 @@ def test_insert_function():
         # Route columns removed - not available in current data
         'transit_score': [85.5, 72.3],
         'amenities_score': [78.2, 82.1],
-        'overallsafetyratingpct': [88.5, 91.2],
+        'valid_certificate_of_compliance': [0, 1],
         'PredictedRent': [950, 1150],
         'DifferenceinFairValue': [50, 50],
         'predicted_rent_cma': [975, 1175],

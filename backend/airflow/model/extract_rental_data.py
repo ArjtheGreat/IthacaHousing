@@ -4,6 +4,10 @@ import json
 import pandas as pd
 import ast
 import time
+from shapely.geometry import Point
+import geopandas as gpd
+from pathlib import Path
+
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -17,7 +21,6 @@ if OPENAI_API_KEY:
 else:
     print("Warning: OPENAI_API_KEY environment variable not set")
 
-api_key=os.getenv("OPENAI_API_KEY")
 
 def process_prompt_for_rent_bedroom_extraction(num_bedrooms, num_bathrooms, rent, housing_type, rent_type, short_description):
     """
@@ -237,3 +240,43 @@ def extract_rental_data(apartments_for_rent):
     apartments_for_rent["total_rent_amount"] = apartments_for_rent["rent_per_person"]*apartments_for_rent["num_people"]
 
     return apartments_for_rent
+
+MODEL_PATH = "/opt/airflow/model"
+if not os.path.exists(MODEL_PATH):
+    MODEL_PATH = str(Path(__file__).resolve().parent)
+
+geojson_path = os.path.join(MODEL_PATH, "IthacaN_Cleaned.geojson")
+
+def extract_neighborhood(apartments_for_rent):
+    """
+    Extracts Neighborhood using Spatial Join
+    """
+    try:
+        ithaca_neighborhoods_gdf = gpd.read_file(geojson_path)
+    except FileNotFoundError:
+        print("⚠️ IthacaN_Cleaned.geojson not found, skipping neighborhood extraction")
+        return apartments_for_rent
+
+    def parse_coordinates(x):
+        if isinstance(x, str):
+            try:
+                coord_dict = json.loads(x)
+                return Point(coord_dict["lng"], coord_dict["lat"])
+            except (json.JSONDecodeError, KeyError, TypeError):
+                return None
+        elif isinstance(x, dict):
+            return Point(x["lng"], x["lat"])
+        else:
+            return None
+    
+    apartments_for_rent["geometry"] = apartments_for_rent["Coordinates"].apply(parse_coordinates)
+
+    apartments_for_rent_gdf = gpd.GeoDataFrame(
+        apartments_for_rent, geometry="geometry", crs="EPSG:4326"
+    )
+    result_gdf = apartments_for_rent_gdf.sjoin(ithaca_neighborhoods_gdf, how='left')
+    result_gdf = result_gdf.rename(columns={'name': 'neighborhood'})
+    
+    result_df = result_gdf.drop(columns=['geometry'])
+
+    return result_df

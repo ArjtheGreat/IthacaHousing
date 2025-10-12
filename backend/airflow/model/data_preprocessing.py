@@ -2,8 +2,24 @@ import pandas as pd
 import numpy as np
 
 numerical_columns = [
-    "LengthAvailable", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score", "OverallSafetyRatingPct"
+    "LengthAvailable", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score"
 ]
+
+def get_safety_rating_column(df):
+    """Get the safety rating column name (handles multiple cases)"""
+    # Handle Valid Certificate of Compliance mapping if needed
+    if "Valid Certificate of Compliance" in df.columns:
+        df["Valid Certificate of Compliance"] = df["Valid Certificate of Compliance"].replace({8: 1, float('nan'): 0})
+        df = df.rename(columns={"Valid Certificate of Compliance": "valid_certificate_of_compliance"})
+    
+    if "valid_certificate_of_compliance" in df.columns:
+        return "valid_certificate_of_compliance"
+    elif "OverallSafetyRatingPct" in df.columns:
+        return "OverallSafetyRatingPct"
+    elif "overallsafetyratingpct" in df.columns:
+        return "overallsafetyratingpct"
+    else:
+        return None
 
 categorical_columns = [
     "Pets"
@@ -60,8 +76,10 @@ def median_mode_imputation(X):
                 median = 50  # Default middle score
             elif col == "amenities_score":
                 median = 50  # Default middle score
-            elif col == "OverallSafetyRatingPct":
+            elif col in ["OverallSafetyRatingPct", "overallsafetyratingpct"]:
                 median = 70  # Default safety rating
+            elif col == "valid_certificate_of_compliance":
+                median = 0  # Default to 0 (no valid certificate)
             else:
                 median = 0  # Default fallback
         

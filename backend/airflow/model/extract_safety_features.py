@@ -63,21 +63,18 @@ def calculate_safety_score(apartments_for_rent):
 
     apartments_for_rent = pd.concat([apartments_for_rent, safety_df], axis=1)
 
-    fillna_dict = {}
-    if "OverallSafetyRatingPct" in apartments_for_rent.columns:
-        fillna_dict["OverallSafetyRatingPct"] = apartments_for_rent["OverallSafetyRatingPct"].mean()
-    if "HasValidCertificateOfOccupancy" in apartments_for_rent.columns:
-        fillna_dict["HasValidCertificateOfOccupancy"] = 0
-    if "MeetsMinimumRequirements" in apartments_for_rent.columns:
-        fillna_dict["MeetsMinimumRequirements"] = 0
-    if "ExceedsRequirements" in apartments_for_rent.columns:
-        fillna_dict["ExceedsRequirements"] = 0
-    if "HasFireResistantConstructionType" in apartments_for_rent.columns:
-        fillna_dict["HasFireResistantConstructionType"] = 0
-    if "SatisfiesApplicableCode" in apartments_for_rent.columns:
-        fillna_dict["SatisfiesApplicableCode"] = 0
-    
-    if fillna_dict:
-        apartments_for_rent.fillna(fillna_dict, inplace=True)
+    if "Valid Certificate of Compliance" in apartments_for_rent.columns:
+        print("🔍 Original values:", apartments_for_rent["Valid Certificate of Compliance"].head())
+        print("🔍 Value counts:", apartments_for_rent["Valid Certificate of Compliance"].value_counts(dropna=False))
+        
+        apartments_for_rent["Valid Certificate of Compliance"] = apartments_for_rent["Valid Certificate of Compliance"].replace({8: 1})
+        apartments_for_rent["Valid Certificate of Compliance"] = apartments_for_rent["Valid Certificate of Compliance"].fillna(0)
+        
+        apartments_for_rent["Valid Certificate of Compliance"] = apartments_for_rent["Valid Certificate of Compliance"].astype(int)
+        
+        apartments_for_rent = apartments_for_rent.rename(columns={"Valid Certificate of Compliance": "valid_certificate_of_compliance"})
+        
+        print("✅ After processing:", apartments_for_rent["valid_certificate_of_compliance"].head())
+        print("✅ Final value counts:", apartments_for_rent["valid_certificate_of_compliance"].value_counts(dropna=False))
     
     return apartments_for_rent

@@ -53,7 +53,7 @@ def get_existing_calculated_data():
             """)).fetchall()
             existing_columns = [row[0] for row in table_info]
             
-            base_columns = ['listingid', 'transit_score', 'amenities_score', 'overallsafetyratingpct', 'nearest_neighbor_listingids']
+            base_columns = ['listingid', 'transit_score', 'amenities_score', 'valid_certificate_of_compliance', 'nearest_neighbor_listingids']
             new_travel_columns = [
                 'walk_time_urishall', 'walk_time_agriculturequad', 'walk_time_artsquad', 'walk_time_engineeringquad',
                 'bike_time_urishall', 'bike_time_agriculturequad', 'bike_time_artsquad', 'bike_time_engineeringquad',
@@ -98,9 +98,15 @@ def housing_data_pipeline():
     
     print("📥 Fetching housing data...")
     apartments_for_rent = fetch_housing_data.housing_data_preprocessing()
+
+    print("🛡️ Calculating safety scores for listings...")
+    apartments_for_rent = extract_safety_features.calculate_safety_score(apartments_for_rent)
     
     print("🏠 Extracting landlord information...")
     apartments_for_rent = landlord_extraction.extract_landlord_names(apartments_for_rent)
+
+    print("🏠 Extracting neighborhoods...")
+    apartments_for_rent = extract_rental_data.extract_neighborhood(apartments_for_rent)
     
     existing_ids = get_existing_listing_ids()
     existing_calculated_data = get_existing_calculated_data()
@@ -116,14 +122,18 @@ def housing_data_pipeline():
         graphs = calculate_travel_times_distance.build_graphs()
         new_listings = calculate_travel_times_distance.compute_all_travel_times(new_listings, graphs)
         
+        print("🗺️ Creating isochronic maps for new listings...")
+        new_listings = calculate_travel_times_distance.make_isochronic_map(new_listings)
+        
         print("🚌 Calculating transit scores for new listings...")
         new_listings = calculate_transit_score.calculate_transit_score(new_listings)
+
+        
         
         print("🏠 Calculating amenity scores for new listings...")
         new_listings = calculate_amenity_score.calculate_amenity_score(new_listings)
-        
-        print("🛡️ Calculating safety scores for new listings...")
-        new_listings = extract_safety_features.calculate_safety_score(new_listings)
+    
+        # new_listings = extract_safety_features.calculate_safety_score(new_listings)
     
     if len(existing_listings) > 0 and len(existing_calculated_data) > 0:
         print("🔄 Merging preserved calculated data into existing listings...")
@@ -135,12 +145,12 @@ def housing_data_pipeline():
             suffixes=('', '_existing')
         )
         
-        calc_fields = ['transit_score', 'amenities_score', 'overallsafetyratingpct', 'nearest_neighbor_listingids',
+        calc_fields = ['transit_score', 'amenities_score', 'valid_certificate_of_compliance', 'nearest_neighbor_listingids',
                       'walk_time_urishall', 'walk_time_agriculturequad', 'walk_time_artsquad', 'walk_time_engineeringquad',
                       'bike_time_urishall', 'bike_time_agriculturequad', 'bike_time_artsquad', 'bike_time_engineeringquad',
                       'drive_time_urishall', 'drive_time_agriculturequad', 'drive_time_artsquad', 'drive_time_engineeringquad',
                       'nearest_stop_name', 'walk_time_to_nearest_stop', 'transit_time_to_ag_quad', 
-                      'transit_time_to_arts_quad', 'transit_time_to_eng_quad']
+                      'transit_time_to_arts_quad', 'transit_time_to_eng_quad', 'iso15']
         
         available_calc_fields = [field for field in calc_fields if f'{field}_existing' in existing_listings.columns]
         

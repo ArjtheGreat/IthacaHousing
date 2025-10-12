@@ -1,7 +1,9 @@
 import re
+from openai import OpenAI
 import pandas as pd
 import os
 from pathlib import Path
+import json
 
 MODEL_PATH = "/opt/airflow/model"
 if not os.path.exists(MODEL_PATH):
@@ -9,6 +11,18 @@ if not os.path.exists(MODEL_PATH):
 
 csv_path = os.path.join(MODEL_PATH, "Tompkins_County_Ownership.csv")
 address_ownership_df = pd.read_csv(csv_path, on_bad_lines='skip')
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+client = None
+if OPENAI_API_KEY:
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+    except Exception as e:
+        print(f"Warning: Could not initialize OpenAI client: {e}")
+        client = None
+else:
+    print("Warning: OPENAI_API_KEY environment variable not set")
 
 def standardize_street_names(address_series):
     """Standardize street name abbreviations for consistent matching"""
@@ -121,6 +135,89 @@ def match_address(row, ownership_df, tolerance=0):
             return cand["Owner Name"]
     return None
 
+def process_prompt_for_landlord(landlords):
+    """
+    Normalize a landlord list using the OpenAI API.
+    
+    Args:
+        landlords (list or str): Raw landlord names or text to normalize.
+    
+    Returns:
+        dict: {
+            "landlords": [cleaned names],
+            "error": None or error message
+        }
+    """
+    try:
+        if isinstance(landlords, list):
+            landlords = ", ".join(str(x) for x in landlords)
+
+        prompt = f"""
+        The following may include duplicates, variations, or noise.
+        Normalize it into a clean Python list of unique landlord names (no quotes in the names):
+        {landlords}
+        """
+
+        response_text = get_openai_response_for_landlord_extraction(
+            model_name="gpt-4.1-mini",
+            prompt=prompt
+        )
+
+        try:
+            landlords_list = json.loads(response_text.replace("'", '"'))
+        except json.JSONDecodeError:
+            landlords_list = [
+                x.strip().strip('"').strip("'")
+                for x in response_text.strip("[]").split(",")
+                if x.strip()
+            ]
+
+        return landlords_list
+
+    except Exception as e:
+        print(f"❌ Error processing landlord prompt: {e}")
+        return {"landlords": [], "error": str(e)}
+
+
+def get_openai_response_for_landlord_extraction(
+    model_name: str,
+    prompt: str,
+    temperature: float = 0.2,
+    max_tokens: int = 300,
+    max_retries: int = 3
+):
+    """
+    Query the OpenAI API to extract structured landlord names with retries and fallback.
+    """
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a rental data normalizer.\n"
+                "Return a single valid Python list of unique landlord names.\n"
+                "No commentary, no quotes around list elements.\n"
+                'Example: ["John Kimball", "Mary Kimball"]'
+            ),
+        },
+        {"role": "user", "content": prompt},
+    ]
+
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            print(f"⚠️ OpenAI API error (attempt {attempt + 1}/{max_retries}): {e}")
+            time.sleep(2 * (attempt + 1))
+
+    raise RuntimeError("❌ Failed to get response from OpenAI after multiple retries.")
+
 def extract_landlord_names(apartments_for_rent):
     """
     Extract landlord/owner names for apartments_for_rent dataframe
@@ -146,12 +243,14 @@ def extract_landlord_names(apartments_for_rent):
         owner = match_address(row, address_ownership_df)
         return owner if owner else "Not Found"
     
-    apartments_for_rent["owner_name"] = apartments_for_rent.apply(match_owner_name, axis=1)
+    apartments_for_rent["owner_name_raw"] = apartments_for_rent.apply(match_owner_name, axis=1)
+    apartments_for_rent["owner_name"] = apartments_for_rent.apply(process_prompt_for_landlord, axis=1)
     
-    apartments_for_rent.drop(columns=["ListingAddress_formatted", "HouseNumStart", "HouseNumEnd", "StreetCore"], inplace=True)
+    apartments_for_rent.drop(columns=["ListingAddress_formatted", "HouseNumStart", "HouseNumEnd", "StreetCore", "owner_name_raw"], inplace=True)
     
     print(f"✅ Extracted landlord names for {len(apartments_for_rent)} listings")
     matched_count = (apartments_for_rent["owner_name"] != "Not Found").sum()
     print(f"📊 Successfully matched {matched_count}/{len(apartments_for_rent)} listings to owners")
     
     return apartments_for_rent
+    

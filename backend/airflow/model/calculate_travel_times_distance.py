@@ -2,6 +2,9 @@ import networkx as nx
 import osmnx as ox
 import shapely
 from shapely import MultiLineString
+import geopandas as gpd
+import shapely
+from shapely.geometry import Point
 
 CAMPUS_POINTS = [
     {"name": "Uris Hall",        "lat": 42.4472,   "lon": -76.4822 },
@@ -88,3 +91,37 @@ def compute_all_travel_times(apartments_for_rent, graphs):
 
     return apartments_for_rent
 
+
+def make_isochronic_map(apartments_for_rent):
+    """
+    Makes 15 and 30 minute isochronic maps for apartment listings
+    """
+    G_city = ox.graph_from_place("City of Ithaca, New York, USA", network_type="walk")
+    G_town = ox.graph_from_place("Town of Ithaca, New York, USA", network_type="walk")
+
+    G_walk = nx.compose(G_city, G_town)
+
+    for u, v, data in G_walk.edges(data=True):
+        data["travel_time"] = data["length"] / 1.3
+
+    def make_isochrone(G, center_node, cutoff=900): 
+        subgraph = nx.ego_graph(G, center_node, radius=cutoff, distance="travel_time")
+        nodes = [ (G.nodes[n]['x'], G.nodes[n]['y']) for n in subgraph.nodes() ]
+        polygon = shapely.geometry.MultiPoint(nodes).convex_hull
+        return polygon
+
+    isochrones = []
+    for _, row in apartments_for_rent.iterrows():
+        center_node = ox.distance.nearest_nodes(G_walk, row["longitude"], row["latitude"])
+        poly15 = make_isochrone(G_walk, center_node, cutoff=900)
+        isochrones.append({"id": row["ListingId"], "iso15": poly15})
+
+    iso_df = gpd.GeoDataFrame(isochrones, geometry="iso15", crs="EPSG:4326")
+
+    apartments_for_rent = apartments_for_rent.merge(iso_df, left_on="ListingId", right_on="id")
+    
+    apartments_for_rent['iso15'] = apartments_for_rent['iso15'].apply(
+        lambda x: gpd.GeoSeries([x], crs="EPSG:4326").to_json() if x is not None else None
+    )
+    
+    return apartments_for_rent

@@ -42,7 +42,6 @@ def psql_insert_copy(df):
             elif isinstance(x, (list, dict)):
                 return json.dumps(x)
             elif isinstance(x, str):
-                # First try to parse as-is
                 try:
                     parsed = json.loads(x)
                     return json.dumps(parsed)
@@ -82,16 +81,13 @@ def psql_insert_copy(df):
         lambda x: json.dumps(x) if isinstance(x, (list, dict)) else x
     )
 
-    base_columns = ["ListingId", "ListingAddress", "ListingCity", "ListingZip", "CreateDate", "ShortDescription", "RentAmount", "RentType", "Pets", "Amenities", "Bedrooms", "Bathrooms", "available_bedrooms", "available_bathrooms", "HousingType", "latitude", "longitude", "ListingPhotos", "transit_score", "amenities_score", "OverallSafetyRatingPct", "PredictedRent", "DifferenceinFairValue", "predicted_rent_cma", "nearest_neighbor_listingIds", "rent_per_person", "num_people", "total_rent_amount", "owner_name", "nearest_stop_name", "walk_time_to_nearest_stop", "transit_time_to_ag_quad", "transit_time_to_arts_quad", "transit_time_to_eng_quad"]
-    
-    new_travel_columns = [
-        "walk_time_UrisHall", "walk_time_AgricultureQuad", "walk_time_ArtsQuad", "walk_time_EngineeringQuad",
-        "bike_time_UrisHall", "bike_time_AgricultureQuad", "bike_time_ArtsQuad", "bike_time_EngineeringQuad", 
-        "drive_time_UrisHall", "drive_time_AgricultureQuad", "drive_time_ArtsQuad", "drive_time_EngineeringQuad"
-    ]
-    
-    available_columns = [col for col in base_columns + new_travel_columns if col in df.columns]
-    df = df[available_columns]
+    safety_col = None
+    if "valid_certificate_of_compliance" in df.columns:
+        safety_col = "valid_certificate_of_compliance"
+    elif "OverallSafetyRatingPct" in df.columns:
+        safety_col = "OverallSafetyRatingPct"
+    elif "overallsafetyratingpct" in df.columns:
+        safety_col = "overallsafetyratingpct"
 
     df.columns = (
         df.columns
@@ -100,7 +96,22 @@ def psql_insert_copy(df):
         .str.replace(r"[^\w]", "", regex=True)  
         .str.replace("_pct", "pct")
     )
+    
+    base_columns = ["listingid", "listingaddress", "listingcity", "listingzip", "createdate", "shortdescription", "rentamount", "renttype", "pets", "amenities", "bedrooms", "bathrooms", "available_bedrooms", "available_bathrooms", "housingtype", "latitude", "longitude", "listingphotos", "transit_score", "amenities_score", "predictedrent", "differenceinfairvalue", "predicted_rent_cma", "nearest_neighbor_listingids", "rent_per_person", "num_people", "total_rent_amount", "owner_name", "nearest_stop_name", "walk_time_to_nearest_stop", "transit_time_to_ag_quad", "transit_time_to_arts_quad", "transit_time_to_eng_quad", "iso15", "neighborhood"]
+    
+    if safety_col:
+        base_columns.append(safety_col)
+    
+    new_travel_columns = [
+        "walk_time_urishall", "walk_time_agriculturequad", "walk_time_artsquad", "walk_time_engineeringquad",
+        "bike_time_urishall", "bike_time_agriculturequad", "bike_time_artsquad", "bike_time_engineeringquad",
+        "drive_time_urishall", "drive_time_agriculturequad", "drive_time_artsquad", "drive_time_engineeringquad"
+    ]
+    
+    available_columns = [col for col in base_columns + new_travel_columns if col in df.columns]
+    df = df[available_columns]
 
+    
     def refresh_housing_listings(df, engine):
         """
         Refresh the housing_listings table with new data using parameterized SQL inserts.
@@ -112,31 +123,52 @@ def psql_insert_copy(df):
             conn.execute(text("TRUNCATE TABLE housing_listings RESTART IDENTITY CASCADE;"))
             print("🧹 Table truncated successfully")
 
-         # 2️⃣ Prepare parameterized insert
-        insert_query = text("""
-             INSERT INTO housing_listings (
-                 listingid, listingaddress, listingcity, listingzip, createdate, shortdescription,
-                 rentamount, renttype, pets, amenities, bedrooms, bathrooms, available_bedrooms,
-                 available_bathrooms, housingtype, latitude, longitude, listingphotos, transit_score, 
-                 amenities_score, overallsafetyratingpct, predictedrent, differenceinfairvalue, 
-                 predicted_rent_cma, nearest_neighbor_listingids, rent_per_person, num_people, 
-                 total_rent_amount, owner_name, nearest_stop_name, walk_time_to_nearest_stop, 
-                 transit_time_to_ag_quad, transit_time_to_arts_quad, transit_time_to_eng_quad,
-                 walk_time_urishall, walk_time_agriculturequad, walk_time_artsquad, walk_time_engineeringquad,
-                 bike_time_urishall, bike_time_agriculturequad, bike_time_artsquad, bike_time_engineeringquad,
-                 drive_time_urishall, drive_time_agriculturequad, drive_time_artsquad, drive_time_engineeringquad
-             ) VALUES (
-                 :listingid, :listingaddress, :listingcity, :listingzip, :createdate, :shortdescription,
-                 :rentamount, :renttype, :pets, :amenities, :bedrooms, :bathrooms, :available_bedrooms,
-                 :available_bathrooms, :housingtype, :latitude, :longitude, :listingphotos, :transit_score, 
-                 :amenities_score, :overallsafetyratingpct, :predictedrent, :differenceinfairvalue, 
-                 :predicted_rent_cma, :nearest_neighbor_listingids, :rent_per_person, :num_people, 
-                 :total_rent_amount, :owner_name, :nearest_stop_name, :walk_time_to_nearest_stop, 
-                 :transit_time_to_ag_quad, :transit_time_to_arts_quad, :transit_time_to_eng_quad,
-                 :walk_time_urishall, :walk_time_agriculturequad, :walk_time_artsquad, :walk_time_engineeringquad,
-                 :bike_time_urishall, :bike_time_agriculturequad, :bike_time_artsquad, :bike_time_engineeringquad,
-                 :drive_time_urishall, :drive_time_agriculturequad, :drive_time_artsquad, :drive_time_engineeringquad
-             )
+        # Debug: Print actual columns in the DataFrame
+        print(f"📋 Columns in DataFrame at INSERT time: {list(df.columns)}")
+        
+        safety_col_in_sql = None
+        if "valid_certificate_of_compliance" in df.columns:
+            safety_col_in_sql = "valid_certificate_of_compliance"
+        elif "overallsafetyratingpct" in df.columns:
+            safety_col_in_sql = "overallsafetyratingpct"
+        
+        base_cols = [
+            "listingid", "listingaddress", "listingcity", "listingzip", "createdate", "shortdescription",
+            "rentamount", "renttype", "pets", "amenities", "bedrooms", "bathrooms", "available_bedrooms",
+            "available_bathrooms", "housingtype", "latitude", "longitude", "listingphotos", "transit_score", 
+            "amenities_score", "predictedrent", "differenceinfairvalue", 
+            "predicted_rent_cma", "nearest_neighbor_listingids", "rent_per_person", "num_people", 
+            "total_rent_amount", "owner_name", "nearest_stop_name", "walk_time_to_nearest_stop", 
+            "transit_time_to_ag_quad", "transit_time_to_arts_quad", "transit_time_to_eng_quad",
+        ]
+        
+        if safety_col_in_sql:
+            base_cols.insert(20, safety_col_in_sql)
+        
+        # Add neighborhood if it exists in the dataframe
+        if "neighborhood" in df.columns:
+            base_cols.insert(base_cols.index("nearest_stop_name"), "neighborhood")
+        
+        travel_time_cols = [
+            "walk_time_urishall", "walk_time_agriculturequad", "walk_time_artsquad", "walk_time_engineeringquad",
+            "bike_time_urishall", "bike_time_agriculturequad", "bike_time_artsquad", "bike_time_engineeringquad",
+            "drive_time_urishall", "drive_time_agriculturequad", "drive_time_artsquad", "drive_time_engineeringquad"
+        ]
+        
+        for col in travel_time_cols:
+            if col in df.columns:
+                base_cols.append(col)
+        
+        isochronic_cols = ["iso15"]
+        for col in isochronic_cols:
+            if col in df.columns:
+                base_cols.append(col)
+        
+        values_placeholders = [f":{col}" for col in base_cols]
+        
+        insert_query = text(f"""
+             INSERT INTO housing_listings ({", ".join(base_cols)}) 
+             VALUES ({", ".join(values_placeholders)})
          """)
 
         records = df.to_dict(orient="records")
@@ -148,7 +180,6 @@ def psql_insert_copy(df):
                 else:
                     record[col] = None
 
-        # 5️⃣ Batch insert using executemany (faster & safer than to_sql)
         with engine.begin() as conn:
             conn.execute(insert_query, records)
             print(f"✅ Inserted {len(records)} rows into housing_listings")

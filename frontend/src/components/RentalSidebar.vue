@@ -2,14 +2,21 @@
 <div class="popup-container">
     <!-- Header -->
     <div class="popup-header">
-        <div class="popup-title-container">
+        <div class="popup-title-row">
             <h3 class="popup-title">
                 {{ listing?.listingaddress }}, 
                 <span v-if="listing?.listingcity">{{ listing?.listingcity }},</span> 
                 {{ listing?.listingzip }}
             </h3>
+            <button class="close-btn" @click="closePopup">✖</button>
         </div>
-        <button class="close-btn" @click="closePopup">✖</button>
+        <!-- Landlord Section -->
+        <div class="popup-landlord">
+            <div class="landlord-oneline">
+                <i class="fa-solid fa-user" style="color: #6366f1; margin-right: 6px; font-size: 14px;"></i>
+                <strong>{{ getLandlordHeader() }}:</strong>&nbsp;<span class="landlord-names-text">{{ getLandlordNames() }}</span>
+            </div>
+        </div>
     </div>
 
     <div class="popup-image-container">
@@ -94,13 +101,19 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Disclaimer -->
+            <div class="rent-disclaimer">
+                <i class="fa-solid fa-info-circle"></i>
+                <span>Fair rent estimates are based on a proprietary machine learning model for investigative purposes only. Results should not be considered as official market valuations. Please dig further if you are interested in a listing.</span>
+            </div>
         </div>
     </div>
     <!-- Property Details -->
     <div class="property-details">
-        <div class="property-details-header">
-            Property Details
-        </div>
+            <div class="property-details-header">
+                <span>Property Details</span>
+            </div>
         <div class="details-grid">
             <div class="detail-card bedroom-card">
                 <div class="detail-icon">
@@ -202,6 +215,21 @@
                         ></div>
                     </div>
                     <span class="score-text">{{ listing?.transit_score ? listing.transit_score.toFixed(0) : "0" }}/100</span>
+                    <div class="tooltip-container">
+                        <span class="tooltip-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 16v-4"/>
+                                <path d="M12 8h.01"/>
+                            </svg>
+                        </span>
+                        <div class="tooltip-content">
+                            <div class="tooltip-title">Transit Accessibility</div>
+                            <div class="tooltip-text">
+                                This section shows how accessible this location is via public transportation. It includes your transit score, nearest bus stop information, and travel times to key Cornell destinations using TCAT bus routes.
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -283,15 +311,42 @@
         </div>       
     </div>
 
+    <!-- Safety Section -->
+    <div class="popup-safety">
+        <div class="safety-header">
+            <strong>Safety</strong>
+        </div>
+        <div class="safety-content">
+            <div class="safety-item">
+                <span class="safety-label">Certificate of Compliance:</span>
+                <div class="certificate-badge-container" @mouseenter="showTooltip = true" @mouseleave="showTooltip = false">
+                    <span 
+                        :class="['certificate-badge', { 
+                            'valid': listing?.valid_certificate_of_compliance === 1, 
+                            'invalid': listing?.valid_certificate_of_compliance === 0,
+                            'unknown': listing?.valid_certificate_of_compliance === null || listing?.valid_certificate_of_compliance === undefined
+                        }]"
+                    >
+                        {{ listing?.valid_certificate_of_compliance === 1 ? 'Valid' : listing?.valid_certificate_of_compliance === 0 ? 'Invalid' : 'Unknown' }}
+                    </span>
+                    <div v-if="showTooltip" class="certificate-tooltip">
+                        {{ listing?.valid_certificate_of_compliance === 1 ? 'Valid Certificate of Compliance - Property meets safety standards' : listing?.valid_certificate_of_compliance === 0 ? 'Invalid Certificate of Compliance - Property may not meet safety standards' : 'Certificate of Compliance status unknown' }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Description -->
     <div class="popup-description">
         <div class="description-header">
-            <strong>From the owner<span v-if="listing?.owner_name"> ({{ listing.owner_name }})</span>:</strong>
+            <strong>From the owner:</strong>
         </div>
         <div class="description-content">
             {{ listing?.shortdescription }}
         </div>
     </div>
+
 
     <!-- Removed duplicate similar listings section - using CMA section instead -->
 
@@ -394,6 +449,11 @@
             </div>
         </div>
         
+        <!-- CMA Disclaimer -->
+        <div class="cma-disclaimer">
+            <i class="fa-solid fa-info-circle"></i>
+            <span>Comparative market analysis estimates are based on a proprietary machine learning model for investigative purposes only. Results should not be considered as official market valuations. Please dig further if you are interested in a listing.</span>
+        </div>
     </div>
 
 </div>
@@ -409,6 +469,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'zoom', 'select-listing']);
+
+const showTooltip = ref(false);
 
 const closePopup = () => {
     emit('close');
@@ -786,6 +848,125 @@ const handleTooltipPosition = () => {
     });
 };
 
+/**
+ * Format owner names from various formats to a readable string
+ * @param {string} ownerName - The raw owner name string
+ * @returns {string} - Formatted owner names
+ */
+const formatOwnerNames = (ownerName: string): string => {
+    if (!ownerName || ownerName === 'undefined' || ownerName === 'null') return '';
+    
+    try {
+        // Handle JSON-like strings like {"Fumio Onishi", "Deidre Onishi"}
+        if (ownerName.includes('{') && ownerName.includes('}')) {
+            // Remove parentheses and braces
+            let cleaned = ownerName.replace(/[(){}]/g, '');
+            // Split by comma and clean up quotes
+            const names = cleaned.split(',').map(name => 
+                name.trim().replace(/"/g, '').replace(/'/g, '')
+            ).filter(name => name.length > 0 && name !== 'undefined' && name !== 'null');
+            
+            if (names.length === 0) return '';
+            if (names.length === 1) {
+                return names[0];
+            } else if (names.length === 2) {
+                return `${names[0]} and ${names[1]}`;
+            } else {
+                return names.slice(0, -1).join(', ') + `, and ${names[names.length - 1]}`;
+            }
+        }
+        
+        // Handle comma-separated names
+        if (ownerName.includes(',')) {
+            const names = ownerName.split(',').map(name => name.trim())
+                .filter(name => name.length > 0 && name !== 'undefined' && name !== 'null');
+            
+            if (names.length === 0) return '';
+            if (names.length === 1) {
+                return names[0];
+            } else if (names.length === 2) {
+                return `${names[0]} and ${names[1]}`;
+            } else {
+                return names.slice(0, -1).join(', ') + `, and ${names[names.length - 1]}`;
+            }
+        }
+        
+        // Return as-is for single names (but filter out undefined/null)
+        const trimmed = ownerName.trim();
+        if (trimmed === 'undefined' || trimmed === 'null' || trimmed === '') {
+            return '';
+        }
+        return trimmed;
+    } catch (error) {
+        console.warn('Error parsing owner names:', error);
+        return '';
+    }
+};
+
+/**
+ * Get the appropriate header text based on number of landlords
+ * @returns {string} - "Landlord" or "Landlords"
+ */
+const getLandlordHeader = (): string => {
+    if (!props.listing?.owner_name) return 'Landlord';
+    
+    const nameCount = countOwnerNames(props.listing.owner_name);
+    return nameCount > 1 ? 'Landlords' : 'Landlord';
+};
+
+/**
+ * Get the formatted landlord names or "Unknown"
+ * @returns {string} - Formatted names or "Unknown"
+ */
+const getLandlordNames = (): string => {
+    const ownerName = props.listing?.owner_name;
+    
+    // Handle undefined, null, empty string, or "undefined" string
+    if (!ownerName || ownerName === 'undefined' || ownerName === 'null' || ownerName.trim() === '') {
+        return 'Unknown';
+    }
+    
+    const formatted = formatOwnerNames(ownerName);
+    
+    // Double-check if formatting resulted in undefined or empty
+    if (!formatted || formatted === 'undefined' || formatted.trim() === '') {
+        return 'Unknown';
+    }
+    
+    return formatted;
+};
+
+/**
+ * Count the number of owner names in the string
+ * @param {string} ownerName - The raw owner name string
+ * @returns {number} - Number of names
+ */
+const countOwnerNames = (ownerName: string): number => {
+    if (!ownerName) return 0;
+    
+    try {
+        // Handle JSON-like strings like {"Fumio Onishi", "Deidre Onishi"}
+        if (ownerName.includes('{') && ownerName.includes('}')) {
+            let cleaned = ownerName.replace(/[(){}]/g, '');
+            const names = cleaned.split(',').map(name => 
+                name.trim().replace(/"/g, '').replace(/'/g, '')
+            ).filter(name => name.length > 0);
+            return names.length;
+        }
+        
+        // Handle comma-separated names
+        if (ownerName.includes(',')) {
+            return ownerName.split(',').filter(name => name.trim().length > 0).length;
+        }
+        
+        // Single name
+        return ownerName.trim().length > 0 ? 1 : 0;
+    } catch (error) {
+        console.warn('Error counting owner names:', error);
+        return 1; // Fallback to single
+    }
+};
+
 onMounted(async () => {
     await fetchSimilarListings();
     // Add tooltip positioning after component is mounted
@@ -822,12 +1003,16 @@ watch<Listing | undefined>(
 
 /* 🔝 HEADER */
 .popup-header {
+    border-bottom: 2px solid #e5e7eb;
+    padding: 8px 0px;
+    border-radius: 8px 8px 0 0;
+    margin-bottom: 8px;
+}
+
+.popup-title-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    /* border-bottom: 2px solid #e5e7eb; */
-    padding: 16px 0px;
-    border-radius: 8px 8px 0 0;
 }
 
 /* Centered Title */
@@ -949,22 +1134,116 @@ watch<Listing | undefined>(
 
 /* 💰 RENT INFO BOX */
 .rent-section {
-    margin-bottom: 12px;
-    padding: 12px 0;
+    padding: 8px 0;
     border-bottom: 2px solid #e5e7eb;
+}
+
+.rent-disclaimer {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.6rem;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+.rent-disclaimer i {
+    color: #6b7280;
+    margin-top: 2px;
+    flex-shrink: 0;
 }
 
 /* 🏠 PROPERTY DETAILS */
 .property-details {
-    margin-bottom: 12px;
     padding: 12px 0;
 }
 
 .property-details-header {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     font-size: 1.1rem;
     color: #000000;
     font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.certificate-badge-container {
+    position: relative;
+}
+
+.certificate-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    opacity: 0.9;
+}
+
+.certificate-badge.valid {
+    background-color: #dcfce7;
+    color: #16a34a;
+}
+
+.certificate-badge.invalid {
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+.certificate-badge.unknown {
+    background-color: #f3f4f6;
+    color: #6b7280;
+}
+
+.certificate-badge:hover {
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+.certificate-tooltip {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    background: #1f2937;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: nowrap;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+.certificate-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    right: 12px;
+    border: 5px solid transparent;
+    border-top-color: #1f2937;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .details-grid {
@@ -1019,7 +1298,7 @@ watch<Listing | undefined>(
 }
 
 .rent-card-header {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     text-align: center;
 }
 
@@ -1324,6 +1603,26 @@ watch<Listing | undefined>(
     border-top: 2px solid #e5e7eb;
 }
 
+.cma-disclaimer {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.6rem;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+.cma-disclaimer i {
+    color: #6b7280;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
 .cma-header {
     margin-bottom: 16px;
 }
@@ -1570,6 +1869,44 @@ watch<Listing | undefined>(
     width: 100%;
 }
 
+/* 🔒 SAFETY SECTION */
+.popup-safety {
+    font-size: 1rem;
+    color: #555;
+    border-top: 2px solid #e5e7eb;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    margin-top: 12px;
+    margin-bottom: 12px;
+}
+
+.safety-header {
+    margin-bottom: 12px;
+}
+
+.safety-header strong {
+    font-size: 1.1rem;
+    color: #000000;
+    font-weight: 600;
+}
+
+.safety-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.safety-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.safety-label {
+    color: #555;
+    font-weight: 500;
+}
+
 /* 📝 DESCRIPTION */
 .popup-description {
     font-size: 1rem;
@@ -1596,6 +1933,34 @@ watch<Listing | undefined>(
     line-height: 1.5;
 }
 
+/* 🏠 LANDLORD SECTION */
+.popup-landlord {
+    font-size: 0.95rem;
+    color: #555;
+    margin-top: 12px;
+    margin-bottom: 0;
+}
+
+.landlord-oneline {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: none;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.landlord-oneline strong {
+    color: #1f2937;
+    margin-right: 0;
+}
+
+.landlord-names-text {
+    font-weight: 500;
+    color: #374151;
+    display: flex;
+    align-items: center;
+}
 
 /* 📌 AMENITIES SECTION */
 .popup-transit {
@@ -1712,10 +2077,7 @@ watch<Listing | undefined>(
 
 .popup-amenities {
     border-top: 2px solid #e5e7eb;
-    padding-top: 12px;
-    padding-bottom: 12px;
-    margin-top: 12px;
-    margin-bottom: 12px;
+    padding: 8px 0px;
     font-size: 1rem;
     color: #444;
 }
@@ -2463,7 +2825,8 @@ watch<Listing | undefined>(
 
     .popup-description,
     .popup-amenities,
-    .popup-transit {
+    .popup-transit,
+    .popup-landlord {
         font-size: 0.95rem;
     }
 

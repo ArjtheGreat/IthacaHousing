@@ -18,6 +18,7 @@ export interface Listing {
     rent_per_person: number;
     num_people: number;
     owner_name: string;
+    neighborhood: string;
     nearest_stop_name: string;
     walk_time_to_nearest_stop: number;
     transit_score: number;

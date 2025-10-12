@@ -24,6 +24,20 @@ import os
 from pathlib import Path
 import sys
 from sqlalchemy import text
+import math
+
+
+def safe_float(value):
+    """Convert value to float, returning None for NaN, inf, or None values"""
+    if value is None:
+        return None
+    try:
+        f = float(value)
+        if math.isnan(f) or math.isinf(f):
+            return None
+        return f
+    except (ValueError, TypeError):
+        return None
 
 
 app = FastAPI()
@@ -78,7 +92,20 @@ def get_listings_minimal(db: Session = Depends(get_db)):
                 available_bedrooms,
                 rentamount,
                 total_rent_amount,
-                predictedrent
+                predictedrent,
+                walk_time_urishall,
+                walk_time_agriculturequad,
+                walk_time_artsquad,
+                walk_time_engineeringquad,
+                bike_time_urishall,
+                bike_time_agriculturequad,
+                bike_time_artsquad,
+                bike_time_engineeringquad,
+                drive_time_urishall,
+                drive_time_agriculturequad,
+                drive_time_artsquad,
+                drive_time_engineeringquad,
+                neighborhood
             FROM housing_listings
             WHERE latitude IS NOT NULL 
             AND longitude IS NOT NULL
@@ -93,13 +120,26 @@ def get_listings_minimal(db: Session = Depends(get_db)):
                 "listingid": row[0],
                 "listingaddress": row[1],
                 "listingcity": row[2],
-                "latitude": float(row[3]) if row[3] else None,
-                "longitude": float(row[4]) if row[4] else None,
-                "rent_per_person": float(row[5]) if row[5] else None,
-                "available_bedrooms": float(row[6]) if row[6] else None,
-                "rentamount": float(row[7]) if row[7] else None,
-                "total_rent_amount": float(row[8]) if row[8] else None,
-                "predictedrent": float(row[9]) if row[9] else None
+                "latitude": safe_float(row[3]),
+                "longitude": safe_float(row[4]),
+                "rent_per_person": safe_float(row[5]),
+                "available_bedrooms": safe_float(row[6]),
+                "rentamount": safe_float(row[7]),
+                "total_rent_amount": safe_float(row[8]),
+                "predictedrent": safe_float(row[9]),
+                "walk_time_urishall": safe_float(row[10]),
+                "walk_time_agriculturequad": safe_float(row[11]),
+                "walk_time_artsquad": safe_float(row[12]),
+                "walk_time_engineeringquad": safe_float(row[13]),
+                "bike_time_urishall": safe_float(row[14]),
+                "bike_time_agriculturequad": safe_float(row[15]),
+                "bike_time_artsquad": safe_float(row[16]),
+                "bike_time_engineeringquad": safe_float(row[17]),
+                "drive_time_urishall": safe_float(row[18]),
+                "drive_time_agriculturequad": safe_float(row[19]),
+                "drive_time_artsquad": safe_float(row[20]),
+                "drive_time_engineeringquad": safe_float(row[21]),
+                "neighborhood": row[22],
             }
             for row in rows
         ]
