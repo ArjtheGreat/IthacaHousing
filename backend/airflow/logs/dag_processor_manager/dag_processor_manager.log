@@ -45922,3 +45922,4 @@ File Path                                                                       
 /Users/asm/Documents/GitHub/IthacaHousing/backend/myenv/lib/python3.12/site-packages/airflow/example_dags/plugins/decreasing_priority_weight_strategy.py                                       0           0  1.70s           2025-10-12T05:54:07                       3
 /Users/asm/Documents/GitHub/IthacaHousing/backend/myenv/lib/python3.12/site-packages/airflow/example_dags/example_kubernetes_executor.py                                                       0           0  1.69s           2025-10-12T05:54:53                       3
 ================================================================================
+[2025-10-12T01:55:25.898-0400] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15

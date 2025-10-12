@@ -240,7 +240,7 @@
                 <span class="stop-name">{{ listing?.nearest_stop_name }}</span>
                 <span class="walk-time" v-if="listing?.walk_time_to_nearest_stop">
                     <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
-                    {{ listing?.walk_time_to_nearest_stop?.toFixed(1) }} min walk
+                    {{ formatWalkTime(listing.walk_time_to_nearest_stop) }}
                 </span>
             </div>
         </div>
@@ -498,6 +498,19 @@ const percentChange = computed(() => {
   return ((props.listing.predictedrent - props.listing.rent_per_person) / props.listing.rent_per_person) * 100;
 });
 
+/**
+ * Format walk time into user-friendly ranges
+ * @param {number} minutes - Walk time in minutes
+ * @returns {string} - Formatted walk time string
+ */
+const formatWalkTime = (minutes: number): string => {
+    if (minutes < 2) return '< 2 min walk';
+    if (minutes < 5) return '< 5 min walk';
+    if (minutes < 10) return '5-10 min walk';
+    if (minutes < 15) return '10-15 min walk';
+    if (minutes < 20) return '15-20 min walk';
+    return '20+ min walk';
+};
 
 /**
  * Categorizes and maps amenities to their appropriate category and icon

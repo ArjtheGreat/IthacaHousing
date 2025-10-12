@@ -60,9 +60,9 @@
                 <select id="destination-filter" v-model="selectedDestination" @change="autoApplyCommuteFilter" class="filter-select">
                   <option value="">Any</option>
                   <option value="urishall">Uris Hall</option>
-                  <option value="agriculturequad">Agriculture Quad</option>
+                  <option value="agriculturequad">Ag Quad</option>
                   <option value="artsquad">Arts Quad</option>
-                  <option value="engineeringquad">Engineering Quad</option>
+                  <option value="engineeringquad">Eng Quad</option>
                 </select>
               </div>
 
@@ -70,7 +70,7 @@
                 <label for="commute-time-filter" class="filter-label">Max time</label>
                 <select id="commute-time-filter" v-model="selectedCommuteTime" @change="autoApplyCommuteFilter" class="filter-select">
                   <option value="">Any</option>
-                  <option value="10">10 min</option>
+                  <!-- <option value="10">10 min</option> -->
                   <option value="15">15 min</option>
                   <option value="20">20 min</option>
                   <option value="25">25 min</option>
@@ -88,6 +88,34 @@
                   <option value="bike">Bike</option>
                 </select>
               </div>
+            </div>
+          </div>
+
+          <!-- Points of Interest Section -->
+          <div class="filter-section">
+            <h3 class="section-title">Points of Interest</h3>
+            <div class="poi-buttons">
+              <button 
+                @click="togglePOI('groceries')" 
+                :class="['poi-btn', { active: activePOI === 'groceries' }]"
+              >
+                <i class="fa-solid fa-shopping-basket"></i>
+                Groceries
+              </button>
+              <button 
+                @click="togglePOI('shopping')" 
+                :class="['poi-btn', { active: activePOI === 'shopping' }]"
+              >
+                <i class="fa-solid fa-shopping-bag"></i>
+                Shopping
+              </button>
+              <!-- <button 
+                @click="togglePOI('attractions')" 
+                :class="['poi-btn', { active: activePOI === 'attractions' }]"
+              >
+                <i class="fa-solid fa-landmark"></i>
+                Attractions
+              </button> -->
             </div>
           </div>
 
@@ -215,6 +243,11 @@ const selectedCommuteTime = ref(''); // Selected Max Commute Time
 const selectedTransitMode = ref(''); // Selected Transit Mode (walk/bike/drive)
 const showCommuteDrawer = ref(false); // Controls visibility of commute filter drawer (legacy)
 const showCommutePanel = ref(false); // Controls visibility of new commute panel
+
+// Points of Interest variables
+const activePOI = ref(null); // Tracks which POI is currently displayed
+const poiMarkers = ref([]); // Stores POI markers on the map
+const poiData = ref({ groceries: [], shopping: [], attractions: [] }); // Stores loaded POI data
 
 // Search functionality
 const searchQuery = ref('');
@@ -486,7 +519,7 @@ function addQuadIcons() {
   // Define quad locations and icons
   const quads = [
     {
-      name: "Agriculture Quad",
+      name: "Ag Quad",
       coordinates: [42.448796, -76.478018],
       icon: "fas fa-seedling", // Agriculture icon
       size: 20
@@ -498,7 +531,7 @@ function addQuadIcons() {
       size: 20
     },
     {
-      name: "Engineering Quad",
+      name: "Eng Quad",
       coordinates: [42.444668, -76.482570], 
       icon: "fas fa-cogs", // Engineering/gears icon
       size: 20
@@ -1070,6 +1103,150 @@ const applyAllFilters = () => {
 /**
  * Reset all filters
  */
+
+/**
+ * Load POI data from CSV files
+ */
+const loadPOIData = async (type) => {
+  if (poiData.value[type].length > 0) {
+    // Data already loaded
+    return;
+  }
+
+  const fileMap = {
+    groceries: '/maps/Groceries_ConvinienceStores.csv',
+    shopping: '/maps/Shopping.csv',
+    attractions: '/maps/Attractions.csv'
+  };
+
+  try {
+    const response = await fetch(fileMap[type]);
+    const text = await response.text();
+    
+    // Parse CSV manually (simple parser)
+    const lines = text.split('\n');
+    const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+    
+    const data = [];
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      
+      // Simple CSV parsing (handles quoted fields)
+      const values = [];
+      let currentValue = '';
+      let insideQuotes = false;
+      
+      for (let char of lines[i]) {
+        if (char === '"') {
+          insideQuotes = !insideQuotes;
+        } else if (char === ',' && !insideQuotes) {
+          values.push(currentValue.trim());
+          currentValue = '';
+        } else {
+          currentValue += char;
+        }
+      }
+      values.push(currentValue.trim());
+      
+      // Create object from headers and values
+      const obj = {};
+      headers.forEach((header, index) => {
+        obj[header] = values[index];
+      });
+      
+      data.push(obj);
+    }
+    
+    poiData.value[type] = data;
+  } catch (error) {
+    console.error(`Error loading ${type} POI data:`, error);
+  }
+};
+
+/**
+ * Toggle POI display on map
+ */
+const togglePOI = async (type) => {
+  // If clicking the same type, clear it
+  if (activePOI.value === type) {
+    clearPOIMarkers();
+    activePOI.value = null;
+    return;
+  }
+
+  // Load data if not already loaded
+  await loadPOIData(type);
+
+  // Clear existing POI markers
+  clearPOIMarkers();
+
+  // Set active POI type
+  activePOI.value = type;
+
+  // Add new markers
+  displayPOIMarkers(type);
+};
+
+/**
+ * Display POI markers on the map
+ */
+const displayPOIMarkers = (type) => {
+  const data = poiData.value[type];
+  
+  // Icon styles for different POI types
+  const iconMap = {
+    groceries: { icon: 'fa-shopping-basket', color: '#10b981' },
+    shopping: { icon: 'fa-shopping-bag', color: '#f59e0b' },
+    attractions: { icon: 'fa-landmark', color: '#8b5cf6' }
+  };
+
+  const { icon, color } = iconMap[type];
+
+  data.forEach(poi => {
+    const lat = parseFloat(poi['location/lat']);
+    const lng = parseFloat(poi['location/lng']);
+    
+    if (isNaN(lat) || isNaN(lng)) return;
+
+    // Create custom icon
+    const poiIcon = L.divIcon({
+      html: `<div style="background-color: ${color}; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+        <i class="fa-solid ${icon}" style="color: white; font-size: 14px;"></i>
+      </div>`,
+      className: 'poi-marker',
+      iconSize: [30, 30],
+      iconAnchor: [15, 15]
+    });
+
+    const marker = L.marker([lat, lng], { icon: poiIcon }).addTo(map.value);
+    
+    // Add popup with POI info
+    const popupContent = `
+      <div style="min-width: 200px;">
+        <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;">${poi.title}</h3>
+        ${poi.street ? `<p style="margin: 4px 0; font-size: 12px;"><i class="fa-solid fa-location-dot" style="color: ${color}; width: 16px;"></i> ${poi.street}</p>` : ''}
+        ${poi.categoryName ? `<p style="margin: 4px 0; font-size: 12px;"><i class="fa-solid fa-tag" style="color: ${color}; width: 16px;"></i> ${poi.categoryName}</p>` : ''}
+        ${poi.totalScore ? `<p style="margin: 4px 0; font-size: 12px;"><i class="fa-solid fa-star" style="color: #fbbf24; width: 16px;"></i> ${poi.totalScore} (${poi.reviewsCount} reviews)</p>` : ''}
+      </div>
+    `;
+    
+    marker.bindPopup(popupContent);
+    poiMarkers.value.push(marker);
+  });
+
+  console.log(`Displayed ${poiMarkers.value.length} ${type} markers on the map`);
+};
+
+/**
+ * Clear all POI markers from the map
+ */
+const clearPOIMarkers = () => {
+  poiMarkers.value.forEach(marker => {
+    map.value.removeLayer(marker);
+  });
+  poiMarkers.value = [];
+};
+
 const resetAllFilters = () => {
   selectedBeds.value = 0;
   selectedBaths.value = 0;
@@ -1077,6 +1254,10 @@ const resetAllFilters = () => {
   selectedDestination.value = '';
   selectedCommuteTime.value = '';
   selectedTransitMode.value = '';
+  
+  // Clear POI
+  clearPOIMarkers();
+  activePOI.value = null;
   
   // Clear all active filters
   activeFilters.value = { beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null };
@@ -1998,6 +2179,73 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 /* Reset Section */
+/* POI Buttons */
+.poi-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+}
+
+.poi-btn {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: white;
+  color: #4b5563;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.poi-btn i {
+  font-size: 1.1rem;
+}
+
+.poi-btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.poi-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.poi-btn.active:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+}
+
+/* Specific POI button colors when active */
+.poi-btn.active:nth-child(1) {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-color: #10b981;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.poi-btn.active:nth-child(2) {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border-color: #f59e0b;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+.poi-btn.active:nth-child(3) {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  border-color: #8b5cf6;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
 .reset-section {
   margin-top: 24px;
   padding-top: 20px;
@@ -2139,6 +2387,22 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
       transform: translate(-50%, 0%);
       opacity: 1;
     }
+  }
+
+  /* POI Buttons Mobile */
+  .poi-buttons {
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .poi-btn {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+
+  .poi-btn i {
+    font-size: 1rem;
   }
 }
 

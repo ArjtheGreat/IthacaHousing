@@ -407,20 +407,19 @@ def health_check():
 @app.get("/pipeline-metrics/")
 def get_pipeline_metrics(db: Session = Depends(get_db)):
     """
-    Fetch the latest pipeline metrics from rental_model_runs table
+    Fetch pipeline metrics with time series data for mean rent and average Moran's I
     """
     try:
         query = text("""
-            SELECT spatial_patterns, landlord_behavior, overpricing, 
+            SELECT run_timestamp, spatial_patterns, landlord_behavior, overpricing, 
                    model_performance, feature_importance, spatial_residuals
             FROM rental_model_runs 
-            ORDER BY run_timestamp DESC 
-            LIMIT 1
+            ORDER BY run_timestamp DESC
         """)
         
-        result = db.execute(query).fetchone()
+        results = db.execute(query).fetchall()
         
-        if not result:
+        if not results:
             return JSONResponse(
                 status_code=404,
                 content={"error": "No pipeline metrics found"}
@@ -439,16 +438,38 @@ def get_pipeline_metrics(db: Session = Depends(get_db)):
             else:
                 return {}
         
-        metrics = {
-            "spatial_patterns": parse_json_column(result[0]),
-            "landlord_behavior": parse_json_column(result[1]),
-            "overpricing": parse_json_column(result[2]),
-            "model_performance": parse_json_column(result[3]),
-            "feature_importance": parse_json_column(result[4]),
-            "spatial_residuals": parse_json_column(result[5])
+        latest_result = results[0]
+        latest_metrics = {
+            "spatial_patterns": parse_json_column(latest_result[1]),
+            "landlord_behavior": parse_json_column(latest_result[2]),
+            "overpricing": parse_json_column(latest_result[3]),
+            "model_performance": parse_json_column(latest_result[4]),
+            "feature_importance": parse_json_column(latest_result[5]),
+            "spatial_residuals": parse_json_column(latest_result[6])
         }
         
-        return metrics
+        mean_rent_time_series = []
+        moran_i_values = []
+        
+        for result in results:
+            timestamp = result[0]
+            spatial_patterns = parse_json_column(result[1])
+            
+            if spatial_patterns and 'mean_rent' in spatial_patterns:
+                mean_rent_time_series.append({
+                    'date': timestamp.isoformat(),
+                    'mean_rent': spatial_patterns['mean_rent']
+                })
+            
+            if spatial_patterns and 'global_moran' in spatial_patterns and 'I' in spatial_patterns['global_moran']:
+                moran_i_values.append(spatial_patterns['global_moran']['I'])
+        
+        average_moran_i = sum(moran_i_values) / len(moran_i_values) if moran_i_values else 0
+        
+        latest_metrics["spatial_patterns"]["mean_rent_time_series"] = mean_rent_time_series
+        latest_metrics["spatial_patterns"]["average_moran_i"] = average_moran_i
+        
+        return latest_metrics
         
     except Exception as e:
         logging.error(f"Error fetching pipeline metrics: {e}")

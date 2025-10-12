@@ -56,14 +56,27 @@
           <!-- Spatial Patterns -->
           <div class="metric-card">
             <h3>📍 Spatial Patterns</h3>
-            <div class="metric-row">
-              <div class="metric-item">
-                <span class="metric-label">Mean Rent</span>
+            
+            <!-- Mean Rent Time Series Chart -->
+            <div v-if="meanRentTimeSeries.length > 0" class="time-series-container">
+              <h4>Mean Rent Trend</h4>
+              <div class="chart-container">
+                <canvas ref="meanRentChart" class="time-series-chart"></canvas>
+              </div>
+              <div class="current-value">
+                <span class="metric-label">Current Mean Rent</span>
                 <span class="metric-value">${{ Math.round(pipelineMetrics.spatial_patterns?.mean_rent || 0) }}</span>
               </div>
+            </div>
+            
+            <!-- Moran's I Average -->
+            <div class="moran-container">
               <div class="metric-item">
-                <span class="metric-label">Moran's I</span>
-                <span class="metric-value">{{ (pipelineMetrics.spatial_patterns?.global_moran?.I || 0).toFixed(3) }}</span>
+                <span class="metric-label">Average Moran's I</span>
+                <span class="metric-value">{{ (pipelineMetrics.spatial_patterns?.average_moran_i || 0).toFixed(3) }}</span>
+              </div>
+              <div class="moran-description">
+                <small>{{ getMoranInterpretation(pipelineMetrics.spatial_patterns?.average_moran_i || 0) }}</small>
               </div>
             </div>
           </div>
@@ -142,14 +155,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
 import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
 import { fetchClusters, fetchHeatMap, fetchListingsMinimal, fetchPipelineMetrics } from '@/services/fetch';
 import NavBar from "@/components/NavBar.vue";
-import { computed } from 'vue';
+import Chart from 'chart.js/auto';
 
 // Map and data variables
 const exploreMap = ref(null);
@@ -163,6 +176,8 @@ const markers = ref([]);
 // Pipeline metrics variables
 const pipelineMetrics = ref(null);
 const loadingMetrics = ref(false);
+const meanRentChart = ref(null);
+const chartInstance = ref(null);
 
 // Computed properties for processed metrics
 const topOverpricedLandlords = computed(() => {
@@ -194,6 +209,19 @@ const topFeatures = computed(() => {
       importance: feature.importance
     }));
 });
+
+const meanRentTimeSeries = computed(() => {
+  return pipelineMetrics.value?.spatial_patterns?.mean_rent_time_series || [];
+});
+
+// Helper function to interpret Moran's I values
+const getMoranInterpretation = (moranI) => {
+  if (moranI > 0.3) return "Strong positive spatial autocorrelation";
+  if (moranI > 0.1) return "Moderate positive spatial autocorrelation";
+  if (moranI > -0.1) return "Weak spatial autocorrelation";
+  if (moranI > -0.3) return "Moderate negative spatial autocorrelation";
+  return "Strong negative spatial autocorrelation";
+};
 
 // Filter functions (defined before filterOptions)
 const showClusters = () => {
@@ -237,6 +265,9 @@ onBeforeUnmount(() => {
   if (exploreMap.value) {
     exploreMap.value.remove();
   }
+  if (chartInstance.value) {
+    chartInstance.value.destroy();
+  }
 });
 
 async function initializeMap() {
@@ -263,12 +294,85 @@ async function loadPipelineMetrics() {
     const metrics = await fetchPipelineMetrics();
     if (metrics) {
       pipelineMetrics.value = metrics;
+      // Create chart after metrics are loaded
+      await nextTick();
+      createMeanRentChart();
     }
   } catch (error) {
     console.error("Error loading pipeline metrics:", error);
   } finally {
     loadingMetrics.value = false;
   }
+}
+
+function createMeanRentChart() {
+  if (!meanRentChart.value || !meanRentTimeSeries.value.length) return;
+  
+  // Destroy existing chart if it exists
+  if (chartInstance.value) {
+    chartInstance.value.destroy();
+  }
+  
+  const ctx = meanRentChart.value.getContext('2d');
+  
+  // Sort data by date
+  const sortedData = [...meanRentTimeSeries.value].sort((a, b) => new Date(a.date) - new Date(b.date));
+  
+  chartInstance.value = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: sortedData.map(item => new Date(item.date).toLocaleDateString()),
+      datasets: [{
+        label: 'Mean Rent ($)',
+        data: sortedData.map(item => item.mean_rent),
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#3b82f6',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false
+        }
+      },
+      scales: {
+        x: {
+          display: true,
+          title: {
+            display: true,
+            text: 'Date'
+          }
+        },
+        y: {
+          display: true,
+          title: {
+            display: true,
+            text: 'Mean Rent ($)'
+          },
+          ticks: {
+            callback: function(value) {
+              return '$' + value.toFixed(0);
+            }
+          }
+        }
+      },
+      elements: {
+        point: {
+          hoverBackgroundColor: '#1d4ed8'
+        }
+      }
+    }
+  });
 }
 
 async function loadData() {
@@ -765,6 +869,54 @@ const getColor = (rentPerPerson, predictedRent) => {
   color: #1f2937;
 }
 
+/* Time Series Chart Styles */
+.time-series-container {
+  margin-bottom: 1.5rem;
+}
+
+.time-series-container h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 1rem;
+}
+
+.chart-container {
+  position: relative;
+  height: 200px;
+  margin-bottom: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.time-series-chart {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.current-value {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: #f3f4f6;
+  border-radius: 6px;
+}
+
+/* Moran's I Styles */
+.moran-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.moran-description {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
 /* Loading and Error States */
 .loading-metrics,
 .error-metrics {
@@ -804,6 +956,16 @@ const getColor = (rentPerPerson, predictedRent) => {
   
   .feature-bar {
     width: 100%;
+  }
+  
+  .chart-container {
+    height: 150px;
+  }
+  
+  .current-value {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
   }
 }
 </style>
