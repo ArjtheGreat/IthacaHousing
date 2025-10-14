@@ -6,13 +6,13 @@ import pandas as pd
 import sys
 import os
 import numpy as np
-from pathlib import Path 
+from pathlib import Path
 from prometheus_client import Counter, Summary, push_to_gateway
 
 MODEL_PATH = "/opt/airflow/model"
 
 if not os.path.exists(MODEL_PATH):
-    current_file = str(__file__) if isinstance(__file__, bytes) else __file__
+    current_file = __file__.decode('utf-8') if isinstance(__file__, bytes) else __file__
     MODEL_PATH = str(Path(current_file).resolve().parent.parent / "model")
 
 if MODEL_PATH not in sys.path:

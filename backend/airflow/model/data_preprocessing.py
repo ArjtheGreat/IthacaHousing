@@ -7,7 +7,6 @@ numerical_columns = [
 
 def get_safety_rating_column(df):
     """Get the safety rating column name (handles multiple cases)"""
-    # Handle Valid Certificate of Compliance mapping if needed
     if "Valid Certificate of Compliance" in df.columns:
         df["Valid Certificate of Compliance"] = df["Valid Certificate of Compliance"].replace({8: 1, float('nan'): 0})
         df = df.rename(columns={"Valid Certificate of Compliance": "valid_certificate_of_compliance"})
@@ -30,6 +29,10 @@ def calc_adjusted_bed_bath_values(apartments_for_rent):
     Returns new combined bedroom and bathrooms columns
     """
     print("Calculating rent adjustments using extracted data...")    
+    apartments_for_rent["bedroom_bathroom_ratio"] = 1.5*apartments_for_rent["Bedrooms"]/apartments_for_rent["Bathrooms"]
+    apartments_for_rent["available_bedrooms_to_total_bedrooms_ratio"] = apartments_for_rent["available_bedrooms"]/apartments_for_rent["Bedrooms"]
+    apartments_for_rent["available_bathrooms"] = round(apartments_for_rent["available_bedrooms"]/apartments_for_rent["bedroom_bathroom_ratio"])
+
     apartments_for_rent["combined_bedrooms_bathrooms"] = (
         1.5 * apartments_for_rent["available_bedrooms"] + apartments_for_rent["available_bathrooms"]
     )

@@ -92,26 +92,34 @@ def update_transit_scores():
     try:
         updated_df = calculate_transit_score.calculate_transit_score(listings_df)
         
-        transit_columns = ['transit_score', 'nearest_stop_name', 'walk_time_to_nearest_stop',
-                          'transit_time_to_ag_quad', 'transit_time_to_arts_quad', 'transit_time_to_eng_quad']
-        missing_columns = [col for col in transit_columns if col not in updated_df.columns]
-        
-        if missing_columns:
-            print(f"❌ Missing columns: {missing_columns}")
+        # Check if transit_score column exists
+        if 'transit_score' not in updated_df.columns:
+            print(f"❌ Missing transit_score column")
             return
         
-        for col in transit_columns:
-            non_null_count = updated_df[col].notna().sum()
-            print(f"📊 {col}: {non_null_count}/{len(updated_df)} non-null values")
-            
-            if non_null_count > 0:
-                if col in ['transit_score', 'walk_time_to_nearest_stop', 'transit_time_to_ag_quad', 
-                          'transit_time_to_arts_quad', 'transit_time_to_eng_quad']:
-                    print(f"   Sample values: {updated_df[col].dropna().head(3).tolist()}")
-                    if updated_df[col].notna().any():
-                        print(f"   Min: {updated_df[col].min():.2f}, Max: {updated_df[col].max():.2f}")
-                elif col == 'nearest_stop_name':
-                    print(f"   Sample stops: {updated_df[col].dropna().head(3).tolist()}")
+        # Show statistics for all transit-related columns
+        transit_columns = {
+            'transit_score': 'Transit Score',
+            'nearest_stop_name': 'Nearest Stop',
+            'walk_time_to_nearest_stop': 'Walk Time (min)',
+            'transit_time_to_arts_quad': 'Transit to Arts Quad (min)',
+            'transit_time_to_eng_quad': 'Transit to Eng Quad (min)',
+            'transit_time_to_ag_quad': 'Transit to Ag Quad (min)'
+        }
+        
+        for col, label in transit_columns.items():
+            if col in updated_df.columns:
+                non_null_count = updated_df[col].notna().sum()
+                print(f"📊 {label}: {non_null_count}/{len(updated_df)} non-null values")
+                
+                if non_null_count > 0 and col != 'nearest_stop_name':
+                    print(f"   Range: {updated_df[col].min():.2f} - {updated_df[col].max():.2f}")
+                    print(f"   Mean: {updated_df[col].mean():.2f}")
+        
+        # Overall validation
+        transit_score_count = updated_df['transit_score'].notna().sum()
+        if transit_score_count == 0:
+            print("⚠️ No valid transit scores were calculated")
         
     except Exception as e:
         print(f"❌ Error computing transit scores: {e}")
@@ -127,7 +135,7 @@ def update_transit_scores():
 
 def update_database_transit_scores(df):
     """
-    Update the database with new transit scores and nearest stop info for existing listings
+    Update the database with new transit scores and related data for existing listings
     """
     DB_URI = os.getenv("DB_URI")
     
@@ -152,7 +160,7 @@ def update_database_transit_scores(df):
         for _, row in df.iterrows():
             listing_id = row['ListingId']
             
-            # Build update query for transit fields
+            # Build update query dynamically based on available columns
             update_parts = []
             values = {}
             

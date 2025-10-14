@@ -1,9 +1,6 @@
-"""
-Transit Score Calculation Module
-
-Calculates transit accessibility scores for housing listings using TCAT GTFS data
-and adds nearest stop information.
-"""
+import numpy as np
+import pandas as pd
+import geopy.distance
 import pandas as pd
 import geopandas as gpd
 import numpy as np
@@ -37,17 +34,6 @@ def calculate_transit_score(apartments_for_rent):
     
     print("🚌 Starting transit score calculation...")
     
-    # Filter apartments with valid coordinates
-    valid_coords = apartments_for_rent['latitude'].notna() & apartments_for_rent['longitude'].notna()
-    valid_apartments = apartments_for_rent[valid_coords].copy()
-    
-    if len(valid_apartments) == 0:
-        print("⚠️ No valid coordinates found for transit score calculation")
-        apartments_for_rent['transit_score'] = None
-        apartments_for_rent['nearest_stop_name'] = None
-        apartments_for_rent['walk_time_to_nearest_stop'] = None
-        return apartments_for_rent
-    
     try:
         # Determine GTFS file location
         MODEL_PATH = str("/opt/airflow/model")
@@ -56,7 +42,6 @@ def calculate_transit_score(apartments_for_rent):
         
         gtfs_file = os.path.join(MODEL_PATH, "tcat_gtfs_final.zip")
         
-        # Download GTFS if not exists
         if not os.path.exists(gtfs_file):
             print("📥 Downloading latest TCAT GTFS data...")
             gtfs_url = "https://s3.amazonaws.com/tcat-gtfs/tcat-ny-us.zip"
@@ -73,85 +58,48 @@ def calculate_transit_score(apartments_for_rent):
         print("📖 Loading GTFS feed...")
         feed = gk.read_feed(gtfs_file, dist_units="km")
         
-        # Extract GTFS components
-        trips_df = feed.trips
-        routes_df = feed.routes
-        stop_times_df = feed.stop_times
-        
-        # Create stops GeoDataFrame
         stops_gdf = gpd.GeoDataFrame(
             feed.stops,
             geometry=gpd.points_from_xy(feed.stops.stop_lon, feed.stops.stop_lat),
             crs="EPSG:4326"
         )
-        print(f"📍 Loaded {len(stops_gdf)} transit stops")
         
-        print("🗺️ Building transit network...")
-        stop_times_trips = stop_times_df.merge(trips_df, on="trip_id", how="left")
-        st_routes = stop_times_trips.merge(routes_df, on="route_id", how="left")
-        network_df = st_routes.merge(stops_gdf, on="stop_id", how="left")
-        
-        network_df = network_df.sort_values(["trip_id", "stop_sequence"]).reset_index(drop=True)
-        network_df["next_stop_id"] = network_df.groupby("trip_id")["stop_id"].shift(-1)
-        network_df["next_arrival_time"] = network_df.groupby("trip_id")["arrival_time"].shift(-1)
-        
-        network_df["travel_time_sec"] = (
-            pd.to_timedelta(network_df["next_arrival_time"]) -
-            pd.to_timedelta(network_df["departure_time"])
-        ).dt.total_seconds()
-        
-        network_df = network_df.dropna(subset=["next_stop_id", "travel_time_sec"])
-        
-        G = nx.DiGraph()
-        for _, row in network_df.iterrows():
-            G.add_edge(
-                row["stop_id"],
-                row["next_stop_id"],
-                weight=row["travel_time_sec"],
-                route=row["route_id"]
-            )
-        print(f"✅ Transit network built with {G.number_of_nodes()} stops and {G.number_of_edges()} connections")
+        # --- Load travel times ---
+        travel_times_path = os.path.join(MODEL_PATH, "StopsToCornellDestinations.csv")
+
+        travel_times_df = pd.read_csv(travel_times_path)
         
         def find_nearest_stop(lat, lon, stops_df):
-            """Find the nearest bus stop and calculate walk time"""
-            if pd.isna(lat) or pd.isna(lon):
-                return {
-                    "nearest_stop_name": None,
-                    "nearest_stop_id": None,
-                    "walk_time_to_nearest_stop": None
-                }
-            
-            stops_df_copy = stops_df.copy()
-            stops_df_copy["distance_meters"] = stops_df_copy.apply(
-                lambda row: geopy.distance.geodesic((lat, lon), (row["stop_lat"], row["stop_lon"])).meters,
-                axis=1
+            """
+            Finds the nearest bus stop based on latitude and longitude.
+
+            Returns:
+            - stop_name: Name of the closest bus stop.
+            - distance_meters: Distance to the stop.
+            """
+            stops_df_modified = stops_df.copy()
+            stops_df_modified["distance_meters"] = stops_df_modified.apply(
+                lambda row: geopy.distance.geodesic((lat, lon), (row["stop_lat"], row["stop_lon"])).meters, axis=1
             )
-            
-            if len(stops_df_copy) == 0:
-                return {
-                    "nearest_stop_name": None,
-                    "nearest_stop_id": None,
-                    "walk_time_to_nearest_stop": None
-                }
-            
-            nearest_stop = stops_df_copy.loc[stops_df_copy["distance_meters"].idxmin()]
-            # Walking speed ~78 meters/min (5 km/h)
-            walk_time_min = nearest_stop["distance_meters"] / 78.0
-            
+
+            nearest_stop = stops_df_modified.loc[stops_df_modified["distance_meters"].idxmin()]
             return {
                 "nearest_stop_name": nearest_stop["stop_name"],
                 "nearest_stop_id": nearest_stop["stop_id"],
-                "walk_time_to_nearest_stop": round(walk_time_min, 2)
+                "geometry": nearest_stop["geometry"],
+                "distance_meters": nearest_stop["distance_meters"],
+                "walk_time_to_nearest_stop": nearest_stop["distance_meters"] / 78
             }
+
         
         print("🚶 Finding nearest stops for apartments...")
-        nearest_stop_data = valid_apartments.apply(
-            lambda row: find_nearest_stop(row["latitude"], row["longitude"], stops_gdf),
+        apartments_for_rent["nearest_stop"] = apartments_for_rent.apply(
+            lambda x: find_nearest_stop(x["latitude"], x["longitude"], stops_gdf),
             axis=1
         )
-        nearest_stop_df = pd.DataFrame(nearest_stop_data.tolist(), index=valid_apartments.index)
-        valid_apartments = pd.concat([valid_apartments, nearest_stop_df], axis=1)
-        
+        extacted_nearest_stop_df = pd.json_normalize(apartments_for_rent["nearest_stop"])
+        apartments_for_rent = pd.concat([apartments_for_rent, extacted_nearest_stop_df], axis=1)
+
         destinations = {
             "ag_quad": {"coords": (42.448796, -76.478018), "opportunity": 1.0},
             "arts_quad": {"coords": (42.448966, -76.484175), "opportunity": 1.0},
@@ -166,30 +114,41 @@ def calculate_transit_score(apartments_for_rent):
         
         print(f"🎯 Calculated destination stops: {list(destination_stops.keys())}")
         
-        def compute_transit_time(origin_stop_id, dest_stop_id, graph):
-            """Calculate shortest transit time between two stops"""
-            if pd.isna(origin_stop_id) or dest_stop_id is None:
-                return np.inf
-            
-            try:
-                travel_times = nx.single_source_dijkstra_path_length(graph, origin_stop_id, weight="weight")
-                return travel_times.get(dest_stop_id, np.inf)
-            except Exception:
-                return np.inf
+        def compute_transit_time(origin_stop_id, dest_stop_id):
+          """Return the travel time (in seconds) between two stops, or np.inf if missing."""
+          if pd.isna(origin_stop_id) or dest_stop_id is None:
+              return np.inf
+
+          origin_stop_id = int(origin_stop_id)
+
+          try:
+              match = travel_times_df.loc[
+                  (travel_times_df["from_id"] == origin_stop_id)
+                  & (travel_times_df["to_id"] == dest_stop_id),
+                  "travel_time",
+              ]
+              print(f"{origin_stop_id}, {type(origin_stop_id)} {dest_stop_id}, {type(dest_stop_id)}")
+              if not match.empty:
+                  print(match.iloc[0])
+                  return float(match.iloc[0]) 
+              else:
+                  return np.inf
+          except Exception:
+              return np.inf
+
         
         print("⏱️ Computing transit times to destinations...")
         for name, dest_stop_id in destination_stops.items():
             col = f"transit_time_to_{name}"
-            valid_apartments[col] = valid_apartments["nearest_stop_id"].apply(
-                lambda origin_id: compute_transit_time(origin_id, dest_stop_id, G)
+            apartments_for_rent[col] = apartments_for_rent["nearest_stop_id"].apply(
+                lambda origin_id: compute_transit_time(origin_id, name)
             )
-            # Convert from seconds to minutes
-            valid_apartments[col] = valid_apartments[col] / 60.0
+            # Keep original values in minutes (no division by 60)
         
         def impedance_function(time_minutes, beta=0.1):
             """Negative exponential impedance function"""
-            if pd.isna(time_minutes) or np.isinf(time_minutes):
-                return 0.0
+            if(time_minutes == np.nan):
+              return 0.0
             return np.exp(-beta * time_minutes)
         
         def get_accessibility_score(row, destinations):
@@ -204,40 +163,32 @@ def calculate_transit_score(apartments_for_rent):
                         total += info["opportunity"] * impedance_function(time)
             
             walk_time = row.get("walk_time_to_nearest_stop")
-            if pd.notna(walk_time) and np.isfinite(walk_time):
-                total += impedance_function(walk_time, 0.5) 
+            total += impedance_function(walk_time, 0.5) 
             
             return total
         
         print("📊 Calculating accessibility scores...")
-        valid_apartments["accessibility_score"] = valid_apartments.apply(
+        apartments_for_rent["accessibility_score"] = apartments_for_rent.apply(
             lambda row: get_accessibility_score(row, destinations),
             axis=1
         )
         
-        max_score = valid_apartments["accessibility_score"].max()
-        min_score = valid_apartments["accessibility_score"].min()
+        max_score = apartments_for_rent["accessibility_score"].max()
+        min_score = apartments_for_rent["accessibility_score"].min()
         
         if max_score > min_score:
-            valid_apartments["transit_score"] = (
-                (valid_apartments["accessibility_score"] - min_score) / (max_score - min_score) * 100
+            apartments_for_rent["transit_score"] = (
+                (apartments_for_rent["accessibility_score"] - min_score) / (max_score - min_score) * 100
             ).round(2)
         else:
-            valid_apartments["transit_score"] = 50.0 
+            apartments_for_rent["transit_score"] = 50.0 
         
         columns_to_merge = ["ListingId", "transit_score", "nearest_stop_name", "walk_time_to_nearest_stop"]
         
         for name in destinations.keys():
             col = f"transit_time_to_{name}"
-            if col in valid_apartments.columns:
+            if col in apartments_for_rent.columns:
                 columns_to_merge.append(col)
-        
-        apartments_for_rent = apartments_for_rent.merge(
-            valid_apartments[columns_to_merge],
-            on="ListingId",
-            how="left",
-            suffixes=("", "_new")
-        )
         
         all_transit_cols = ["transit_score", "nearest_stop_name", "walk_time_to_nearest_stop", 
                            "transit_time_to_ag_quad", "transit_time_to_arts_quad", "transit_time_to_eng_quad"]

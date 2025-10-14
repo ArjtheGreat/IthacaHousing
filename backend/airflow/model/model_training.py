@@ -21,7 +21,7 @@ def define_X_Y_variables(apartments_for_rent):
     elif "overallsafetyratingpct" in apartments_for_rent.columns:
         safety_col = "overallsafetyratingpct"
     
-    base_cols = ["LengthAvailable", "Pets", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score"]
+    base_cols = ["LengthAvailable", "Pets", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score", "available_bedrooms_to_total_bedrooms_ratio"]
     if safety_col:
         base_cols.append(safety_col)
     

@@ -75,8 +75,6 @@ def compute_all_travel_times(apartments_for_rent, graphs):
             for i, apt_node in enumerate(apartment_nodes):
                 try:
                     time_min = nx.shortest_path_length(G, apt_node, ref_node, weight="travel_time") / 60
-                    if mode == "drive":
-                        time_min *= 1.8
                     pos = apartments_for_rent.index.get_loc(valid_indices[i])
                     times[pos] = round(time_min, 2)
                 except (nx.NetworkXNoPath, nx.NodeNotFound):
