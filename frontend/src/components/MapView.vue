@@ -224,7 +224,11 @@
           </div>
         </div>
         <div class="legend-disclaimer">
-          Colors show how actual rent compares to predicted rent
+          Colors show how actual rent compares to fair rent.
+          <br/>
+          <div class="disclaimer-disclaimer">
+            Estimates for research purposes only.
+          </div>
         </div>
       </div>
     </div>
@@ -2037,6 +2041,17 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   text-align: center;
 }
 
+.disclaimer-disclaimer {
+  font-size: 0.4rem;
+  color: #666;
+  word-wrap: break-word;
+  white-space: normal;
+  max-width: 100%;
+  margin-top: 8px;
+  line-height: 1.3;
+  text-align: center;
+}
+
 
 .leaflet-popup-close-button {
   display: none;
@@ -2432,6 +2447,14 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
     font-size: 0.65rem;
     max-width: 100%;
     margin-top: 8px;
+  }
+  
+  .disclaimer-disclaimer {
+    font-size: 0.5rem;
+    word-wrap: break-word;
+    white-space: normal;
+    max-width: 100%;
+    line-height: 1.4;
   }
 
   @keyframes slideUp {
