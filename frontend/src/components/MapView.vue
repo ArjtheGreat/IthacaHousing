@@ -225,10 +225,10 @@
         </div>
         <div class="legend-disclaimer">
           Colors show how actual rent compares to fair rent.
-          <br/>
+          <!-- <br/>
           <div class="disclaimer-disclaimer">
             Estimates for research purposes only.
-          </div>
+          </div> -->
         </div>
       </div>
     </div>
