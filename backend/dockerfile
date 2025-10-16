@@ -9,6 +9,5 @@ COPY main.py .
 COPY db.py .
 COPY serializers.py .
 COPY site_selector/ ./site_selector/
-COPY airflow/ ./airflow/
 
 EXPOSE 80
