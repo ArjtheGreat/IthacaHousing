@@ -17,8 +17,9 @@ sys.path.append(str(BASE_DIR))
 
 load_dotenv()
 
+from db import get_db, HousingListing, Base, engine as db_engine
+
 from main import app
-from db import get_db, HousingListing, Base
 
 USE_POSTGRES_TEST = os.getenv("USE_POSTGRES_TEST", "false").lower() == "true"
 
@@ -39,9 +40,29 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 @pytest.fixture(scope="session", autouse=True)
 def setup_db():
     """Create tables once for all tests"""
+    assert hasattr(HousingListing, '__tablename__'), "HousingListing model not properly registered"
+    assert HousingListing.__tablename__ == 'housing_listings', f"Expected 'housing_listings', got {HousingListing.__tablename__}"
+    
+    # Print debug info about the Base metadata
+    print(f"🔍 Base.metadata.tables keys: {list(Base.metadata.tables.keys())}")
+    
+    # Create tables using the Base metadata that should have all models
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    print(f"📋 Created tables: {tables}")
+    
+    if 'housing_listings' not in tables:
+        print(f"❌ housing_listings table not found in: {tables}")
+        print(f"🔍 Available table names in Base.metadata: {list(Base.metadata.tables.keys())}")
+        raise RuntimeError(f"housing_listings table not created. Available tables: {tables}")
+    
+    print(f"✅ housing_listings table created successfully")
     yield
+    
     Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture(scope="function")
@@ -59,11 +80,26 @@ def override_get_db():
 
 @pytest.fixture(scope="session", autouse=True)
 def seed_test_data(setup_db):  
+    """Seed test data after database is set up"""
     db = TestingSessionLocal()
-    db.query(HousingListing).delete()
-    db.add_all(mock_listings(20))
-    db.commit()
-    db.close()
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        
+        if 'housing_listings' not in tables:
+            raise RuntimeError("housing_listings table not found when trying to seed data")
+            
+        db.query(HousingListing).delete()
+        db.add_all(mock_listings(20))
+        db.commit()
+        print(f"✅ Seeded {len(mock_listings(20))} test listings")
+    except Exception as e:
+        print(f"❌ Error seeding test data: {e}")
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 @pytest.fixture(scope="function")
 def client(override_get_db):
