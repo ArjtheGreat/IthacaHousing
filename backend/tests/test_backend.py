@@ -115,7 +115,7 @@ def mock_listings(n: int = 10) -> List[HousingListing]:
             num_people=bedrooms,
             latitude=42.44 + random.uniform(-0.01, 0.01),
             longitude=-76.5 + random.uniform(-0.01, 0.01),
-            walk_time=random.randint(5, 20),
+            walk_time_urishall=random.randint(5, 20),
             walk_routes=f"LINESTRING ({random.uniform(-76.5, -76.4)} {random.uniform(42.43, 42.45)}, {random.uniform(-76.5, -76.4)} {random.uniform(42.43, 42.45)})",
             bike_time=random.randint(3, 15),
             bike_routes=f"LINESTRING ({random.uniform(-76.5, -76.4)} {random.uniform(42.43, 42.45)}, {random.uniform(-76.5, -76.4)} {random.uniform(42.43, 42.45)})",
@@ -177,7 +177,7 @@ def test_get_listing_walk(client):
     res = client.get("/listing/walks")
     assert res.status_code == 200
     data = res.json()
-    assert all(listing["walk_time"] < 15 for listing in data)
+    assert all(listing["walk_time_urishall"] < 15 for listing in data)
 
 
 def test_get_listing_transit(client):

@@ -49,7 +49,7 @@
       <div class="partners-container">
         <h2 class="section-title">Our Partners</h2>
         <p class="partners-intro">
-          We're grateful for the support and collaboration of these organizations that help make Ithaca Insights possible.
+          We're incredibly thankful for the support and collaboration of these organizations that help keep Ithaca Insights up and running.
         </p>
         <div class="partners-grid">
           <div

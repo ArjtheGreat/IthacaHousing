@@ -5,3 +5,22 @@ new-key.pem
 table_backup.dump
 task-definition.json
 .env
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.cpython-*.pyc
+
+# Airflow files
+backend/airflow/airflow.db
+airflow/airflow.db
+backend/airflow/logs/
+airflow/logs/
+**/airflow/logs/
+*.log
+
+# IDE and system files
+.DS_Store
+.vscode/
+.idea/
