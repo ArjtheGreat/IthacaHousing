@@ -1,7 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MapView from "@/components/MapView.vue"
 import HistoryView from "@/components/HistoryView.vue"
+import HomePage from "@/components/HomePage.vue"
 import AboutView from "@/components/AboutView.vue"
+import ContactsView from "@/components/ContactsView.vue"
 import UrbanGrowthView from "@/components/UrbanGrowthView.vue"
 import InsideIthacaView from "@/components/InsideIthacaView.vue"
 
@@ -9,10 +11,25 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/',
+      name: 'home',
+      component: HomePage,
+    },
+    {
       path: '/rent',
       name: 'rent',
       component: MapView,
-    }, 
+    },
+    {
+      path: '/about',
+      name: 'about',
+      component: AboutView,
+    },
+    {
+      path: '/contact',
+      name: 'contact',
+      component: ContactsView,
+    },
     {
       path: '/history',
       name: 'history',
@@ -27,11 +44,6 @@ const router = createRouter({
       path: '/inside-ithaca',
       name: 'inside-ithaca',
       component: InsideIthacaView,
-    },
-    {
-      path: '/',
-      name: 'home',
-      component: AboutView,
     },
   ],
 })

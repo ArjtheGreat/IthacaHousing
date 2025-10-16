@@ -20,7 +20,9 @@
         <!-- Navigation Menu -->
         <ul class="navbar-menu" :class="{ 'menu-open': menuOpen }">
             <li><router-link to="/" active-class="active-link">Home</router-link></li>
-            <li><router-link to="/rent" active-class="active-link">Rental Valuation</router-link></li>
+            <li><router-link to="/rent" active-class="active-link">Fair Rent Map</router-link></li>
+            <li><router-link to="/about" active-class="active-link">About</router-link></li>
+            <li><router-link to="/contact" active-class="active-link">Contact</router-link></li>
             <!-- <li><router-link to="/inside-ithaca" active-class="active-link">Inside Ithaca</router-link></li> -->
             <!-- <li><router-link to="/history" active-class="active-link">Time Capsule</router-link></li>
             <li><router-link to="/urbangrowth" active-class="active-link">Zoning & Site Selection</router-link></li> -->
@@ -58,7 +60,9 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
     display: flex;
     align-items: center;
     max-width: 100%;
+    gap: 16px;
     margin: 0 auto;
+    justify-content: space-between;
 }
 
 .navbar-brand {
@@ -69,7 +73,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 
 /* Logo */
 .navbar-logo {
-    width: 40px;
+    width: 45px;
     height: auto;
 }
 

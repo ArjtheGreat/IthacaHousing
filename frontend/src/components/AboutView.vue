@@ -1,63 +1,73 @@
 <template>
 <NavBar />
-<div class="info-section">
-    <!--Hero Section MAKE BALANCE SMOOTHER MAKE WORDS ON EACH LINE EQUAL-->
-    <div class="hero">
-      <div class="hero-overlay"></div>
-      <div class="hero-content">
-        <h1 class="hero-title">Explore Fair Rent in Ithaca</h1>
-        <p class="hero-subtitle">Ithaca Insights is a live dashboard uncovering rental pricing inefficiencies across Tompkins County.</p>
-        <button class="cta-button"><router-link to="/rent">View Map</router-link></button>
-      </div>
+<div class="about-section">
+    <!--Page Header-->
+    <div class="page-header">
+      <h1 class="page-title">About Ithaca Insights</h1>
+      <p class="page-subtitle">Making Ithaca's Chaotic Rental Market Clear As Cayuga</p>
     </div>
 
-    <!--Value Prop Section-->
-    <section class="value-prop-section">
-      <div class="value-prop-container">
-        <h2 class="value-prop-heading">Why Ithaca Insights?</h2>
-        <div class="value-prop-cards">
-
-          <div class="value-card">
-            <h3 class="value-title">Transparent Pricing</h3>
-            <p class="value-text">
-              We reveal the true price of listings by comparing market rent to actual listing data—empowering renters and informing city planners. 
-            </p>
-          </div>
-
-          <div class="value-card">
-            <h3 class="value-title">Data-Driven Insights</h3>
-            <p class="value-text">
-            We incorporate real-time data from Tompkins County into regression models and geospatial analysis tools that turn raw data into actionable intelligence.
-            </p>
-          </div>
-
-          <div class="value-card">
-            <h3 class="value-title">Accessible for All</h3>
-            <p class="value-text">
-              Built for students, landlords, and policymakers alike. Our interface is intuitive, fast, and freely available to the public.
-            </p>
-          </div>
-
-        </div>
+    <!--Mission Section-->
+    <section class="mission-section">
+      <div class="mission-container">
+        <h2 class="section-title">Our Mission</h2>
+        <p class="mission-text">
+          Ithaca Insights was born from a simple observation: the rental market in Ithaca is a total fiasco. 
+          How can we, as college students, make sure that we are getting a great deal and we aren't getting ripped off? 
+          <br />
+          <br />
+          Our platform bridges this gap by providing data-driven insights into rental pricing, neighborhood characteristics, 
+          and housing accessibility across Tompkins County.
+        </p>
       </div>
     </section>
 
     <!--Team Section-->
     <section class="team-section">
-      <h2 class="team-title">Meet the Team</h2>
-      <div class="team-grid">
-        <div
-          class="team-card"
-          v-for="(member, index) in teamMembers"
-          :key="index"
-        >
-          <img
-            class="avatar-face"
-            :src="member.avatar"
-            :alt="`${member.name}'s avatar`"
-          />
-          <h3 class="member-name">{{ member.name }}</h3>
-          <p class="member-role">{{ member.role }}</p>
+      <div class="team-container">
+        <h2 class="section-title">Meet the Team</h2>
+        <div class="team-grid">
+          <div
+            class="team-card"
+            v-for="(member, index) in teamMembers"
+            :key="index"
+          >
+            <img
+              class="avatar-face"
+              :src="member.avatar"
+              :alt="`${member.name}'s avatar`"
+            />
+            <h3 class="member-name">{{ member.name }}</h3>
+            <p class="member-role">{{ member.role }}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!--Partners Section-->
+    <section class="partners-section">
+      <div class="partners-container">
+        <h2 class="section-title">Our Partners</h2>
+        <p class="partners-intro">
+          We're grateful for the support and collaboration of these organizations that help make Ithaca Insights possible.
+        </p>
+        <div class="partners-grid">
+          <div
+            class="partner-card"
+            v-for="(partner, index) in partners"
+            :key="index"
+          >
+            <img
+              class="partner-logo"
+              :src="partner.logo"
+              :alt="`${partner.name} logo`"
+            />
+            <h3 class="partner-name">{{ partner.name }}</h3>
+            <p class="partner-description">{{ partner.description }}</p>
+            <a :href="partner.website" target="_blank" class="partner-link" v-if="partner.website">
+              Visit Website
+            </a>
+          </div>
         </div>
       </div>
     </section>
@@ -71,6 +81,9 @@ import arjunImg from '@/assets/avatars/arjunmaitra.jpeg';
 import stevenImg from '@/assets/avatars/stevenzhou.jpeg';
 import ethanImg from '@/assets/avatars/ethanyang.jpeg';
 import vivianImg from '@/assets/avatars/vivianguo.jpeg';
+import cdjLogo from '@/assets/CDJLogo.png';
+import armadaLogo from '@/assets/armadalogo.png';
+import maitrixLogo from '@/assets/MaitrixLabsLogo.png';
 
 const teamMembers = [
   {
@@ -95,11 +108,32 @@ const teamMembers = [
   }
 ];
 
+const partners = [
+  {
+    name: 'Cornell Data Journal',
+    description: 'Organization spearheading data-driven journalism on the Hill',
+    logo: cdjLogo,
+    website: 'https://cornelldatajournal.org/'
+  },
+  {
+    name: 'Cornell Armada',
+    description: 'If it ships from Cornell, it probably started here',
+    logo: armadaLogo,
+    website: 'https://armada.build/'
+  },
+  {
+    name: 'Maitrix Labs',
+    description: 'Some college kids building next-gen AI/ML products for the CRE industry',
+    logo: maitrixLogo,
+    website: 'https://www.linkedin.com/company/maitrix-labs/about'
+  }
+];
+
 </script>
 
 <style scoped>
 /* Layout */
-.info-section {
+.about-section {
   margin-top: 2%;
   width: 100vw;
   margin-left: auto;
@@ -108,176 +142,80 @@ const teamMembers = [
   display: flex;
   flex-direction: column;
   align-items: center; 
-  gap: 20px;
-  
-
+  gap: 60px;
+  padding-bottom: 4rem;
 }
 
-
-/* Hero Section */
-.hero {
-  position: relative;
-  padding: 3rem 0;
+/* Page Header */
+.page-header {
   text-align: center;
-  margin-top: 2%;
-  width: 100%;
-  background-image: url('@/assets/ithaca.jpg');
-  background-size: cover;
-  background-position: center;
-  overflow: hidden;
-  border-bottom: 1px solid black;
-}
-
-.hero-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none; /* Let clicks through */
-  z-index: 1;
-  backdrop-filter: blur(4px);
-  background: linear-gradient(
-    to right,
-    rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0.6) 25%,
-    rgba(0, 0, 0, 0.75) 50%,
-    rgba(0, 0, 0, 0.6) 75%,
-    rgba(0, 0, 0, 0) 100%
-  );
-  
-}
-
-.hero-content {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
+  padding: 4rem 2rem 2rem;
+  background: #061559;
   color: white;
+  width: 100%;
 }
 
-.hero-text {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.hero-title {
+.page-title {
   font-size: 3rem;
   font-weight: 700;
-  color: #ffffff; /* pure white for max contrast */
-  white-space: nowrap;
-  text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.6); /* adds subtle shadow for readability */
+  margin-bottom: 1rem;
+  text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.3);
 }
 
-.hero-subtitle {
+.page-subtitle {
   font-size: 1.25rem;
-  color: #f0f0f0;
-  line-height: 1.6;
+  opacity: 0.9;
   max-width: 600px;
-  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+  margin: 0 auto;
+  line-height: 1.6;
 }
 
-.cta-button {
-  display: inline-block;
-  padding: 12px 28px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: white;
-  background: #1e3a8a;
-  transition: all 0.3s ease;
-  border: none;             
-  box-shadow: none;           
-  appearance: none;          
-  border-radius: 6px;         
+/* Section Styling */
+.section-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-bottom: 2rem;
+  text-align: center;
 }
 
-.cta-button a {
-  color: white;
+/* Mission Section */
+.mission-section {
+  padding: 0 2rem;
+  max-width: 60%;
+  text-align: center;
 }
 
-.cta-button:hover {
-  transform: scale(1.05);
-  background: #1d4ed8;
-}
-
-/* Value Prop Section */
-.value-prop-section {
-  padding: 20px 20px;
-  font-family: 'DM Sans', sans-serif;
-}
-
-.value-prop-container {
-  max-width: 1100px;
+.mission-container {
   margin: 0 auto;
 }
 
-.value-prop-heading {
-  font-size: 2.75rem;
-  font-weight: 700;
-  color: #1e3a8a;
-  margin-bottom: 3rem;
-  text-align: center;
-
-}
-
-.value-prop-cards {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 30px;
-}
-
-.value-card {
-  background: #ffffff;
-  padding: 30px 25px;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  /* box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06); */
-  width: 300px;
-  transition: transform 0.3s ease;
-}
-
-.value-card:hover {
-  transform: translateY(-6px);
-}
-
-.value-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #1e3a8a;
-  margin-bottom: 1rem;
-  text-align: left;
-}
-
-.value-text {
-  font-size: 1.1rem;
+.mission-text {
+  font-size: 1.3rem;
   color: #4b5563;
-  line-height: 1.6;
+  line-height: 1.8;
+  margin-bottom: 1.5rem;
 }
-
 
 /* Team Section */
 .team-section { 
-  padding: 2rem 5vw 4rem;
+  padding: 2rem 5vw;
   align-items: center;
   display: flex;
   flex-direction: column;
+  width: 100%;
 }
 
-.team-title {
-  font-size: 2rem;
-  color: #1e3a8a;
-  font-weight: 700;
-  margin-bottom: 2rem;
+.team-container {
+  max-width: 1200px;
+  width: 100%;
 }
 
 .team-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr); /* exactly 4 equal columns */
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 2rem;
+  justify-items: center;
 }
 
 .team-card {
@@ -285,19 +223,27 @@ const teamMembers = [
   padding: 1.5rem;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
-  text-align: left;
+  text-align: center;
+  width: 100%;
+  max-width: 280px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.team-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
 }
 
 .avatar-face {
-  width: 100%;
-  aspect-ratio: 1/1;         /* Ensures it's a perfect square */
-  background: #e0e7ff;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 1rem;
+  margin: 0 auto 1rem;
+  background: #e0e7ff;
 }
 
 .avatar-face img {
@@ -306,17 +252,103 @@ const teamMembers = [
   object-fit: cover;
 }
 
-
 .member-name {
   font-size: 1.2rem;
   font-weight: 600;
   color: #1e3a8a;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
 }
 
 .member-role {
   font-size: 1rem;
   color: #4b5563;
+}
+
+/* Partners Section */
+.partners-section {
+  padding: 2rem 5vw;
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background: #f8fafc;
+}
+
+.partners-container {
+  max-width: 1200px;
+  width: 100%;
+  text-align: center;
+}
+
+.partners-intro {
+  font-size: 1.1rem;
+  color: #4b5563;
+  margin-bottom: 3rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.partners-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  justify-items: center;
+}
+
+.partner-card {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+  width: 100%;
+  max-width: 350px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.partner-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.partner-logo {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  margin: 0 auto 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.partner-name {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #1e3a8a;
+  margin-bottom: 1rem;
+}
+
+.partner-description {
+  font-size: 1rem;
+  color: #4b5563;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.partner-link {
+  display: inline-block;
+  padding: 8px 16px;
+  background: #1e3a8a;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: background 0.3s ease;
+}
+
+.partner-link:hover {
+  background: #1d4ed8;
 }
 
 /* Animation */
@@ -332,84 +364,50 @@ const teamMembers = [
 }
 
 @media (max-width: 768px) {
-  .hero-title {
-    margin-top: 20px;
-    font-size: 1.8rem;
-    white-space: normal;
+  .page-title {
+    font-size: 2rem;
+  }
+
+  .page-subtitle {
+    font-size: 1rem;
     padding: 0 1rem;
   }
 
-  .hero-subtitle {
-    font-size: 1rem;
-    padding: 0 1.5rem;
-    max-width: 90%;
-    text-align: center;
-  }
-
-  .cta-button {
-    font-size: 1rem;
-    padding: 10px 20px;
-  }
-
-  .value-prop-heading {
+  .section-title {
     font-size: 1.8rem;
-    margin-bottom: 2rem;
-    padding: 0 1rem;
   }
 
-  .value-prop-cards {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .value-card {
-    width: 90%;
-    padding: 20px;
-  }
-
-  .value-title {
-    font-size: 1.3rem;
-    text-align: center;
-  }
-
-  .value-text {
+  .mission-text {
     font-size: 1rem;
-    text-align: center;
-  }
-
-  .team-title {
-    font-size: 1.5rem;
-    text-align: center;
+    padding: 0 1rem;
   }
 
   .team-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
   }
 
   .team-card {
-    padding: 1rem;
-    text-align: center;
+    padding: 1.5rem;
   }
 
   .avatar-face {
-    width: 100%;
-    max-width: 120px;
-    margin: 0 auto 1rem;
+    width: 100px;
+    height: 100px;
   }
 
-  .member-name {
-    font-size: 1rem;
+  .partners-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
   }
 
-  .member-role {
-    font-size: 0.9rem;
+  .partner-card {
+    padding: 1.5rem;
   }
 
-  .info-section {
-    gap: 12px;
+  .about-section {
+    gap: 40px;
   }
 }
 
 </style>
-  
