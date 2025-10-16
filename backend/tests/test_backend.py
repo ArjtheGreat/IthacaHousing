@@ -31,7 +31,7 @@ if USE_POSTGRES_TEST:
     print("   - Password: password") 
     print("   - Database: test_db")
 else:
-    TEST_DATABASE_URL = "sqlite:///:memory:"
+    TEST_DATABASE_URL = "sqlite:///./test.db"
     print("📱 Using SQLite in-memory for tests (no setup needed)")
 
 engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in TEST_DATABASE_URL else {})

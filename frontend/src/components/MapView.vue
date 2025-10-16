@@ -1195,9 +1195,8 @@ const displayPOIMarkers = (type) => {
   
   // Icon styles for different POI types
   const iconMap = {
-    groceries: { icon: 'fa-shopping-basket', color: '#10b981' },
+    groceries: { icon: 'fa-shopping-cart', color: '#10b981' },
     shopping: { icon: 'fa-shopping-bag', color: '#f59e0b' },
-    attractions: { icon: 'fa-landmark', color: '#8b5cf6' }
   };
 
   const { icon, color } = iconMap[type];
@@ -1210,12 +1209,12 @@ const displayPOIMarkers = (type) => {
 
     // Create custom icon
     const poiIcon = L.divIcon({
-      html: `<div style="background-color: ${color}; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
-        <i class="fa-solid ${icon}" style="color: white; font-size: 14px;"></i>
+      html: `<div style="background-color: ${color}; opacity: 0.7; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.6); box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+        <i class="fa-solid ${icon}" style="color: white; font-size: 10px;"></i>
       </div>`,
       className: 'poi-marker',
-      iconSize: [30, 30],
-      iconAnchor: [15, 15]
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
     });
 
     const marker = L.marker([lat, lng], { icon: poiIcon }).addTo(map.value);
