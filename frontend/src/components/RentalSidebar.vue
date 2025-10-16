@@ -226,7 +226,7 @@
                         <div class="tooltip-content">
                             <div class="tooltip-title">Transit Accessibility</div>
                             <div class="tooltip-text">
-                                This section shows how accessible this location is via public transportation. It includes your transit score, nearest bus stop information, and travel times to key Cornell destinations using TCAT bus routes.
+                                The transit score calculates how accessible this listing is to different areas of Cornell. Based on the transit time and how close the nearest TCAT stop is located.
                             </div>
                         </div>
                     </div>
