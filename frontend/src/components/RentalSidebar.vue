@@ -1963,6 +1963,8 @@ watch<Listing | undefined>(
     background: none;
     border-radius: 8px;
     border: 1px solid #e2e8f0;
+    min-width: 0; /* Allow flex item to shrink */
+    overflow: hidden;
 }
 
 .landlord-oneline strong {
@@ -1975,6 +1977,10 @@ watch<Listing | undefined>(
     color: #374151;
     display: flex;
     align-items: center;
+    min-width: 0; /* Allow flex item to shrink */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* 📌 AMENITIES SECTION */
@@ -2632,14 +2638,23 @@ watch<Listing | undefined>(
         align-items: center;
         border-bottom: 1px solid #e5e7eb;
         align-items: flex-start;
+        flex-direction: column;
         gap: 8px;
     }
 
     .popup-title {
         font-size: 0.9rem;
-        font-weight: bold;
+        font-weight: 500; /* Consistent weight for all parts */
         text-align: left;
-        word-break: break-word;
+        white-space: nowrap; /* Keep address on one line */
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-transform: capitalize; /* Fix all caps issue */
+    }
+    
+    .popup-title span {
+        font-weight: 500; /* Fix weird city sizing */
+        text-transform: capitalize; /* Fix all caps issue */
     }
 
     .popup-image-container {
@@ -2843,6 +2858,25 @@ watch<Listing | undefined>(
     .popup-transit,
     .popup-landlord {
         font-size: 0.95rem;
+        margin-top: 12px; /* Proper spacing between address and landlord */
+    }
+    
+    /* Fix landlord section centering on mobile */
+    .popup-landlord {
+        left: 0;
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    
+    .landlord-oneline {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .popup-title-row {
+        gap: 8px;
     }
 
     .description-header {

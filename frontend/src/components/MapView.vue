@@ -6,8 +6,39 @@
       <div class="spinner"></div>
       <p class="loading-text">{{ loadingMessage }}</p>
     </div>
+    <!-- Desktop Recommendation Popup -->
+    <div v-if="showDesktopRecommendation" class="desktop-recommendation-popup">
+      <div class="popup-content">
+        <div class="popup-header">
+          <h3>📱 Mobile Experience</h3>
+          <button @click="showDesktopRecommendation = false" class="close-btn">×</button>
+        </div>
+        <div class="popup-body">
+          <p><strong>We strongly recommend using desktop</strong> for the best experience with Ithaca Insights.</p>
+          <p>The desktop version provides:</p>
+          <ul>
+            <li>Full filter panel with all options</li>
+            <li>Better map interaction and navigation</li>
+            <li>Detailed listing information</li>
+            <li>Enhanced data visualization</li>
+          </ul>
+        </div>
+        <div class="popup-footer">
+          <button @click="showDesktopRecommendation = false" class="continue-btn">
+            Continue on Mobile
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Filter Toggle Button -->
+    <button v-if="isMobile" @click="toggleMobileFilters" class="mobile-filter-toggle" :class="{ active: showMobileFilters }">
+      <i class="fa-solid fa-filter"></i>
+      <span>{{ hasAnyActiveFilters ? filteredListings.length : 'Filters' }}</span>
+    </button>
+
     <!-- Personal Taste Filters -->
-    <div class="personal-filters-container">
+    <div class="personal-filters-container" :class="{ 'mobile-hidden': isMobile && !showMobileFilters }">
       <!-- Main Personal Preferences Card -->
       <div class="main-preferences-card">
         <div class="card-header">
@@ -246,6 +277,11 @@ const showCommutePanel = ref(false); // Controls visibility of new commute panel
 
 // Points of Interest variables
 const activePOI = ref(null); // Tracks which POI is currently displayed
+
+// Mobile functionality variables
+const isMobile = ref(false); // Tracks if user is on mobile
+const showMobileFilters = ref(false); // Controls mobile filter visibility
+const showDesktopRecommendation = ref(false); // Controls desktop recommendation popup
 const poiMarkers = ref([]); // Stores POI markers on the map
 const poiData = ref({ groceries: [], shopping: [], attractions: [] }); // Stores loaded POI data
 
@@ -768,12 +804,32 @@ const hideSuggestions = () => {
 };
 
 /**
+ * Mobile functionality functions
+ */
+const checkMobile = () => {
+  isMobile.value = window.innerWidth <= 768;
+};
+
+const toggleMobileFilters = () => {
+  showMobileFilters.value = !showMobileFilters.value;
+};
+
+// Listen for window resize to update mobile state
+window.addEventListener('resize', checkMobile);
+
+/**
  * Lifecycle Hook on Mount
  * Fetches Data from API and initializes Map
  */
  onMounted(async () => {
   const startTime = performance.now();
   console.log('🚀 Map initialization started');
+
+  // Mobile detection
+  checkMobile();
+  if (isMobile.value) {
+    showDesktopRecommendation.value = true;
+  }
 
   messageInterval = setInterval(() => {
     messageIndex = (messageIndex + 1) % messages.length;
@@ -2422,6 +2478,202 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 
 .quad-popup .leaflet-popup-tip {
   background: #d97706;
+}
+
+/* Mobile-specific styles */
+/* Ensure Leaflet popups appear above mobile filter toggle and improve mobile spacing */
+
+
+.desktop-recommendation-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.popup-content {
+  background: white;
+  border-radius: 16px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  animation: popupSlideIn 0.3s ease-out;
+}
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.popup-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.popup-body {
+  padding: 20px 24px;
+}
+
+.popup-body p {
+  margin: 0 0 16px 0;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.popup-body p:last-of-type {
+  margin-bottom: 12px;
+}
+
+.popup-body ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #4b5563;
+}
+
+.popup-body li {
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.popup-footer {
+  padding: 16px 24px 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.continue-btn {
+  width: 100%;
+  background: #507cb6;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.continue-btn:hover {
+  background: #3d5a87;
+}
+
+.mobile-filter-toggle {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1001;
+  background: #507cb6;
+  color: white;
+  border: none;
+  border-radius: 50px;
+  padding: 12px 20px;
+  box-shadow: 0 4px 16px rgba(80, 124, 182, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  animation: slideUp 0.4s ease-out;
+}
+
+.mobile-filter-toggle:hover {
+  background: #3d5a87;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(80, 124, 182, 0.5);
+}
+
+.mobile-filter-toggle.active {
+  background: #dc2626;
+}
+
+.mobile-filter-toggle i {
+  font-size: 16px;
+}
+
+.mobile-filter-toggle span {
+  font-size: 14px;
+}
+
+/* Hide filter container on mobile when not active */
+.personal-filters-container.mobile-hidden {
+  display: none;
+}
+
+/* Animation for popup */
+@keyframes popupSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Update existing mobile styles */
+@media (max-width: 768px) {
+  .personal-filters-container:not(.mobile-hidden) {
+    position: fixed;
+    bottom: 80px; /* Above the toggle button */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90vw;
+    max-width: 420px;
+    background: white;
+    border-radius: 18px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+    z-index: 1001;
+    animation: slideUp 0.4s ease-out;
+    overflow: hidden;
+    padding: 16px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  
+  /* Ensure map takes full space on mobile */
+  #map {
+    height: 100vh !important;
+  }
+  
+  /* Adjust legend position on mobile */
+  .legend {
+    bottom: 120px; /* Above the filter toggle */
+    right: 20px;
+    left: 20px;
+    width: auto;
+    padding: 12px;
+    font-size: 0.8rem;
+  }
 }
 
 </style>

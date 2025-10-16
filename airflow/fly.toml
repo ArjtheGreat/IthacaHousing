@@ -9,12 +9,13 @@ primary_region = "ewr"
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = false
+  auto_stop_machines = true     
   auto_start_machines = true
-  processes = ["webserver"]  
+  processes = ["webserver"]
 
 [[vm]]
-  memory = "1gb"
+  memory = "512mb"              
+  cpu_kind = "shared"
   cpus = 1
 
 [mounts]
@@ -25,6 +26,3 @@ primary_region = "ewr"
   name = "webserver"
   command = "bash -c '/entrypoint.sh'"
 
-[[processes]]
-  name = "scheduler"
-  command = "airflow scheduler"
