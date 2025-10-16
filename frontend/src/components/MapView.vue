@@ -93,7 +93,7 @@
 
           <!-- Points of Interest Section -->
           <div class="filter-section">
-            <h3 class="section-title">Points of Interest</h3>
+            <label for="bed-filter" class="filter-label">Points of Interest</label>
             <div class="poi-buttons">
               <button 
                 @click="togglePOI('groceries')" 
@@ -102,13 +102,13 @@
                 <i class="fa-solid fa-shopping-basket"></i>
                 Groceries
               </button>
-              <button 
+              <!-- <button 
                 @click="togglePOI('shopping')" 
                 :class="['poi-btn', { active: activePOI === 'shopping' }]"
               >
                 <i class="fa-solid fa-shopping-bag"></i>
                 Shopping
-              </button>
+              </button> -->
               <!-- <button 
                 @click="togglePOI('attractions')" 
                 :class="['poi-btn', { active: activePOI === 'attractions' }]"
@@ -2146,12 +2146,11 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 4px;
 }
 
 .commute-title {
   font-size: 1rem;
-  font-weight: 600;
   color: #374151;
   margin: 0;
   display: flex;
@@ -2178,6 +2177,8 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 /* Reset Section */
+
+
 /* POI Buttons */
 .poi-buttons {
   display: flex;
