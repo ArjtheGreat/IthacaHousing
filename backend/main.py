@@ -278,8 +278,8 @@ def get_listing_walk(db: Session = Depends(get_db)):
     """
     Gets listing from database by ID
     """
-    mean_walking_time = db.query(func.avg(HousingListing.avg_walking_time)).scalar()
-    listings = db.query(HousingListing).filter(HousingListing.avg_walking_time<mean_walking_time).all()
+    mean_walking_time = db.query(func.avg(HousingListing.walk_time_urishall)).scalar()
+    listings = db.query(HousingListing).filter(HousingListing.walk_time_urishall<mean_walking_time).all()
     if not listings:
         raise HTTPException(status_code=404, detail="Listing not found")
     return [serialize_listing(listing) for listing in listings]
