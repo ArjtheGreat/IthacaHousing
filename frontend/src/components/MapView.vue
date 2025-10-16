@@ -38,7 +38,7 @@
           <!-- Location Row -->
           <div class="filter-row">
             <div class="filter-group">
-              <label for="location-filter" class="filter-label">📍 Neighborhood</label>
+              <label for="location-filter" class="filter-label">🏘️  Neighborhood</label>
               <select id="location-filter" v-model="selectedLocation" @change="updateLocationFilter" class="filter-select">
                 <option value="">Any neighborhood</option>
                 <option v-for="neighborhood in availableNeighborhoods" :key="neighborhood" :value="neighborhood">
@@ -93,7 +93,7 @@
 
           <!-- Points of Interest Section -->
           <div class="filter-section">
-            <label for="bed-filter" class="filter-label">Points of Interest</label>
+            <label for="bed-filter" class="filter-label">📍 Points of Interest</label>
             <div class="poi-buttons">
               <button 
                 @click="togglePOI('groceries')" 
