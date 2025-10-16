@@ -4,7 +4,7 @@
     <!--Page Header-->
     <div class="page-header">
       <h1 class="page-title">About Ithaca Insights</h1>
-      <p class="page-subtitle">Making Ithaca's Chaotic Rental Market Clear As Cayuga</p>
+      <p class="page-subtitle">Making Ithaca's Chaotic Rental Market Clear As Day</p>
     </div>
 
     <!--Mission Section-->
@@ -191,7 +191,7 @@ const partners = [
 }
 
 .mission-text {
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   color: #4b5563;
   line-height: 1.8;
   margin-bottom: 1.5rem;
