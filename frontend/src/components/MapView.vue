@@ -214,13 +214,13 @@
 
       <!-- Legend -->
       <div class="legend">
-        <h4>Price Difference Legend</h4>
+        <h4>Price Differential</h4>
         <div class="gradient-legend">
           <div class="gradient-bar"></div>
           <div class="gradient-labels">
-            <span class="label-start">Overpriced</span>
+            <span class="label-start">Higher</span>
             <span class="label-middle">Fair Price</span>
-            <span class="label-end">Underpriced</span>
+            <span class="label-end">Lower</span>
           </div>
         </div>
         <div class="legend-disclaimer">

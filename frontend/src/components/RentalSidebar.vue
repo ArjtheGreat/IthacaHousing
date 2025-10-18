@@ -327,10 +327,10 @@
                             'unknown': listing?.valid_certificate_of_compliance === null || listing?.valid_certificate_of_compliance === undefined
                         }]"
                     >
-                        {{ listing?.valid_certificate_of_compliance === 1 ? 'Compliant' : listing?.valid_certificate_of_compliance === 0 ? 'Currently Not Compliant' : 'Unknown' }}
+                        {{ listing?.valid_certificate_of_compliance === 1 ? 'Compliant' : listing?.valid_certificate_of_compliance === 0 ? 'Currently not reporting as safety compliant' : 'Unknown' }}
                     </span>
                     <div v-if="showTooltip" class="certificate-tooltip">
-                        {{ listing?.valid_certificate_of_compliance === 1 ? 'Valid Certificate of Compliance - Property meets safety standards' : listing?.valid_certificate_of_compliance === 0 ? 'No Certificate of Compliance - Property may not meet safety standards' : 'Certificate of Compliance status unknown' }}
+                        {{ listing?.valid_certificate_of_compliance === 1 ? 'Valid Certificate of Compliance - Property meets safety standards' : listing?.valid_certificate_of_compliance === 0 ? 'Property is currently not reporting as safety compliant' : 'Certificate of Compliance status unknown' }}
                     </div>
                 </div>
             </div>
