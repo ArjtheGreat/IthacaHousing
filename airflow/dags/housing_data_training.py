@@ -1,6 +1,5 @@
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from datetime import datetime, timedelta
+from airflow.decorators import dag, task
+from pendulum import datetime, duration
 import requests
 import pandas as pd
 import sys
@@ -22,10 +21,6 @@ import fetch_housing_data
 import pipeline
 import insert_into_postgredb
 
-fetch_active_listings = fetch_housing_data.fetch_active_listings
-housing_data_pipeline = pipeline.housing_data_pipeline
-confirmation = insert_into_postgredb.confirmation
-
 os.environ['NO_PROXY'] = '*'
 
 DAG_SUCCESS = Counter("dag_success_total", "Total successful DAG runs", ["dag_id"])
@@ -46,43 +41,44 @@ def on_failure_callback(context):
     push_to_gateway(PUSHGATEWAY_URL, job=dag_id, registry=None)
 
 
-default_args = {
-    "owner": "airflow",
-    "depends_on_past": False,
-    "start_date": datetime(2025, 3, 30),
-    "retries": 1,
-    "retry_delay": timedelta(minutes=5),
-}
-
-dag = DAG(
-    "retrain_rental_model",
-    default_args=default_args,
+@dag(
+    dag_id="retrain_rental_model",
+    start_date=datetime(2025, 3, 30),
+    schedule="0 12 * * *",
+    catchup=False,
     description="Fetch rental listings and retrain model",
-    schedule_interval="0 */3 * * *",
-    on_success_callback = on_success_callback,
-    on_failure_callback = on_failure_callback,
-    catchup=False
+    default_args={"owner": "airflow", "retries": 1, "retry_delay": duration(minutes=5)},
+    on_success_callback=on_success_callback,
+    on_failure_callback=on_failure_callback,
+    doc_md=__doc__,
+    tags=["housing", "ml", "retrain"]
 )
+def retrain_rental_model():
+    
+    @task(
+        retries=0,
+        execution_timeout=duration(minutes=1)
+    )
+    def fetch_active_listings():
+        return fetch_housing_data.fetch_active_listings()
 
-fetch_task = PythonOperator(
-    task_id="fetch_active_listings",
-    python_callable=fetch_active_listings,
-    retries=0, 
-    execution_timeout=timedelta(minutes=1),  
-    dag=dag,
-)
+    @task(
+        execution_timeout=duration(minutes=5)
+    )
+    def call_pipeline(**context):
+        return pipeline.housing_data_pipeline()
 
-retrain_task = PythonOperator(
-    task_id="call_pipeline",
-    python_callable=housing_data_pipeline,
-    execution_timeout=timedelta(minutes=5),  
-    dag=dag,
-)
+    @task
+    def upload_to_database(**context):
+        return insert_into_postgredb.confirmation()
 
-upload_to_database = PythonOperator(
-    task_id="upload_to_database",
-    python_callable=confirmation,
-    dag=dag,
-)
+    # Task dependencies
+    fetch_result = fetch_active_listings()
+    pipeline_result = call_pipeline()
+    upload_result = upload_to_database()
+    
+    fetch_result >> pipeline_result >> upload_result
 
-fetch_task >> retrain_task >> upload_to_database
+
+# Instantiate the DAG
+retrain_rental_model()

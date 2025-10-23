@@ -4,6 +4,7 @@ import pandas as pd
 import os
 from pathlib import Path
 import json
+import time
 
 MODEL_PATH = "/opt/airflow/model"
 if not os.path.exists(MODEL_PATH):
@@ -189,6 +190,9 @@ def get_openai_response_for_landlord_extraction(
     """
     Query the OpenAI API to extract structured landlord names with retries and fallback.
     """
+    if client is None:
+        raise RuntimeError("❌ OpenAI client not initialized. Check OPENAI_API_KEY environment variable.")
+    
     messages = [
         {
             "role": "system",

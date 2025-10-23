@@ -1,21 +1,7 @@
-FROM apache/airflow:2.10.5-python3.12
+# Start from Astro Airflow runtime
+FROM astrocrpublic.azurecr.io/runtime:3.1-2
+# Copy your requirements first
+COPY requirements.txt .
 
-USER root
-RUN apt-get update && apt-get install -y --fix-missing \
-    libpq-dev gcc python3-dev build-essential \
-    gdal-bin libgdal-dev libproj-dev \
- && rm -rf /var/lib/apt/lists/*
-
-USER airflow
-
-ENV AIRFLOW_HOME=/opt/airflow
-
-COPY --chown=50000:50000 requirements.txt /requirements.txt
-RUN pip install --no-cache-dir -r /requirements.txt
-
-COPY --chown=50000:50000 entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-EXPOSE 8080
-
-ENTRYPOINT ["/entrypoint.sh"]
+# Install manually instead of using Astro’s auto installer
+RUN pip install --no-cache-dir -r requirements.txt

@@ -1,6 +1,5 @@
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from datetime import datetime, timedelta
+from airflow.decorators import dag, task
+from pendulum import datetime, duration
 import sys
 import os
 import pandas as pd
@@ -185,26 +184,27 @@ def update_database_neighborhoods(df):
         print(f"⚠️ Skipped {skipped_count} listings with no valid neighborhood data")
 
 
-default_args = {
-    "owner": "airflow",
-    "depends_on_past": False,
-    "start_date": datetime(2025, 1, 1),
-    "retries": 1,
-    "retry_delay": timedelta(minutes=5),
-}
-
-dag = DAG(
-    "update_neighborhoods",
-    default_args=default_args,
+@dag(
+    dag_id="update_neighborhoods",
+    start_date=datetime(2025, 1, 1),
+    schedule="0 5 * * 0",  # Run weekly on Sundays at 5 AM
+    catchup=False,
     description="Update neighborhoods for all current listings",
-    schedule_interval="0 5 * * 0",  # Run weekly on Sundays at 5 AM
-    catchup=False
+    default_args={"owner": "airflow", "retries": 1, "retry_delay": duration(minutes=5)},
+    tags=["neighborhoods", "weekly"]
 )
+def update_neighborhoods_dag():
+    
+    @task(
+        execution_timeout=duration(minutes=30)  # Allow 30 minutes for neighborhood extraction
+    )
+    def update_neighborhoods_task():
+        return update_neighborhoods()
 
-update_neighborhoods_task = PythonOperator(
-    task_id="update_neighborhoods",
-    python_callable=update_neighborhoods,
-    execution_timeout=timedelta(minutes=30),  # Allow 30 minutes for neighborhood extraction
-    dag=dag,
-)
+    # Execute the task
+    update_neighborhoods_task()
+
+
+# Instantiate the DAG
+update_neighborhoods_dag()
 

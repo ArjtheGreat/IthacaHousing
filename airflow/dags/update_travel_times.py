@@ -1,6 +1,5 @@
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from datetime import datetime, timedelta
+from airflow.decorators import dag, task
+from pendulum import datetime, duration
 import sys
 import os
 import pandas as pd
@@ -259,25 +258,26 @@ def update_database_travel_times(df):
     if skipped_count > 0:
         print(f"⚠️ Skipped {skipped_count} listings with no valid travel time data")
 
-default_args = {
-    "owner": "airflow",
-    "depends_on_past": False,
-    "start_date": datetime(2025, 1, 1),
-    "retries": 1,
-    "retry_delay": timedelta(minutes=5),
-}
-
-dag = DAG(
-    "update_travel_times",
-    default_args=default_args,
+@dag(
+    dag_id="update_travel_times",
+    start_date=datetime(2025, 1, 1),
+    schedule="0 2 * * *",  # Run daily at 2 AM
+    catchup=False,
     description="Update travel times for all current listings",
-    schedule_interval="0 2 * * *",  # Run daily at 2 AM
-    catchup=False
+    default_args={"owner": "airflow", "retries": 1, "retry_delay": duration(minutes=5)},
+    tags=["travel", "times", "daily"]
 )
+def update_travel_times_dag():
+    
+    @task(
+        execution_timeout=duration(minutes=30)  # Allow more time for travel time calculations
+    )
+    def update_travel_times_task():
+        return update_travel_times()
 
-update_travel_times_task = PythonOperator(
-    task_id="update_travel_times",
-    python_callable=update_travel_times,
-    execution_timeout=timedelta(minutes=30),  # Allow more time for travel time calculations
-    dag=dag,
-)
+    # Execute the task
+    update_travel_times_task()
+
+
+# Instantiate the DAG
+update_travel_times_dag()

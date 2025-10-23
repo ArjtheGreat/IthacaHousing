@@ -1,0 +1,30 @@
+# Airflow providers (base image already has Airflow 2.10.5)
+apache-airflow-providers-postgres==5.10.3
+apache-airflow-providers-sqlite==3.8.1
+
+# Database connectivity
+psycopg2-binary>=2.9.0
+
+# Data processing
+pandas>=1.5.0
+numpy>=1.21.0
+
+# HTTP and requests
+requests>=2.28.0
+
+# Geospatial packages
+overpy>=0.6
+geopy>=2.3.0
+openrouteservice>=2.3.0
+contextily>=1.4.0
+osmnx>=1.2.0
+esda==2.6.0
+
+# Statistical and ML packages
+statsmodels>=0.13.0
+networkx>=2.8.0
+xgboost>=1.7.0
+spreg>=1.4.0
+
+# Additional utilities
+openai

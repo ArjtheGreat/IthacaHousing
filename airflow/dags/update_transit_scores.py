@@ -1,6 +1,5 @@
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from datetime import datetime, timedelta
+from airflow.decorators import dag, task
+from pendulum import datetime, duration
 import sys
 import os
 import pandas as pd
@@ -212,26 +211,27 @@ def update_database_transit_scores(df):
         print(f"⚠️ Skipped {skipped_count} listings with no valid transit data")
 
 
-default_args = {
-    "owner": "airflow",
-    "depends_on_past": False,
-    "start_date": datetime(2025, 1, 1),
-    "retries": 1,
-    "retry_delay": timedelta(minutes=5),
-}
-
-dag = DAG(
-    "update_transit_scores",
-    default_args=default_args,
+@dag(
+    dag_id="update_transit_scores",
+    start_date=datetime(2025, 1, 1),
+    schedule="0 3 * * 0",  # Run weekly on Sundays at 3 AM
+    catchup=False,
     description="Update transit scores for all current listings",
-    schedule_interval="0 3 * * 0",  # Run weekly on Sundays at 3 AM
-    catchup=False
+    default_args={"owner": "airflow", "retries": 1, "retry_delay": duration(minutes=5)},
+    tags=["transit", "scores", "weekly"]
 )
+def update_transit_scores_dag():
+    
+    @task(
+        execution_timeout=duration(hours=1)  # Allow 1 hour for transit score calculations
+    )
+    def update_transit_scores_task():
+        return update_transit_scores()
 
-update_transit_scores_task = PythonOperator(
-    task_id="update_transit_scores",
-    python_callable=update_transit_scores,
-    execution_timeout=timedelta(hours=1),  # Allow 1 hour for transit score calculations
-    dag=dag,
-)
+    # Execute the task
+    update_transit_scores_task()
+
+
+# Instantiate the DAG
+update_transit_scores_dag()
 
