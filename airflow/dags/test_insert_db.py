@@ -21,7 +21,7 @@ from insert_into_postgredb import psql_insert_copy
     description="Test if insert_into_postgredb function works",
     default_args={"owner": "airflow", "retries": 1, "retry_delay": duration(minutes=5)},
     tags=["test", "database"]
-)
+) 
 def test_insert_db():
     
     @task
@@ -33,7 +33,7 @@ def test_insert_db():
         
         # Create sample test data
         test_data = {
-            'ListingId': ['TEST001', 'TEST002'],
+            'ListingId': [2, 3],
             'ListingAddress': ['123 Test St', '456 Test Ave'],
             'ListingCity': ['Ithaca', 'Ithaca'],
             'ListingZip': ['14850', '14850'],
@@ -67,7 +67,26 @@ def test_insert_db():
             'walk_time_to_nearest_stop': [2.5, 3.1],
             'transit_time_to_ag_quad': [8.5, 12.3],
             'transit_time_to_arts_quad': [10.2, 15.1],
-            'transit_time_to_eng_quad': [9.8, 14.7]
+            'transit_time_to_eng_quad': [9.8, 14.7],
+            'iso15': ['{"type": "Feature", "geometry": {"type": "Polygon"}}', '{"type": "Feature", "geometry": {"type": "Polygon"}}'],
+            'neighborhood': ['Downtown', 'Collegetown'],
+            'water': ['Public', 'Private'],
+            'sewer': ['Public', 'Private'],
+            'yr_built': [1995, 2010],
+            'sqft_per_sale_price': [150.5, 200.3],
+            
+            # New property detail variables
+            'neighborhood_assessment': [70103, 70113],
+            'property_depth': [70.0, 85.0],
+            'property_frontage': [35.0, 40.0],
+            'property_acres': [0.15, 0.25],
+            'property_pc': ['411', '412'],
+            'water_access': ['Comm/public', 'Private'],
+            'sewer_access': ['Comm/public', 'Private'],
+            'sewer_name': ['City Sewer', 'Private System'],
+            'year_built': [1995, 2010],
+            'assessment_sqft': [1200, 1500],
+            'sale_price': [250000, 350000]
         }
         
         test_df = pd.DataFrame(test_data)

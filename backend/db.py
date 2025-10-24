@@ -80,6 +80,18 @@ class HousingListing(Base):
     transit_time_to_arts_quad = Column(Numeric)
     transit_time_to_eng_quad = Column(Numeric)
     iso15 = Column(Text)
+    
+    neighborhood_assessment = Column(Integer)
+    property_depth = Column(Numeric)
+    property_frontage = Column(Numeric)
+    property_acres = Column(Numeric)
+    property_pc = Column(String) 
+    water_access = Column(String)
+    sewer_access = Column(String)
+    sewer_name = Column(String)
+    year_built = Column(Integer)
+    assessment_sqft = Column(Numeric)
+    sale_price = Column(Numeric)
 
 
 Base.metadata.create_all(bind=engine)

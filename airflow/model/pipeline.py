@@ -103,11 +103,15 @@ def housing_data_pipeline():
     print("🛡️ Calculating safety scores for listings...")
     apartments_for_rent = extract_safety_features.calculate_safety_score(apartments_for_rent)
     
-    print("🏠 Extracting landlord information...")
+    print("🏠 Extracting landlord and proprety information...")
     apartments_for_rent = landlord_extraction.extract_landlord_names(apartments_for_rent)
+    apartments_for_rent = landlord_extraction.add_property_details(apartments_for_rent)
 
     print("🏠 Extracting neighborhoods...")
     apartments_for_rent = extract_rental_data.extract_neighborhood(apartments_for_rent)
+    
+    print("🏗️ Adding property features...")
+    apartments_for_rent = data_preprocessing.add_property_features(apartments_for_rent)
     
     existing_ids = get_existing_listing_ids()
     existing_calculated_data = get_existing_calculated_data()

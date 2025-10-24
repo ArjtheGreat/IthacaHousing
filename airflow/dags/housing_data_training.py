@@ -63,7 +63,7 @@ def retrain_rental_model():
         return fetch_housing_data.fetch_active_listings()
 
     @task(
-        execution_timeout=duration(minutes=5)
+        execution_timeout=duration(minutes=15)
     )
     def call_pipeline(**context):
         return pipeline.housing_data_pipeline()

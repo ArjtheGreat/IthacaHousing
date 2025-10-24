@@ -82,5 +82,17 @@ def serialize_listing(listing):
         "transit_time_to_ag_quad": safe_float(listing.transit_time_to_ag_quad),
         "transit_time_to_arts_quad": safe_float(listing.transit_time_to_arts_quad),
         "transit_time_to_eng_quad": safe_float(listing.transit_time_to_eng_quad),
-        "iso15": listing.iso15
+        "iso15": listing.iso15,
+        
+        "neighborhood_assessment": listing.neighborhood_assessment,
+        "property_depth": safe_float(listing.property_depth),
+        "property_frontage": safe_float(listing.property_frontage),
+        "property_acres": safe_float(listing.property_acres),
+        "property_pc": listing.property_pc,
+        "water_access": listing.water_access,
+        "sewer_access": listing.sewer_access,
+        "sewer_name": listing.sewer_name,
+        "year_built": listing.year_built,
+        "assessment_sqft": safe_float(listing.assessment_sqft),
+        "sale_price": safe_float(listing.sale_price)
     }

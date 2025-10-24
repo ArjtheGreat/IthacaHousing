@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 
 numerical_columns = [
-    "LengthAvailable", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score"
+    "LengthAvailable", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score",
+    "sqft_per_sale_price", "YR_BUILT_ENCODED"
 ]
 
 def get_safety_rating_column(df):
@@ -36,6 +37,50 @@ def calc_adjusted_bed_bath_values(apartments_for_rent):
     apartments_for_rent["combined_bedrooms_bathrooms"] = (
         1.5 * apartments_for_rent["available_bedrooms"] + apartments_for_rent["available_bathrooms"]
     )
+
+    return apartments_for_rent
+
+def add_property_features(apartments_for_rent):
+    """
+    Add property-specific features from ownership data
+    """
+    print("Adding property features from ownership data...")
+    
+    sqft_col = "assessment_sqft" if "assessment_sqft" in apartments_for_rent.columns else "SQ_FT"
+    sale_price_col = "sale_price" if "sale_price" in apartments_for_rent.columns else "SALE_PRICE"
+    
+    if sqft_col in apartments_for_rent.columns and sale_price_col in apartments_for_rent.columns:
+        valid_data = (apartments_for_rent[sqft_col] > 0) & (apartments_for_rent[sale_price_col] > 0) & \
+                    pd.notna(apartments_for_rent[sqft_col]) & pd.notna(apartments_for_rent[sale_price_col])
+        
+        apartments_for_rent["sqft_per_sale_price"] = np.where(
+            valid_data,
+            np.sqrt(apartments_for_rent[sale_price_col] / apartments_for_rent[sqft_col]),
+            np.nan
+        )
+        print(f"✅ Added sqft_per_sale_price feature for {valid_data.sum()} valid records")
+    else:
+        print("⚠️ assessment_sqft/SQ_FT or sale_price/SALE_PRICE columns not found, skipping sqft_per_sale_price calculation")
+        apartments_for_rent["sqft_per_sale_price"] = np.nan
+
+    # Encode year built
+    def encode_year_built(year):
+        """Encode year built into categorical values"""
+        if pd.isna(year) or year == 0:
+            return 0  
+        elif year < 2000:
+            return -1  
+        else:
+            return 1 
+    
+    year_built_col = "year_built" if "year_built" in apartments_for_rent.columns else "YR_BUILT"
+    
+    if year_built_col in apartments_for_rent.columns:
+        apartments_for_rent["YR_BUILT_ENCODED"] = apartments_for_rent[year_built_col].apply(encode_year_built)
+        print(f"✅ Added YR_BUILT_ENCODED feature")
+    else:
+        print("⚠️ year_built/YR_BUILT column not found, skipping year built encoding")
+        apartments_for_rent["YR_BUILT_ENCODED"] = 0  
 
     return apartments_for_rent
 

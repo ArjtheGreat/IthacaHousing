@@ -10,8 +10,29 @@ MODEL_PATH = "/opt/airflow/model"
 if not os.path.exists(MODEL_PATH):
     MODEL_PATH = str(Path(__file__).resolve().parent)
 
-csv_path = os.path.join(MODEL_PATH, "Tompkins_County_Ownership.csv")
-address_ownership_df = pd.read_csv(csv_path, on_bad_lines='skip')
+def load_ownership_data():
+    """Load ownership data with proper path handling"""
+    model_path = "/opt/airflow/model"
+    if not os.path.exists(model_path):
+        model_path = str(Path(__file__).resolve().parent)
+    
+    csv_path = os.path.join(model_path, "Tompkins_County_Ownership.csv")
+    if not os.path.exists(csv_path):
+        raise FileNotFoundError(f"Ownership CSV file not found at: {csv_path}")
+    
+    return pd.read_csv(csv_path, on_bad_lines="skip")
+
+def load_assessment_data():
+    """Load assessment data with proper path handling"""
+    model_path = "/opt/airflow/model"
+    if not os.path.exists(model_path):
+        model_path = str(Path(__file__).resolve().parent)
+    
+    csv_path = os.path.join(model_path, "TompkinsCountyMergedData.csv")
+    if not os.path.exists(csv_path):
+        raise FileNotFoundError(f"Assessment CSV file not found at: {csv_path}")
+    
+    return pd.read_csv(csv_path)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -121,20 +142,22 @@ def split_address_components(address_series):
     
     return house_start, house_end, street_core
 
-def match_address(row, ownership_df, tolerance=0):
-    """Match a listing address to ownership data"""
-    same_street = ownership_df[
-        ownership_df["StreetCore"] == row["StreetCore"]
-    ]
+def match_address(row, ownership_df, columns_to_add=None, tolerance=0):
+    """
+    Matches a apartments_for_rent row to an ownership_df record by street + house number.
+    Returns a dict of {col: value} for selected columns.
+    """
+    same_street = ownership_df[ownership_df["StreetCore"] == row["StreetCore"]]
     if same_street.empty:
-        return None
+        return {col: None for col in (columns_to_add or [])}
 
     for _, cand in same_street.iterrows():
         if cand["HouseNumStart"] <= row["HouseNumStart"] <= cand["HouseNumEnd"]:
-            return cand["Owner Name"]
+            return {col: cand[col] for col in (columns_to_add or [])}
         if abs(cand["HouseNumStart"] - row["HouseNumStart"]) <= tolerance:
-            return cand["Owner Name"]
-    return None
+            return {col: cand[col] for col in (columns_to_add or [])}
+
+    return {col: None for col in (columns_to_add or [])}
 
 def process_prompt_for_landlord(landlords):
     """
@@ -222,35 +245,132 @@ def get_openai_response_for_landlord_extraction(
 
     raise RuntimeError("❌ Failed to get response from OpenAI after multiple retries.")
 
+def prepare_ownership_data():
+    """
+    Prepare and process ownership data once to avoid duplicate computation
+    Returns processed address_ownership_unique dataframe
+    """
+    print("🔄 Preparing ownership data...")
+    address_ownership_df = load_ownership_data()
+    tompkins_assessment_data = load_assessment_data()
+    
+    address_ownership_df_merged = address_ownership_df.merge(tompkins_assessment_data, left_on="Tax ID", right_on="PRINTKEY", how="left")
+    address_ownership_unique = address_ownership_df_merged.drop_duplicates(subset="Tax ID", keep="first")
+
+    address_ownership_unique["Address_Formatted"] = clean_address_series(address_ownership_unique["Address"])
+    
+    apt_house_start, apt_house_end, apt_street_core = split_address_components(address_ownership_unique["Address_Formatted"])
+    
+    address_ownership_unique["HouseNumStart"] = apt_house_start
+    address_ownership_unique["HouseNumEnd"] = apt_house_end
+    address_ownership_unique["StreetCore"] = apt_street_core
+    
+    column_rename_map = {
+        'NEIGHB': 'neighborhood_assessment',
+        'DEPTH': 'property_depth',
+        'FRONTAGE': 'property_frontage',
+        'ACRES': 'property_acres',
+        'PC': 'property_pc',
+        'WATER': 'water_access',
+        'SEWER': 'sewer_access',
+        'SWRESNAME': 'sewer_name',
+        'YR_BUILT': 'year_built',
+        'SALE_PRICE': 'sale_price',
+        'SQ_FT': 'assessment_sqft'
+    }
+    address_ownership_unique = address_ownership_unique.rename(columns=column_rename_map)
+    
+    print("✅ Ownership data prepared")
+    return address_ownership_unique
+
+def extract_address_data(apartments_for_rent):
+    """
+    Prepare apartment data by cleaning addresses and splitting components
+    """
+    print("🔄 Preparing apartment data...")
+    
+    apartments_for_rent["ListingAddress_formatted"] = clean_address_series(apartments_for_rent["ListingAddress"])
+    
+    house_start, house_end, street_core = split_address_components(apartments_for_rent["ListingAddress_formatted"])
+    apartments_for_rent["HouseNumStart"] = house_start
+    apartments_for_rent["HouseNumEnd"] = house_end
+    apartments_for_rent["StreetCore"] = street_core
+    
+    print("✅ Apartment data prepared")
+    return apartments_for_rent
+
+
+def add_property_details(apartments_for_rent):
+    """
+    Add property details from Tompkins County assessment data to apartments_for_rent dataframe
+    Returns dataframe with additional property columns
+    """
+    print("🏠 Adding property details from assessment data...")
+    address_ownership_unique = prepare_ownership_data()
+    apartments_for_rent = extract_address_data(apartments_for_rent)
+
+    columns_to_add = [
+        "neighborhood_assessment",
+        "property_depth",
+        "property_frontage",
+        "property_acres",
+        "property_pc",
+        "water_access",
+        "sewer_access",
+        "sewer_name",
+        "year_built",
+        "sale_price",
+        "assessment_sqft"
+    ]
+    matches = apartments_for_rent.apply(
+        lambda r: match_address(r, address_ownership_unique, columns_to_add=columns_to_add),
+        axis=1
+    )
+
+    matches_df = pd.DataFrame(list(matches))
+    apartments_for_rent = pd.concat([apartments_for_rent, matches_df], axis=1)
+    
+    temp_columns = ["ListingAddress_formatted", "HouseNumStart", "HouseNumEnd", "StreetCore"]
+    for col in temp_columns:
+        if col in apartments_for_rent.columns:
+            apartments_for_rent.drop(columns=[col], inplace=True)
+    
+    print(f"✅ Added property details for {len(apartments_for_rent)} listings")
+    
+    return apartments_for_rent
+
+
 def extract_landlord_names(apartments_for_rent):
     """
     Extract landlord/owner names for apartments_for_rent dataframe
     Returns only owner_name column, with "Not Found" for unmatched addresses
     """
     print("🏠 Extracting landlord names...")
+    address_ownership_unique = prepare_ownership_data()
+    apartments_for_rent = extract_address_data(apartments_for_rent)
+
+    columns_to_add = ["Owner Name"]
+    matches = apartments_for_rent.apply(
+        lambda r: match_address(r, address_ownership_unique, columns_to_add=columns_to_add),
+        axis=1
+    )
+
+    matches_df = pd.DataFrame(list(matches))
+    apartments_for_rent = pd.concat([apartments_for_rent, matches_df], axis=1)
+
+    def process_owner_name(row):
+        """Process owner name for a single row"""
+        if pd.notna(row.get("Owner Name")):
+            return str(row["Owner Name"])
+        else:
+            return "Not Found"
     
-    apartments_for_rent["ListingAddress_formatted"] = clean_address_series(apartments_for_rent["ListingAddress"])
-    address_ownership_df["Address_Formatted"] = clean_address_series(address_ownership_df["Address"])
+    apartments_for_rent["owner_name"] = apartments_for_rent.apply(process_owner_name, axis=1)
     
-    apt_house_start, apt_house_end, apt_street_core = split_address_components(apartments_for_rent["ListingAddress_formatted"])
-    own_house_start, own_house_end, own_street_core = split_address_components(address_ownership_df["Address_Formatted"])
-    
-    apartments_for_rent["HouseNumStart"] = apt_house_start
-    apartments_for_rent["HouseNumEnd"] = apt_house_end
-    apartments_for_rent["StreetCore"] = apt_street_core
-    
-    address_ownership_df["HouseNumStart"] = own_house_start
-    address_ownership_df["HouseNumEnd"] = own_house_end
-    address_ownership_df["StreetCore"] = own_street_core
-    
-    def match_owner_name(row):
-        owner = match_address(row, address_ownership_df)
-        return owner if owner else "Not Found"
-    
-    apartments_for_rent["owner_name_raw"] = apartments_for_rent.apply(match_owner_name, axis=1)
-    apartments_for_rent["owner_name"] = apartments_for_rent.apply(process_prompt_for_landlord, axis=1)
-    
-    apartments_for_rent.drop(columns=["ListingAddress_formatted", "HouseNumStart", "HouseNumEnd", "StreetCore", "owner_name_raw"], inplace=True)
+    temp_columns = ["ListingAddress_formatted", "HouseNumStart", "HouseNumEnd", "StreetCore"]
+    for col in temp_columns:
+        if col in apartments_for_rent.columns:
+            apartments_for_rent.drop(columns=[col], inplace=True)
     
     print(f"✅ Extracted landlord names for {len(apartments_for_rent)} listings")
     matched_count = (apartments_for_rent["owner_name"] != "Not Found").sum()

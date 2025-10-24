@@ -12,7 +12,28 @@ if os.path.exists("/opt/airflow/model"):
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-DATA_PATH = os.path.join(BASE_DIR, "latest_listings.csv")
+def get_writable_data_path():
+    """Get a writable path for the data file, trying multiple locations"""
+    possible_paths = [
+        "/tmp/latest_listings.csv",
+        os.path.join(BASE_DIR, "latest_listings.csv"), 
+        "./latest_listings.csv", 
+    ]
+    
+    for path in possible_paths:
+        try:
+            test_file = path + ".test"
+            with open(test_file, 'w') as f:
+                f.write("test")
+            os.remove(test_file)
+            return path
+        except (PermissionError, OSError):
+            continue
+    
+    return "/tmp/latest_listings.csv"
+
+DATA_PATH = get_writable_data_path()
+print(f"📁 Using data path: {DATA_PATH}")
 
 def fetch_active_listings():
     """Fetches Active Listings from Cornell Off-Campus Housing API"""

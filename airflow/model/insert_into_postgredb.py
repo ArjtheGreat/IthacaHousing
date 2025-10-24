@@ -97,7 +97,7 @@ def psql_insert_copy(df):
         .str.replace("_pct", "pct")
     )
     
-    base_columns = ["listingid", "listingaddress", "listingcity", "listingzip", "createdate", "shortdescription", "rentamount", "renttype", "pets", "amenities", "bedrooms", "bathrooms", "available_bedrooms", "available_bathrooms", "housingtype", "latitude", "longitude", "listingphotos", "transit_score", "amenities_score", "predictedrent", "differenceinfairvalue", "predicted_rent_cma", "nearest_neighbor_listingids", "rent_per_person", "num_people", "total_rent_amount", "owner_name", "nearest_stop_name", "walk_time_to_nearest_stop", "transit_time_to_ag_quad", "transit_time_to_arts_quad", "transit_time_to_eng_quad", "iso15", "neighborhood"]
+    base_columns = ["listingid", "listingaddress", "listingcity", "listingzip", "createdate", "shortdescription", "rentamount", "renttype", "pets", "amenities", "bedrooms", "bathrooms", "available_bedrooms", "available_bathrooms", "housingtype", "latitude", "longitude", "listingphotos", "transit_score", "amenities_score", "predictedrent", "differenceinfairvalue", "predicted_rent_cma", "nearest_neighbor_listingids", "rent_per_person", "num_people", "total_rent_amount", "owner_name", "nearest_stop_name", "walk_time_to_nearest_stop", "transit_time_to_ag_quad", "transit_time_to_arts_quad", "transit_time_to_eng_quad", "iso15", "neighborhood", "neighborhood_assessment", "property_depth", "property_frontage", "property_acres", "property_pc", "water_access", "sewer_access", "sewer_name", "year_built", "assessment_sqft", "sale_price"]
     
     if safety_col:
         base_columns.append(safety_col)
@@ -140,12 +140,12 @@ def psql_insert_copy(df):
             "predicted_rent_cma", "nearest_neighbor_listingids", "rent_per_person", "num_people", 
             "total_rent_amount", "owner_name", "nearest_stop_name", "walk_time_to_nearest_stop", 
             "transit_time_to_ag_quad", "transit_time_to_arts_quad", "transit_time_to_eng_quad",
+            "neighborhood_assessment", "property_depth", "property_frontage", "property_acres", "property_pc", "water_access", "sewer_access", "sewer_name", "year_built", "assessment_sqft", "sale_price"
         ]
         
         if safety_col_in_sql:
             base_cols.insert(20, safety_col_in_sql)
         
-        # Add neighborhood if it exists in the dataframe
         if "neighborhood" in df.columns:
             base_cols.insert(base_cols.index("nearest_stop_name"), "neighborhood")
         
@@ -179,6 +179,27 @@ def psql_insert_copy(df):
                     record[col] = clean_json_field(record[col])
                 else:
                     record[col] = None
+            
+            property_detail_conversions = {
+                'neighborhood_assessment': lambda x: int(x) if pd.notna(x) and x > 0 else None,
+                'property_depth': lambda x: float(x) if pd.notna(x) and x > 0 else None,
+                'property_frontage': lambda x: float(x) if pd.notna(x) and x > 0 else None,
+                'property_acres': lambda x: float(x) if pd.notna(x) and x > 0 else None,
+                'property_pc': lambda x: str(x) if pd.notna(x) else None,  
+                'water_access': lambda x: str(x) if pd.notna(x) else None,
+                'sewer_access': lambda x: str(x) if pd.notna(x) else None,
+                'sewer_name': lambda x: str(x) if pd.notna(x) else None,
+                'year_built': lambda x: int(x) if pd.notna(x) and x > 0 else None,
+                'assessment_sqft': lambda x: float(x) if pd.notna(x) and x > 0 else None,
+                'sale_price': lambda x: float(x) if pd.notna(x) and x > 0 else None
+            }
+            
+            for col, converter in property_detail_conversions.items():
+                if col in record:
+                    try:
+                        record[col] = converter(record[col])
+                    except (ValueError, TypeError):
+                        record[col] = None
 
         with engine.begin() as conn:
             conn.execute(insert_query, records)

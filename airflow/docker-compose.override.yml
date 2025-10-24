@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  api-server:
+    volumes:
+      - ./dags:/usr/local/airflow/dags
+      - ./include:/usr/local/airflow/include
+      - ./plugins:/usr/local/airflow/plugins
+      - ./model:/usr/local/airflow/model
+
+  scheduler:
+    volumes:
+      - ./dags:/usr/local/airflow/dags
+      - ./include:/usr/local/airflow/include
+      - ./plugins:/usr/local/airflow/plugins
+      - ./model:/usr/local/airflow/model

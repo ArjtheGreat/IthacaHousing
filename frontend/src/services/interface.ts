@@ -25,6 +25,10 @@ export interface Listing {
     transit_time_to_ag_quad: number;
     transit_time_to_arts_quad: number;
     transit_time_to_eng_quad: number;
+    water: string;
+    sewer: string;
+    yr_built: number;
+    sqft_per_sale_price: number;
     
 }
 

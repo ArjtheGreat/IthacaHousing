@@ -3,5 +3,8 @@ FROM astrocrpublic.azurecr.io/runtime:3.1-2
 # Copy your requirements first
 COPY requirements.txt .
 
-# Install manually instead of using Astro’s auto installer
+# Install manually instead of using Astro's auto installer
 RUN pip install --no-cache-dir -r requirements.txt
+# Copy the model directory with CSV files
+COPY model/ /opt/airflow/model/
+
