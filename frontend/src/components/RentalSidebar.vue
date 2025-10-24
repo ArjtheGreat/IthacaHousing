@@ -110,9 +110,9 @@
         </div>
     </div>
     <!-- Property Details -->
-    <div class="property-details">
-            <div class="property-details-header">
-                <span>Property Details</span>
+    <div class="property-size">
+            <div class="property-size-header">
+                <strong>Property Size</strong>
             </div>
         <div class="details-grid">
             <div class="detail-card bedroom-card">
@@ -224,7 +224,7 @@
                             </svg>
                         </span>
                         <div class="tooltip-content">
-                            <div class="tooltip-title">Transit Accessibility</div>
+                            <div class="tooltip-title">Transit & Accessibility</div>
                             <div class="tooltip-text">
                                 The transit score calculates how accessible this listing is to different areas of Cornell. Based on the transit time and how close the nearest TCAT stop is located.
                             </div>
@@ -311,39 +311,107 @@
         </div>       
     </div>
 
-    <!-- Safety Section -->
-    <div class="popup-safety">
-        <div class="safety-header">
-            <strong>Safety</strong>
+
+    <!-- Description -->
+    <!-- Property Details -->
+    <div class="property-details">
+        <div class="property-details-header">
+            <strong>Property Details</strong>
         </div>
-        <div class="safety-content">
-            <div class="safety-item">
-                <span class="safety-label">Certificate of Compliance:</span>
-                <div class="certificate-badge-container" @mouseenter="showTooltip = true" @mouseleave="showTooltip = false">
-                    <span 
-                        :class="['certificate-badge', { 
-                            'valid': listing?.valid_certificate_of_compliance === 1, 
-                            'invalid': listing?.valid_certificate_of_compliance === 0,
-                            'unknown': listing?.valid_certificate_of_compliance === null || listing?.valid_certificate_of_compliance === undefined
-                        }]"
-                    >
-                        {{ listing?.valid_certificate_of_compliance === 1 ? 'Compliant' : listing?.valid_certificate_of_compliance === 0 ? 'Currently not reporting as safety compliant' : 'Unknown' }}
-                    </span>
-                    <div v-if="showTooltip" class="certificate-tooltip">
-                        {{ listing?.valid_certificate_of_compliance === 1 ? 'Valid Certificate of Compliance - Property meets safety standards' : listing?.valid_certificate_of_compliance === 0 ? 'Property is currently not reporting as safety compliant' : 'Certificate of Compliance status unknown' }}
+        
+        <!-- Basic Property Info -->
+        <div class="property-section">
+            <h4 class="section-title">From the Owner</h4>
+            <div class="description-content">
+                {{ listing?.shortdescription }}
+            </div>
+        </div>
+
+        <!-- Property Assessment Details -->
+        <div class="property-section">
+            <h4 class="section-title">Property Assessment</h4>
+            <div class="info-grid" style="grid-template-columns: repeat(3, 1fr);">
+                <!-- Year Built -->
+                <div class="info-card assessment-card">
+                    <div class="info-icon">
+                        <i class="fa-solid fa-calendar-days"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Year Built</div>
+                        <div class="info-value">{{ listing?.year_built || 'N/A' }}</div>
+                    </div>
+                </div>
+
+                <!-- Neighborhood Assessment -->
+                <div class="info-card assessment-card">
+                    <div class="info-icon">
+                        <i class="fa-solid fa-map-marker-alt"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Neighborhood</div>
+                        <div class="info-value">{{ listing?.neighborhood_assessment || 'N/A' }}</div>
+                    </div>
+                </div>
+
+                <!-- Certificate of Compliance -->
+                <div class="info-card assessment-card" ref="tooltipElement" @mouseenter="showComplianceTooltip = true" @mouseleave="showComplianceTooltip = false">
+                    <div class="info-icon">
+                        <i class="fa-solid fa-shield-check"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Safety</div>
+                        <div class="assessment-value-container">
+                            <div class="info-value" :class="getComplianceClass()">
+                                {{ getComplianceStatus() }}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
+            
+            <!-- Tooltip positioned outside container -->
+            <div v-if="showComplianceTooltip" class="compliance-tooltip-absolute" :style="tooltipStyle">
+                {{ getComplianceTooltipText() }}
+            </div>
         </div>
-    </div>
 
-    <!-- Description -->
-    <div class="popup-description">
-        <div class="description-header">
-            <strong>From the owner:</strong>
-        </div>
-        <div class="description-content">
-            {{ listing?.shortdescription }}
+        <!-- Utilities & Services -->
+        <div class="property-section">
+            <h4 class="section-title">Utilities & Services</h4>
+            <div class="info-grid" style="grid-template-columns: repeat(3, 1fr);">
+                <!-- Water Access -->
+                <div class="info-card utility-card">
+                    <div class="info-icon water">
+                        <i class="fa-solid fa-tint"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Water</div>
+                        <div class="info-value">{{ listing?.water_access ? formatUtilityValue(listing.water_access) : 'N/A' }}</div>
+                    </div>
+                </div>
+
+                <!-- Sewer Access -->
+                <div class="info-card utility-card">
+                    <div class="info-icon sewer">
+                        <i class="fa-solid fa-pipe"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Sewer</div>
+                        <div class="info-value">{{ listing?.sewer_access ? formatUtilityValue(listing.sewer_access) : 'N/A' }}</div>
+                    </div>
+                </div>
+
+                <!-- Sewer System Name -->
+                <div class="info-card utility-card">
+                    <div class="info-icon system">
+                        <i class="fa-solid fa-cogs"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Sewer System</div>
+                        <div class="info-value">{{ listing?.sewer_name ? formatUtilityValue(listing.sewer_name) : 'N/A' }}</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -489,6 +557,8 @@ const selectListing = (listing: Listing) => {
 const currentImageIndex = ref(0); // Holds the current index of the images in the gallery
 const totalImages = computed(() => extractPhoto(props.listing?.listingphotos).length); // Holds the number of images in the gallery
 const similarListings = ref<Listing[]>([]);
+const showComplianceTooltip = ref(false);
+const tooltipElement = ref<HTMLElement | null>(null);
 
 /**
  * Percent Change
@@ -511,6 +581,100 @@ const formatWalkTime = (minutes: number): string => {
     if (minutes < 20) return '15-20 min walk';
     return '20+ min walk';
 };
+
+/**
+ * Check if property has assessment data
+ */
+const hasPropertyAssessmentData = computed(() => {
+    return props.listing?.year_built || 
+           props.listing?.assessment_sqft || 
+           props.listing?.sale_price || 
+           props.listing?.property_acres || 
+           props.listing?.property_frontage || 
+           props.listing?.property_depth || 
+           props.listing?.neighborhood_assessment;
+});
+
+/**
+ * Check if property has utility data
+ */
+const hasUtilityData = computed(() => {
+    return props.listing?.water_access || 
+           props.listing?.sewer_access || 
+           props.listing?.sewer_name || 
+           props.listing?.property_pc;
+});
+
+/**
+ * Format numbers with commas for better readability
+ */
+const formatNumber = (num: number): string => {
+    if (!num) return '0';
+    return num.toLocaleString();
+};
+
+/**
+ * Format utility values for better display
+ */
+const formatUtilityValue = (value: string): string => {
+    if (!value) return 'N/A';
+    return value.replace('Comm/public', 'Communal/Public')
+                .replace('Solid waste fee res.', 'Solid Waste Fee');
+};
+
+/**
+ * Get compliance status text
+ */
+const getComplianceStatus = (): string => {
+    if (props.listing?.valid_certificate_of_compliance === 1) {
+        return 'Compliant';
+    } else if (props.listing?.valid_certificate_of_compliance === 0) {
+        return 'Non-Compliant';
+    }
+    return 'Unknown';
+};
+
+/**
+ * Get compliance status CSS class
+ */
+const getComplianceClass = (): string => {
+    if (props.listing?.valid_certificate_of_compliance === 1) {
+        return 'compliant';
+    } else if (props.listing?.valid_certificate_of_compliance === 0) {
+        return 'non-compliant';
+    }
+    return 'unknown';
+};
+
+/**
+ * Get compliance tooltip text
+ */
+const getComplianceTooltipText = (): string => {
+    if (props.listing?.valid_certificate_of_compliance === 1) {
+        return 'Valid Certificate of Compliance - Property meets safety standards';
+    } else if (props.listing?.valid_certificate_of_compliance === 0) {
+        return 'Property is currently not reporting as safety compliant';
+    }
+    return 'Certificate of Compliance status unknown';
+};
+
+/**
+ * Tooltip positioning style
+ */
+const tooltipStyle = computed(() => {
+    if (!showComplianceTooltip.value || !tooltipElement.value) {
+        return { display: 'none' };
+    }
+    
+    const rect = tooltipElement.value.getBoundingClientRect();
+    return {
+        position: 'fixed',
+        top: `${rect.top - 50}px`,
+        left: `${rect.left + rect.width / 2}px`,
+        transform: 'translateX(-50%)',
+        zIndex: 10000
+    };
+});
 
 /**
  * Categorizes and maps amenities to their appropriate category and icon
@@ -1172,93 +1336,24 @@ watch<Listing | undefined>(
 }
 
 /* 🏠 PROPERTY DETAILS */
-.property-details {
-    padding: 12px 0;
+.property-size {
+    padding: 0;
+    margin-top: 12px;
+    margin-bottom: 12px;
 }
 
-.property-details-header {
+.property-size-header {
     margin-bottom: 8px;
+    padding-bottom: 8px;
     font-size: 1.1rem;
     color: #000000;
-    font-weight: 600;
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
 
-.certificate-badge-container {
-    position: relative;
-}
-
-.certificate-badge {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 0.75rem;
+.property-size-header strong {
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.025em;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    opacity: 0.9;
-}
-
-.certificate-badge.valid {
-    background-color: #dcfce7;
-    color: #16a34a;
-}
-
-.certificate-badge.invalid {
-    background-color: #fee2e2;
-    color: #dc2626;
-}
-
-.certificate-badge.unknown {
-    background-color: #f3f4f6;
-    color: #6b7280;
-}
-
-.certificate-badge:hover {
-    opacity: 1;
-    transform: scale(1.05);
-}
-
-.certificate-tooltip {
-    position: absolute;
-    top: -40px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #1f2937;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    white-space: nowrap;
-    z-index: 1000;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    animation: fadeIn 0.2s ease-in-out;
-}
-
-.certificate-tooltip::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: #1f2937;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(5px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
 
 .details-grid {
@@ -1305,6 +1400,237 @@ watch<Listing | undefined>(
     font-weight: 700;
     color: #1f2937;
     line-height: 1;
+}
+
+/* Property Section Styles */
+.property-details {
+    padding: 12px 0;
+    margin-top: 12px;
+    margin-bottom: 12px;
+    border-top: 2px solid #e5e7eb;
+}
+
+
+.property-details-header {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    font-size: 1.1rem;
+    color: #000000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.property-details-header strong {
+    font-weight: 600;
+}
+
+.property-section {
+    margin-bottom: 16px;
+}
+
+.property-section:last-child {
+    margin-bottom: 0;
+}
+
+.section-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1f2937;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Base Info Grid */
+.info-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+/* Smaller variant (used by utilities) */
+.info-grid.compact {
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+/* Base Info Card */
+.info-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+    min-height: 60px;
+    position: relative;
+    overflow: hidden;
+}
+
+.info-card:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transform: translateY(-1px);
+}
+
+/* Base Icon */
+.info-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+/* Base Content */
+.info-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.info-label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    margin-bottom: 1px;
+    line-height: 1;
+}
+
+.info-value {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #1f2937;
+    line-height: 1.1;
+    word-break: break-word;
+}
+
+/* Assessment-Specific Styling */
+.assessment-card .info-icon {
+    background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+    color: #374151;
+}
+
+.assessment-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(135deg, #10b981, #059669);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.assessment-card:hover::before {
+    opacity: 1;
+}
+
+
+/* Compliance status */
+.info-value.compliant {
+    color: #16a34a;
+    font-weight: 700;
+}
+.info-value.non-compliant {
+    color: #dc2626;
+    font-weight: 700;
+}
+.info-value.unknown {
+    color: #6b7280;
+    font-weight: 600;
+}
+
+/* Tooltip container */
+.assessment-value-container {
+    position: relative;
+    display: inline-block;
+}
+
+.compliance-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1f2937;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: normal;
+    max-width: 200px;
+    text-align: center;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 4px;
+}
+
+/* Utility-Specific Accent */
+.utility-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(135deg, #10b981, #059669);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.utility-card:hover::before {
+    opacity: 1;
+}
+
+/* Color-coded icons */
+.utility-card .info-icon.water { background: #dbeafe; color: #2563eb; }
+.utility-card .info-icon.sewer { background: #f3e8ff; color: #7c3aed; }
+.utility-card .info-icon.system { background: #fef3c7; color: #d97706; }
+.utility-card .info-icon.class { background: #dcfce7; color: #16a34a; }
+
+
+/* Description Content */
+.description-content {
+    color: #1f2937;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    font-weight: 400;
+    margin-top: 8px;
+    text-align: left;
+}
+
+
+/* Compliance Status Styling */
+
+/* Absolute positioned tooltip outside container */
+.compliance-tooltip-absolute {
+    position: fixed;
+    background: #1f2937;
+    color: white;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: normal;
+    width: 200px;
+    text-align: center;
+    z-index: 10000;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    pointer-events: none;
+    line-height: 1.4;
 }
 
 .rent-main-card {
@@ -1885,42 +2211,6 @@ watch<Listing | undefined>(
 }
 
 /* 🔒 SAFETY SECTION */
-.popup-safety {
-    font-size: 1rem;
-    color: #555;
-    border-top: 2px solid #e5e7eb;
-    padding-top: 12px;
-    padding-bottom: 12px;
-    margin-top: 12px;
-    margin-bottom: 12px;
-}
-
-.safety-header {
-    margin-bottom: 12px;
-}
-
-.safety-header strong {
-    font-size: 1.1rem;
-    color: #000000;
-    font-weight: 600;
-}
-
-.safety-content {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.safety-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.safety-label {
-    color: #555;
-    font-weight: 500;
-}
 
 /* 📝 DESCRIPTION */
 .popup-description {
@@ -2763,15 +3053,15 @@ watch<Listing | undefined>(
         font-size: 1rem;
     }
 
-    .property-details {
+    .property-size {
         padding: 12px 0;
     }
 
-    .property-details-header {
+    .property-size-header {
         margin-bottom: 10px;
     }
 
-    .property-details-header strong {
+    .property-size-header strong {
         font-size: 1rem;
     }
 
@@ -3042,6 +3332,57 @@ watch<Listing | undefined>(
   to {
     transform: translate(-50%, 0%);
     opacity: 1;
+  }
+}
+
+/* Mobile responsive styles for property details */
+@media (max-width: 768px) {
+    .info-grid {
+        grid-template-columns: 1fr !important;
+        gap: 8px;
+    }
+    
+    .property-details {
+        padding: 8px 0;
+        margin-top: 8px;
+        margin-bottom: 8px;
+    }
+
+    .property-details-header {
+        margin-bottom: 6px;
+    }
+
+    .property-details-header strong {
+        font-size: 0.95rem;
+    }
+    
+    .info-card {
+        padding: 12px;
+        gap: 10px;
+        min-height: 60px;
+    }
+    
+    .info-icon {
+        width: 24px;
+        height: 24px;
+        font-size: 0.8rem;
+    }
+    
+    .info-label {
+        font-size: 0.7rem;
+    }
+    
+    .info-value {
+        font-size: 0.75rem;
+    }
+    
+    .section-title {
+        font-size: 0.8rem;
+        margin-bottom: 10px;
+    }
+    
+    .property-section {
+        margin-bottom: 16px;
   }
 }
 
