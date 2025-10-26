@@ -661,18 +661,26 @@ const getComplianceTooltipText = (): string => {
 /**
  * Tooltip positioning style
  */
-const tooltipStyle = computed(() => {
+const tooltipStyle = computed((): Record<string, string | number> => {
     if (!showComplianceTooltip.value || !tooltipElement.value) {
-        return { display: 'none' };
+        return { 
+            display: 'none',
+            position: 'fixed',
+            top: '0px',
+            left: '0px',
+            transform: 'translateX(-50%)',
+            zIndex: '10000'
+        };
     }
     
     const rect = tooltipElement.value.getBoundingClientRect();
     return {
+        display: 'block',
         position: 'fixed',
         top: `${rect.top - 50}px`,
         left: `${rect.left + rect.width / 2}px`,
         transform: 'translateX(-50%)',
-        zIndex: 10000
+        zIndex: '10000'
     };
 });
 
