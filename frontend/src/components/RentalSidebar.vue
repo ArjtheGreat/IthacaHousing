@@ -359,7 +359,7 @@
                         <i class="fa-solid fa-shield-check"></i>
                     </div>
                     <div class="info-content">
-                        <div class="info-label">Safety</div>
+                        <div class="info-label">Safety Status</div>
                         <div class="assessment-value-container">
                             <div class="info-value" :class="getComplianceClass()">
                                 {{ getComplianceStatus() }}
@@ -375,11 +375,10 @@
             </div>
         </div>
 
-        <!-- Utilities & Services -->
+        <!-- Utilities & Services
         <div class="property-section">
             <h4 class="section-title">Utilities & Services</h4>
             <div class="info-grid" style="grid-template-columns: repeat(3, 1fr);">
-                <!-- Water Access -->
                 <div class="info-card utility-card">
                     <div class="info-icon water">
                         <i class="fa-solid fa-tint"></i>
@@ -390,7 +389,6 @@
                     </div>
                 </div>
 
-                <!-- Sewer Access -->
                 <div class="info-card utility-card">
                     <div class="info-icon sewer">
                         <i class="fa-solid fa-pipe"></i>
@@ -401,7 +399,6 @@
                     </div>
                 </div>
 
-                <!-- Sewer System Name -->
                 <div class="info-card utility-card">
                     <div class="info-icon system">
                         <i class="fa-solid fa-cogs"></i>
@@ -411,8 +408,8 @@
                         <div class="info-value">{{ listing?.sewer_name ? formatUtilityValue(listing.sewer_name) : 'N/A' }}</div>
                     </div>
                 </div>
-            </div>
-        </div>
+            </div> 
+        </div>  -->
     </div>
 
 
@@ -629,7 +626,7 @@ const getComplianceStatus = (): string => {
     if (props.listing?.valid_certificate_of_compliance === 1) {
         return 'Compliant';
     } else if (props.listing?.valid_certificate_of_compliance === 0) {
-        return 'Non-Compliant';
+        return 'Not Compliant';
     }
     return 'Unknown';
 };
@@ -651,11 +648,11 @@ const getComplianceClass = (): string => {
  */
 const getComplianceTooltipText = (): string => {
     if (props.listing?.valid_certificate_of_compliance === 1) {
-        return 'Valid Certificate of Compliance - Property meets safety standards';
+        return 'This property is currently reporting as safety compliant with valid certificate of compliance';
     } else if (props.listing?.valid_certificate_of_compliance === 0) {
-        return 'Property is currently not reporting as safety compliant';
+        return 'This property is currently not reporting as safety compliant';
     }
-    return 'Certificate of Compliance status unknown';
+    return 'Certificate of Compliance status is currently unknown';
 };
 
 /**

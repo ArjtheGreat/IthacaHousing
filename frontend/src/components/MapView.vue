@@ -67,7 +67,7 @@
           </div>
 
           <!-- Location Row -->
-          <div class="filter-row">
+          <!-- <div class="filter-row">
             <div class="filter-group">
               <label for="location-filter" class="filter-label">🏘️  Neighborhood</label>
               <select id="location-filter" v-model="selectedLocation" @change="updateLocationFilter" class="filter-select">
@@ -77,7 +77,7 @@
                 </option>
               </select>
             </div>
-          </div>
+          </div> -->
 
           <!-- Commute Section -->
           <div class="commute-section">
@@ -90,7 +90,7 @@
                 <label for="destination-filter" class="filter-label">Destination</label>
                 <select id="destination-filter" v-model="selectedDestination" @change="autoApplyCommuteFilter" class="filter-select">
                   <option value="">Any</option>
-                  <option value="urishall">Uris Hall</option>
+                  <!-- <option value="urishall">Uris Hall</option> -->
                   <option value="agriculturequad">Ag Quad</option>
                   <option value="artsquad">Arts Quad</option>
                   <option value="engineeringquad">Eng Quad</option>
@@ -1004,6 +1004,7 @@ const plotHeatmap = () => {
  */
 const updateBedFilter = async () => {
   const bedData = await fetchBedFilter(selectedBeds.value);
+  console.log(bedData)
   activeFilters.value.beds = bedData; 
   mergeFilters();
 };
@@ -1380,91 +1381,49 @@ function mergeFilters() {
 
   // Merge Beds
   if (activeFilters.value.beds) {
+    const bedListingIds = new Set(activeFilters.value.beds.map(l => l.listingid));
     mergedListings = mergedListings.filter(listing =>
-      activeFilters.value.beds.some(bedListing =>
-        bedListing.latitude === listing.latitude && bedListing.longitude === listing.longitude
-      )
+      bedListingIds.has(listing.listingid)
     );
   }
 
   // Merge Baths
   if (activeFilters.value.baths) {
+    const bathListingIds = new Set(activeFilters.value.baths.map(l => l.listingid));
     mergedListings = mergedListings.filter(listing =>
-      activeFilters.value.baths.some(bathListing =>
-        bathListing.latitude === listing.latitude && bathListing.longitude === listing.longitude
-      )
+      bathListingIds.has(listing.listingid)
     );
   }
 
   // Merge Location
   if (activeFilters.value.location) {
+    const locationListingIds = new Set(activeFilters.value.location.map(l => l.listingid));
     mergedListings = mergedListings.filter(listing =>
-      activeFilters.value.location.some(locationListing =>
-        locationListing.latitude === listing.latitude && locationListing.longitude === listing.longitude
-      )
-    );
-  }
-
-  // Merge Walks
-  if (activeFilters.value.walk) {
-    mergedListings = mergedListings.filter(listing =>
-      activeFilters.value.walk.some(walkListing =>
-        walkListing.latitude === listing.latitude && walkListing.longitude === listing.longitude
-      )
-    );
-  }
-
-  // Merge Transit
-  if (activeFilters.value.transit) {
-    mergedListings = mergedListings.filter(listing =>
-      activeFilters.value.transit.some(transitListing =>
-        transitListing.latitude === listing.latitude && transitListing.longitude === listing.longitude
-      )
-    );
-  }
-
-  // Merge Pets
-  if (activeFilters.value.pets) {
-    mergedListings = mergedListings.filter(listing =>
-      activeFilters.value.pets.some(petsListing =>
-        petsListing.latitude === listing.latitude && petsListing.longitude === listing.longitude
-      )
+      locationListingIds.has(listing.listingid)
     );
   }
 
   // Merge Commute Filter
   if (activeFilters.value.commute) {
+    const commuteListingIds = new Set(activeFilters.value.commute.map(l => l.listingid));
     mergedListings = mergedListings.filter(listing =>
-      activeFilters.value.commute.some(commuteListing =>
-        commuteListing.latitude === listing.latitude && commuteListing.longitude === listing.longitude
-      )
+      commuteListingIds.has(listing.listingid)
     );
   }
   
   // Merge Rooms to Rent
   if (activeFilters.value.roomtorent) {
+    const roomtorentListingIds = new Set(activeFilters.value.roomtorent.map(l => l.listingid));
     mergedListings = mergedListings.filter(listing =>
-      activeFilters.value.roomtorent.some(roomListing =>
-        roomListing.latitude === listing.latitude && roomListing.longitude === listing.longitude
-      )
-    );
-  }
-
-  // Merge Rent
-  if (activeFilters.value.rent) {
-    mergedListings = mergedListings.filter(listing =>
-      activeFilters.value.rent.some(rentListing =>
-        rentListing.latitude === listing.latitude && rentListing.longitude === listing.longitude
-      )
+      roomtorentListingIds.has(listing.listingid)
     );
   }
 
   // Merge Shared
   if (activeFilters.value.shared) {
+    const sharedListingIds = new Set(activeFilters.value.shared.map(l => l.listingid));
     mergedListings = mergedListings.filter(listing =>
-      activeFilters.value.shared.some(sharedListing =>
-        sharedListing.latitude === listing.latitude && sharedListing.longitude === listing.longitude
-      )
+      sharedListingIds.has(listing.listingid)
     );
   }
 
