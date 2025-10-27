@@ -45,4 +45,11 @@ def calculate_amenity_score(apartments_for_rent):
         lambda x: compute_amenity_score(x)
     )
 
+    for amenity in AMENITY_WEIGHTS.keys():
+        apartments_for_rent[amenity] = apartments_for_rent["Amenities"].apply(
+            lambda x: 1 if isinstance(x, list) and amenity in x
+            else 1 if isinstance(x, str) and amenity in x
+            else 0
+        )
+
     return apartments_for_rent

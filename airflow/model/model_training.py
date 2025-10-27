@@ -21,7 +21,24 @@ def define_X_Y_variables(apartments_for_rent):
     elif "overallsafetyratingpct" in apartments_for_rent.columns:
         safety_col = "overallsafetyratingpct"
     
-    base_cols = ["LengthAvailable", "Pets", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score", "available_bedrooms_to_total_bedrooms_ratio", "sqft_per_sale_price", "YR_BUILT_ENCODED"]
+    base_cols = [
+        "LengthAvailable", 
+        "Pets", 
+        "combined_bedrooms_bathrooms", 
+        "drive_time_urishall", 
+        "transit_score", 
+        "available_bedrooms_to_total_bedrooms_ratio", 
+        # "sqft_per_sale_price", 
+        "YR_BUILT_ENCODED",
+        "Electricity Included",
+        "Heat Included",
+        "Water Included",
+        "Internet Included",
+        "Laundry Facilities",
+        "Air Conditioning",
+        "Furnished"
+    ]
+
     if safety_col:
         base_cols.append(safety_col)
     
@@ -56,7 +73,21 @@ def train_linear_model(X, y, apartments_for_rent):
     y_clean = np.nan_to_num(y_clean, nan=0.0, posinf=0.0, neginf=0.0)
     
     X_const = sm.add_constant(X)
-    ols_model = sm.OLS(y_clean, X_const).fit()
+    try:
+        ols_model = sm.OLS(y_clean, X_const).fit()
+    except np.linalg.LinAlgError as e:
+        print(f"⚠️ Singular matrix error in Linear Regression: {e}")
+        print(f"\n📊 Correlation matrix for X (features):")
+        print(X.corr())
+        print(f"Shape of X: {X.shape}")
+        print(f"Columns in X: {X.columns.tolist()}")
+        try:
+            cond_num = np.linalg.cond(X_const.values)
+            print(f"Condition number of X: {cond_num}")
+        except:
+            print("Condition number calculation failed (likely singular matrix)")
+        raise 
+    
     y_pred = ols_model.predict(X_const)
     apartments_for_rent = find_residual_rental_amounts(y_pred, apartments_for_rent)
     return apartments_for_rent, y_pred
@@ -90,16 +121,29 @@ def ml_durbin_model(X, y, apartments_for_rent):
     knn_weights = KNN.from_array(coords, k=12)
     knn_weights.transform = 'R'
  
-    sdm_model = ML_Lag(
-        y_clean,
-        X_clean,
-        w=knn_weights,
-        name_y="Log RentAmount",
-        name_x=X_clean.columns.tolist(),
-        slx_lags=1
-    )
+    try:
+        sdm_model = ML_Lag(
+            y_clean,
+            X_clean,
+            w=knn_weights,
+            name_y="Log RentAmount",
+            name_x=X_clean.columns.tolist(),
+            slx_lags=1
+        )
 
-    y_pred = sdm_model.predy
+        y_pred = sdm_model.predy
+        
+    except (np.linalg.LinAlgError, ValueError) as e:
+        print(f"⚠️ Singular matrix error in Spatial Durbin Model: {e}")
+        print(f"\n📊 Correlation matrix for X_clean (features):")
+        print(X_clean.corr())
+        print(f"Shape of X_clean: {X_clean.shape}")
+        print(f"Columns in X_clean: {X_clean.columns.tolist()}")
+        
+        print("⚠️ Falling back to linear regression...")
+        X_const = sm.add_constant(X_clean)
+        ols_model = sm.OLS(y_clean, X_const).fit()
+        y_pred = ols_model.predict(X_const)
     
     apartments_for_rent = find_residual_rental_amounts(y_pred, apartments_for_rent)
 
@@ -204,17 +248,33 @@ def evaluate_models(models, X, y, apartments_for_rent, weights=None):
     results = {}
 
     for name, model_func in models.items():
-        flagged = False
-        apts_out, y_pred = model_func(X, y, apartments_for_rent.copy())
-        rmse = np.sqrt(mean_squared_error(y, y_pred))
-        r2 = r2_score(y, y_pred)
-        mape = mean_absolute_percentage_error(y, y_pred)
+        try:
+            flagged = False
+            apts_out, y_pred = model_func(X, y, apartments_for_rent.copy())
+            rmse = np.sqrt(mean_squared_error(y, y_pred))
+            r2 = r2_score(y, y_pred)
+            mape = mean_absolute_percentage_error(y, y_pred)
 
-        if(flag_overfitting(r2)):
-          flagged = True
+            if(flag_overfitting(r2)):
+              flagged = True
 
-        results[name] = {"RMSE": rmse, "R2": r2, "MAPE": mape, "flagged": flagged}
+            results[name] = {"RMSE": rmse, "R2": r2, "MAPE": mape, "flagged": flagged}
+        
+        except np.linalg.LinAlgError as e:
+            print(f"⚠️ LinAlgError (Singular matrix) for model '{name}': {e}")
+            print(f"\n📊 Correlation matrix for X (features):")
+            print(X.corr())
+            print(f"\n❌ Skipping model '{name}' and continuing with other models...\n")
+        
+        except Exception as e:
+            print(f"⚠️ Error training model '{name}': {e}")
+            import traceback
+            traceback.print_exc()
+            print(f"❌ Skipping model '{name}' and continuing with other models...\n")
 
+    if not results:
+        raise ValueError("All models failed to train!")
+    
     df = pd.DataFrame(results).T
 
     return df
@@ -254,7 +314,12 @@ def train_and_evaluate_models(X, y, apartments_for_rent):
     Main function to train and evaluate all models, then select the best one.
     Returns the best model name and the apartments_for_rent dataframe with predictions.
     """    
-    X_spatial = get_spatial_coefficients(X, apartments_for_rent)
+    try:
+        X_spatial = get_spatial_coefficients(X, apartments_for_rent)
+    except Exception as e:
+        print(f"⚠️ Error getting spatial coefficients: {e}")
+        print("⚠️ Using regular X instead of spatial features...")
+        X_spatial = X
     
     spatial_models = {
         "LinearRegression (Spatial)": lambda X, y, df: train_linear_model(X, y, df),

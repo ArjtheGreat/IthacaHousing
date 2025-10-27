@@ -329,6 +329,7 @@ def add_property_details(apartments_for_rent):
 
     matches_df = pd.DataFrame(list(matches))
     apartments_for_rent = pd.concat([apartments_for_rent, matches_df], axis=1)
+    apartments_for_rent["ListingAddress"] = apartments_for_rent["ListingAddress_formatted"]
     
     temp_columns = ["ListingAddress_formatted", "HouseNumStart", "HouseNumEnd", "StreetCore"]
     for col in temp_columns:

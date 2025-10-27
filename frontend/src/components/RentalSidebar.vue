@@ -144,32 +144,6 @@
     <div class="popup-amenities">
         <div class="amenities-header">
             <strong>Amenities</strong>
-            <div class="amenities-score">
-                <div class="score-visual">
-                    <div class="score-bar">
-                        <div 
-                            class="score-fill" 
-                            :style="{ width: (listing?.amenities_score || 0) + '%' }"
-                        ></div>
-                    </div>
-                    <span class="score-text">{{ listing?.amenities_score ? listing.amenities_score.toFixed(0) : "0" }}/100</span>
-                    <div class="tooltip-container">
-                        <span class="tooltip-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M12 16v-4"/>
-                                <path d="M12 8h.01"/>
-                            </svg>
-                        </span>
-                        <div class="tooltip-content">
-                            <div class="tooltip-title">Amenities Score</div>
-                            <div class="tooltip-text">
-                                Our amenities score is calculated using a proprietary ranking system that evaluates the quality and value of amenities available at each property. The score ranges from 0-100, with higher scores indicating better amenities relative to the local market.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
         
         <div class="amenities-categories" v-if="formatAmenities(listing?.amenities, listing?.pets).length > 0">

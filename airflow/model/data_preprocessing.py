@@ -2,8 +2,8 @@ import pandas as pd
 import numpy as np
 
 numerical_columns = [
-    "LengthAvailable", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score", "amenities_score",
-    "sqft_per_sale_price", "YR_BUILT_ENCODED"
+    "LengthAvailable", "combined_bedrooms_bathrooms", "drive_time_urishall", "transit_score",
+    "YR_BUILT_ENCODED"
 ]
 
 def get_safety_rating_column(df):
