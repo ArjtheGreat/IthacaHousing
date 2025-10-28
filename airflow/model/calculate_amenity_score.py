@@ -51,5 +51,5 @@ def calculate_amenity_score(apartments_for_rent):
             else 1 if isinstance(x, str) and amenity in x
             else 0
         )
-
+        
     return apartments_for_rent

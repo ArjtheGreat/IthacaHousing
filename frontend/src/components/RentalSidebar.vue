@@ -290,7 +290,7 @@
     <!-- Property Details -->
     <div class="property-details">
         <div class="property-details-header">
-            <strong>Property Details</strong>
+            <strong>Property & Lease Details</strong>
         </div>
         
         <!-- Basic Property Info -->
@@ -346,6 +346,58 @@
             <!-- Tooltip positioned outside container -->
             <div v-if="showComplianceTooltip" class="compliance-tooltip-absolute" :style="tooltipStyle">
                 {{ getComplianceTooltipText() }}
+            </div>
+        </div>
+
+        <!-- Lease Information -->
+        <div class="property-section">
+            <h4 class="section-title">Lease Information</h4>
+            <div class="info-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+               
+
+                <!-- Date Available -->
+                <div class="info-card lease-card" v-if="listing?.dateavailable">
+                    <div class="info-icon">
+                        <i class="fa-solid fa-calendar-check"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Date Available</div>
+                        <div class="info-value">{{ formatDate(listing.dateavailable) }}</div>
+                    </div>
+                </div>
+
+                <!-- Length Available -->
+                <div class="info-card lease-card" v-if="listing?.lengthavailable">
+                    <div class="info-icon">
+                        <i class="fa-solid fa-clock"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Lease Duration</div>
+                        <div class="info-value">{{ formatLeaseDuration(listing.lengthavailable) }}</div>
+                    </div>
+                </div>
+
+                <!-- Listing Type -->
+                <div class="info-card lease-card" v-if="listing?.listingtypes">
+                    <div class="info-icon">
+                        <i class="fa-solid fa-list"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Listing Type</div>
+                        <div class="info-value">{{ formatListingTypes(listing.listingtypes) }}</div>
+                    </div>
+                </div>
+
+                <!-- Listing Expiration -->
+                <div class="info-card lease-card" v-if="listing?.listingexpirationdate">
+                    <div class="info-icon">
+                        <i class="fa-solid fa-calendar-times"></i>
+                    </div>
+                    <div class="info-content">
+                        <div class="info-label">Expires</div>
+                        <div class="info-value">{{ formatDate(listing.listingexpirationdate) }}</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -554,6 +606,36 @@ const formatWalkTime = (minutes: number): string => {
 };
 
 /**
+ * Format date string to readable format
+ * @param {string} dateString - ISO date string
+ * @returns {string} - Formatted date string
+ */
+const formatDate = (dateString: string): string => {
+    if (!dateString) return 'N/A';
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+        return dateString;
+    }
+};
+
+/**
+ * Format lease duration to readable format
+ * @param {number} length - Lease length (in months typically)
+ * @returns {string} - Formatted duration string
+ */
+const formatLeaseDuration = (length: number): string => {
+    if (!length) return 'N/A';
+    if (length === 12) return '12 months';
+    if (length === 9) return '9 months';
+    if (length === 6) return '6 months';
+    if (length === 3) return '3 months';
+    if (length === 1) return '1 month';
+    return `${length} months`;
+};
+
+/**
  * Check if property has assessment data
  */
 const hasPropertyAssessmentData = computed(() => {
@@ -591,6 +673,22 @@ const formatUtilityValue = (value: string): string => {
     if (!value) return 'N/A';
     return value.replace('Comm/public', 'Communal/Public')
                 .replace('Solid waste fee res.', 'Solid Waste Fee');
+};
+
+/**
+ * Format listing types to readable format
+ * Backend now returns an array, so we just need to join it
+ */
+const formatListingTypes = (value: string | string[] | undefined): string => {
+    if (!value) return 'N/A';
+    
+    // If it's an array, join it
+    if (Array.isArray(value)) {
+        return value.join(', ');
+    }
+    
+    // Fallback for any string values
+    return String(value);
 };
 
 /**
@@ -1515,6 +1613,27 @@ watch<Listing | undefined>(
     transition: opacity 0.2s ease;
 }
 .assessment-card:hover::before {
+    opacity: 1;
+}
+
+/* Lease-Specific Styling */
+.lease-card .info-icon {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    color: #1e40af;
+}
+
+.lease-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.lease-card:hover::before {
     opacity: 1;
 }
 

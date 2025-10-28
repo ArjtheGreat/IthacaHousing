@@ -2,6 +2,8 @@
 Serialization functions for converting database models to JSON-compatible dictionaries
 """
 import numpy as np
+import json
+import ast
 
 
 def safe_float(value):
@@ -25,6 +27,46 @@ def safe_float(value):
         return None
 
 
+def parse_listing_types(value):
+    """
+    Parse listing types from various formats to a list
+    
+    Args:
+        value: String representation of a list or already a list
+        
+    Returns:
+        list or None: Parsed list of listing types
+    """
+    if value is None:
+        return None
+    
+    # If it's already a list, return it
+    if isinstance(value, list):
+        return value
+    
+    if not isinstance(value, str):
+        return None
+    
+    # Try to parse as JSON first
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, list):
+            return parsed
+    except (json.JSONDecodeError, ValueError):
+        pass
+    
+    # Try to parse as Python list format using ast.literal_eval
+    try:
+        parsed = ast.literal_eval(value)
+        if isinstance(parsed, list):
+            return parsed
+    except (ValueError, SyntaxError):
+        pass
+    
+    # If parsing fails, return the original value as a single-item list
+    return [value] if value else None
+
+
 def serialize_listing(listing):
     """
     Convert SQLAlchemy HousingListing model to dict with proper type handling
@@ -40,9 +82,15 @@ def serialize_listing(listing):
         "listingaddress": listing.listingaddress,
         "listingcity": listing.listingcity,
         "listingzip": listing.listingzip,
+        "createdate": listing.createdate.isoformat() if listing.createdate else None,
         "shortdescription": listing.shortdescription,
         "rentamount": safe_float(listing.rentamount),
         "renttype": listing.renttype,
+        "dateavailable": listing.dateavailable.isoformat() if listing.dateavailable else None,
+        "unitnumber": listing.unitnumber,
+        "listingtypes": parse_listing_types(listing.listingtypes),
+        "listingexpirationdate": listing.listingexpirationdate.isoformat() if listing.listingexpirationdate else None,
+        "lengthavailable": safe_float(listing.lengthavailable),
         "pets": listing.pets,
         "amenities": listing.amenities,
         "bedrooms": safe_float(listing.bedrooms),

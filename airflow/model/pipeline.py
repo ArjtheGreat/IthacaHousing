@@ -132,11 +132,6 @@ def housing_data_pipeline():
         
         print("🚌 Calculating transit scores for new listings...")
         new_listings = calculate_transit_score.calculate_transit_score(new_listings)
-
-        
-        
-        print("🏠 Calculating amenity scores for new listings...")
-        new_listings = calculate_amenity_score.calculate_amenity_score(new_listings)
     
         # new_listings = extract_safety_features.calculate_safety_score(new_listings)
     
@@ -166,6 +161,9 @@ def housing_data_pipeline():
         existing_listings.drop(columns=['listingid'], inplace=True, errors='ignore')
     
     apartments_for_rent = pd.concat([new_listings, existing_listings], ignore_index=True)
+    
+    print("🏠 Calculating amenity scores for all listings...")
+    apartments_for_rent = calculate_amenity_score.calculate_amenity_score(apartments_for_rent)
     
     print("Extracting Rental Data...")
     apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)

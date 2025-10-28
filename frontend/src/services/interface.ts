@@ -29,6 +29,12 @@ export interface Listing {
     sewer: string;
     yr_built: number;
     sqft_per_sale_price: number;
+    housingtype?: string;
+    renttype?: string;
+    dateavailable?: string;
+    lengthavailable?: number;
+    listingtypes?: string | string[];
+    listingexpirationdate?: string;
     
 }
 

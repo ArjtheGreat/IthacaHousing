@@ -344,7 +344,8 @@ def add_property_details(apartments_for_rent):
 def extract_landlord_names(apartments_for_rent):
     """
     Extract landlord/owner names for apartments_for_rent dataframe
-    Returns only owner_name column, with "Not Found" for unmatched addresses
+    Returns only owner_name column, with "Not Found" for unmatched addresses.
+    Also normalizes landlord names using OpenAI if available.
     """
     print("🏠 Extracting landlord names...")
     address_ownership_unique = prepare_ownership_data()
@@ -368,7 +369,7 @@ def extract_landlord_names(apartments_for_rent):
     
     apartments_for_rent["owner_name"] = apartments_for_rent.apply(process_owner_name, axis=1)
     
-    temp_columns = ["ListingAddress_formatted", "HouseNumStart", "HouseNumEnd", "StreetCore"]
+    temp_columns = ["ListingAddress_formatted", "HouseNumStart", "HouseNumEnd", "StreetCore", "Owner Name"]
     for col in temp_columns:
         if col in apartments_for_rent.columns:
             apartments_for_rent.drop(columns=[col], inplace=True)
@@ -377,5 +378,7 @@ def extract_landlord_names(apartments_for_rent):
     matched_count = (apartments_for_rent["owner_name"] != "Not Found").sum()
     print(f"📊 Successfully matched {matched_count}/{len(apartments_for_rent)} listings to owners")
     
+    apartments_for_rent["owner_name"] = apartments_for_rent["owner_name"].apply(process_prompt_for_landlord)
+  
     return apartments_for_rent
     

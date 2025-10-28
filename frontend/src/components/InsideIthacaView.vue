@@ -7,9 +7,9 @@
       <p>Explore rental hotspots and market trends across Ithaca</p>
     </div>
 
-    <!-- Two Column Layout -->
+    <!-- 2x2 Grid Layout -->
     <div class="content-grid">
-      <!-- Left Half: Explore Ithaca -->
+      <!-- Top Left: Map -->
       <div class="explore-section">
         <h2>Explore Ithaca</h2>
         <div class="filter-container">
@@ -44,22 +44,45 @@
         <!-- Map -->
         <div class="map-container">
           <div id="explore-map" class="explore-map"></div>
+          
+          <!-- Legend for neighborhoods view -->
+          <div v-if="activeFilter === 'neighborhoods'" class="map-legend">
+            <h4>Median Rent by Neighborhood</h4>
+            <div class="legend-items">
+              <div class="legend-item">
+                <div class="legend-color" style="background: #1e40af;"></div>
+                <span>Low</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #3b82f6;"></div>
+                <span>Medium-Low</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #8b5cf6;"></div>
+                <span>Medium</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #f59e0b;"></div>
+                <span>High</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #dc2626;"></div>
+                <span>Very High</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Right Half: Breaking Down the Rental Market -->
-      <div class="market-analysis-section">
-        <h2>Breaking Down the Rental Market</h2>
+      <!-- Top Right: Descriptive Statistics -->
+      <div class="stats-section">
+        <h2>Market Statistics</h2>
         
-        <!-- Pipeline Metrics Display -->
         <div v-if="pipelineMetrics" class="metrics-container">
-          <!-- Spatial Patterns -->
+          <!-- Mean Rent Time Series -->
           <div class="metric-card">
-            <h3>📍 Spatial Patterns</h3>
-            
-            <!-- Mean Rent Time Series Chart -->
+            <h3>📈 Mean Rent Trend</h3>
             <div v-if="meanRentTimeSeries.length > 0" class="time-series-container">
-              <h4>Mean Rent Trend</h4>
               <div class="chart-container">
                 <canvas ref="meanRentChart" class="time-series-chart"></canvas>
               </div>
@@ -68,31 +91,21 @@
                 <span class="metric-value">${{ Math.round(pipelineMetrics.spatial_patterns?.mean_rent || 0) }}</span>
               </div>
             </div>
-            
-            <!-- Moran's I Average -->
-            <div class="moran-container">
-              <div class="metric-item">
-                <span class="metric-label">Average Moran's I</span>
-                <span class="metric-value">{{ (pipelineMetrics.spatial_patterns?.average_moran_i || 0).toFixed(3) }}</span>
-              </div>
-              <div class="moran-description">
-                <small>{{ getMoranInterpretation(pipelineMetrics.spatial_patterns?.average_moran_i || 0) }}</small>
-              </div>
+          </div>
+          
+          <!-- Moran's I -->
+          <div class="metric-card">
+            <h3>🔍 Spatial Autocorrelation</h3>
+            <div class="metric-item">
+              <span class="metric-label">Average Moran's I</span>
+              <span class="metric-value">{{ (pipelineMetrics.spatial_patterns?.average_moran_i || 0).toFixed(3) }}</span>
+            </div>
+            <div class="moran-description">
+              <small>{{ getMoranInterpretation(pipelineMetrics.spatial_patterns?.average_moran_i || 0) }}</small>
             </div>
           </div>
-
-          <!-- Top Overpriced Landlords -->
-          <div v-if="topOverpricedLandlords.length > 0" class="metric-card">
-            <h3>🏢 Top Overpriced Landlords</h3>
-            <div class="landlord-list">
-              <div v-for="(landlord, index) in topOverpricedLandlords" :key="index" class="landlord-item">
-                <span class="landlord-name">{{ landlord.name }}</span>
-                <span class="landlord-price">+${{ Math.round(landlord.price) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Overpricing Split -->
+          
+          <!-- Market Pricing -->
           <div class="metric-card">
             <h3>💰 Market Pricing</h3>
             <div class="pricing-split">
@@ -106,10 +119,27 @@
               </div>
             </div>
           </div>
+        </div>
 
+        <!-- Loading State -->
+        <div v-else-if="loadingMetrics" class="loading-metrics">
+          <p>Loading market analysis...</p>
+        </div>
+
+        <!-- Error State -->
+        <div v-else class="error-metrics">
+          <p>Unable to load market analysis</p>
+        </div>
+      </div>
+
+      <!-- Bottom Left: Model Information -->
+      <div class="model-section">
+        <h2>Model Performance</h2>
+        
+        <div v-if="pipelineMetrics" class="metrics-container">
           <!-- Best Model -->
           <div class="metric-card">
-            <h3>🤖 Best Model</h3>
+            <h3>🏆 Best Model</h3>
             <div class="model-info">
               <span class="model-name">{{ pipelineMetrics.model_performance?.best_model || 'N/A' }}</span>
               <div class="model-metrics">
@@ -139,17 +169,41 @@
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Loading State -->
-        <div v-else-if="loadingMetrics" class="loading-metrics">
-          <p>Loading market analysis...</p>
-        </div>
+      <!-- Bottom Right: Landlords -->
+      <div class="landlords-section">
+        <h2>Landlord Behavior</h2>
+        
+        <div v-if="pipelineMetrics" class="metrics-container">
+          <!-- Top Overpriced Landlords -->
+          <div v-if="topOverpricedLandlords.length > 0" class="metric-card">
+            <h3>🔴 Most Overpriced</h3>
+            <div class="landlord-list">
+              <div v-for="(landlord, index) in topOverpricedLandlords" :key="index" class="landlord-item">
+                <span class="landlord-name">{{ landlord.name }}</span>
+                <span class="landlord-price">+${{ Math.round(landlord.price) }}</span>
+              </div>
+            </div>
+          </div>
 
-        <!-- Error State -->
-        <div v-else class="error-metrics">
-          <p>Unable to load market analysis</p>
+          <!-- Top Underpriced Landlords -->
+          <div v-if="topUnderpricedLandlords.length > 0" class="metric-card">
+            <h3>🟢 Most Underpriced</h3>
+            <div class="landlord-list">
+              <div v-for="(landlord, index) in topUnderpricedLandlords" :key="index" class="landlord-item underpriced">
+                <span class="landlord-name">{{ landlord.name }}</span>
+                <span class="landlord-price">-${{ Math.round(landlord.price) }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loadingMetrics && !pipelineMetrics" class="loading-overlay">
+      <p>Loading dashboard...</p>
     </div>
   </div>
 </template>
@@ -160,7 +214,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
 import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
-import { fetchClusters, fetchHeatMap, fetchListingsMinimal, fetchPipelineMetrics } from '@/services/fetch';
+import { fetchClusters, fetchHeatMap, fetchListings, fetchPipelineMetrics } from '@/services/fetch';
 import NavBar from "@/components/NavBar.vue";
 import Chart from 'chart.js/auto';
 
@@ -172,6 +226,7 @@ const clusteredListings = ref([]);
 const heatmapData = ref(null);
 const heatmapLayer = ref(null);
 const markers = ref([]);
+const neighborhoodData = ref([]);
 
 // Pipeline metrics variables
 const pipelineMetrics = ref(null);
@@ -192,6 +247,25 @@ const topOverpricedLandlords = computed(() => {
     .map(([name, price]) => ({
       name: name.replace(/[\[\]'"]/g, '').trim(),
       price: price
+    }))
+    .sort((a, b) => b.price - a.price)
+    .slice(0, 3);
+    
+  return landlords;
+});
+
+const topUnderpricedLandlords = computed(() => {
+  if (!pipelineMetrics.value?.landlord_behavior) return [];
+  
+  const landlords = Object.entries(pipelineMetrics.value.landlord_behavior)
+    .filter(([name, price]) => {
+      // Filter out empty strings, empty objects, and non-underpriced landlords
+      const cleanName = name.replace(/[\[\]'"]/g, '').trim();
+      return cleanName && cleanName !== 'nan' && cleanName !== '{}' && price < 0;
+    })
+    .map(([name, price]) => ({
+      name: name.replace(/[\[\]'"]/g, '').trim(),
+      price: Math.abs(price) // Make price positive for display
     }))
     .sort((a, b) => b.price - a.price)
     .slice(0, 3);
@@ -250,10 +324,135 @@ const plotHeatmap = () => {
   }
 };
 
+// Calculate neighborhood statistics
+const calculateNeighborhoodStats = () => {
+  if (!allListings.value || allListings.value.length === 0) {
+    console.warn('No listings data available');
+    return [];
+  }
+
+  // Group listings by neighborhood
+  const neighborhoods = {};
+  
+  allListings.value.forEach(listing => {
+    const neighborhood = listing.neighborhood || 'Unknown';
+    if (!neighborhoods[neighborhood]) {
+      neighborhoods[neighborhood] = {
+        name: neighborhood,
+        listings: [],
+        avgRent: 0,
+        medianRent: 0,
+        count: 0
+      };
+    }
+    
+    const rent = listing.rent_per_person || listing.rentamount || 0;
+    if (rent > 0) {
+      neighborhoods[neighborhood].listings.push(rent);
+      neighborhoods[neighborhood].count++;
+    }
+  });
+
+  // Calculate statistics for each neighborhood
+  const neighborhoodList = Object.values(neighborhoods).map(neighborhood => {
+    const rents = neighborhood.listings.filter(r => r > 0).sort((a, b) => a - b);
+    
+    neighborhood.avgRent = rents.length > 0 
+      ? rents.reduce((sum, r) => sum + r, 0) / rents.length 
+      : 0;
+    
+    neighborhood.medianRent = rents.length > 0
+      ? rents[Math.floor(rents.length / 2)]
+      : 0;
+    
+    return neighborhood;
+  }).filter(n => n.count > 0);
+
+  return neighborhoodList;
+};
+
+const showNeighborhoodsByRent = () => {
+  if (!allListings.value || allListings.value.length === 0) {
+    console.warn('No listings data available');
+    return;
+  }
+
+  const neighborhoods = calculateNeighborhoodStats();
+  neighborhoodData.value = neighborhoods;
+  
+  if (neighborhoods.length === 0) {
+    console.warn('No neighborhoods found with rent data');
+    return;
+  }
+
+  // Remove existing markers and heatmap
+  switchFilter('neighborhoods');
+  
+  // Calculate rent range for color coding
+  const rents = neighborhoods.map(n => n.medianRent).filter(r => r > 0);
+  const minRent = Math.min(...rents);
+  const maxRent = Math.max(...rents);
+  
+  neighborhoods.forEach(neighborhood => {
+    // Find all listings in this neighborhood and get their coords
+    const coords = allListings.value
+      .filter(l => (l.neighborhood || 'Unknown') === neighborhood.name)
+      .filter(l => l.latitude && l.longitude)
+      .map(l => [l.latitude, l.longitude]);
+    
+    if (coords.length === 0) return;
+    
+    // Calculate center point
+    const centerLat = coords.reduce((sum, c) => sum + c[0], 0) / coords.length;
+    const centerLng = coords.reduce((sum, c) => sum + c[1], 0) / coords.length;
+    
+    // Get color based on median rent
+    const color = getRentColor(neighborhood.medianRent, minRent, maxRent);
+    
+    // Create a circle marker for the neighborhood
+    const circle = L.circleMarker([centerLat, centerLng], {
+      radius: Math.max(8, Math.min(20, neighborhood.count * 0.5)),
+      fillColor: color,
+      color: color,
+      weight: 2,
+      opacity: 0.8,
+      fillOpacity: 0.6
+    }).addTo(exploreMap.value);
+    
+    // Add popup with neighborhood info
+    circle.bindPopup(`
+      <div style="text-align: center; min-width: 150px;">
+        <strong>${neighborhood.name}</strong><br>
+        Listings: ${neighborhood.count}<br>
+        Median Rent: $${neighborhood.medianRent.toFixed(2)}<br>
+        Avg Rent: $${neighborhood.avgRent.toFixed(2)}
+      </div>
+    `);
+    
+    markers.value.push(circle);
+  });
+  
+  console.log(`Displayed ${neighborhoods.length} neighborhoods on map`);
+};
+
+const getRentColor = (rent, minRent, maxRent) => {
+  if (maxRent === minRent) return '#3b82f6';
+  
+  const normalized = (rent - minRent) / (maxRent - minRent);
+  
+  // Color gradient from blue (low) to red (high)
+  if (normalized < 0.2) return '#1e40af'; // Dark blue
+  if (normalized < 0.4) return '#3b82f6'; // Blue
+  if (normalized < 0.6) return '#8b5cf6'; // Purple
+  if (normalized < 0.8) return '#f59e0b'; // Orange
+  return '#dc2626'; // Red
+};
+
 // Filter options (moved from MapView)
 const filterOptions = [
   { value: "heatmap", label: "Market Hotspots", action: plotHeatmap },
-  { value: "cluster", label: "Rental Neighborhoods", action: showClusters },
+  { value: "cluster", label: "Rental Clusters", action: showClusters },
+  { value: "neighborhoods", label: "By Median Rent", action: showNeighborhoodsByRent },
 ];
 
 onMounted(async () => {
@@ -378,8 +577,9 @@ function createMeanRentChart() {
 async function loadData() {
   try {
     // Load all the data we need
+    // For neighborhoods view, we need full listings data with neighborhood field
     const [listings, clusters, heatmap, metrics] = await Promise.all([
-      fetchListingsMinimal(),
+      fetchListings(), // Use full listings for neighborhood data
       fetchClusters(),
       fetchHeatMap(),
       loadPipelineMetrics()
@@ -392,7 +592,8 @@ async function loadData() {
     console.log('Data loaded:', {
       listings: listings.length,
       clusters: clusters.length,
-      heatmap: heatmap ? heatmap.length : 0
+      heatmap: heatmap ? heatmap.length : 0,
+      neighborhoods: new Set(listings.map(l => l.neighborhood).filter(n => n)).size
     });
   } catch (error) {
     console.error('Error loading data:', error);
@@ -531,39 +732,51 @@ const getColor = (rentPerPerson, predictedRent) => {
 </script>
 
 <style scoped>
+
+
 .inside-ithaca-container {
-  margin-top: 50px;
-  min-width: 100vw;
-  background: #f8fafc;
-  padding: 2rem;
+  margin-top: 2%;
+  width: 100vw;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center; 
+  gap: 60px;
+  padding-bottom: 4rem;
 }
 
 .header {
   text-align: center;
-  margin-bottom: 3rem;
+  padding: 4rem 2rem 2rem;
+  background: #061559;
+  color: white;
+  width: 100%;
 }
 
 .header h1 {
   font-size: 2.5rem;
   font-weight: 700;
-  color: #1f2937;
   margin-bottom: 0.5rem;
 }
 
 .header p {
   font-size: 1.1rem;
-  color: #6b7280;
 }
 
 .content-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
   gap: 2rem;
   align-items: start;
 }
 
 .explore-section,
-.market-analysis-section {
+.stats-section,
+.model-section,
+.landlords-section {
   background: white;
   border-radius: 12px;
   padding: 2rem;
@@ -572,7 +785,9 @@ const getColor = (rentPerPerson, predictedRent) => {
 }
 
 .explore-section h2,
-.market-analysis-section h2 {
+.stats-section h2,
+.model-section h2,
+.landlords-section h2 {
   font-size: 1.5rem;
   font-weight: 600;
   color: #1f2937;
@@ -654,11 +869,52 @@ const getColor = (rentPerPerson, predictedRent) => {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
 }
 
 .explore-map {
   height: 500px;
   width: 100%;
+}
+
+.map-legend {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 180px;
+}
+
+.map-legend h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.75rem;
+}
+
+.legend-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.legend-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
 }
 
 @media (max-width: 768px) {
@@ -749,6 +1005,10 @@ const getColor = (rentPerPerson, predictedRent) => {
   border-left: 4px solid #ef4444;
 }
 
+.landlord-item.underpriced {
+  border-left-color: #10b981;
+}
+
 .landlord-name {
   font-weight: 500;
   color: #1f2937;
@@ -757,6 +1017,10 @@ const getColor = (rentPerPerson, predictedRent) => {
 .landlord-price {
   font-weight: 700;
   color: #dc2626;
+}
+
+.landlord-item.underpriced .landlord-price {
+  color: #059669;
 }
 
 /* Pricing Split Styles */
@@ -927,6 +1191,21 @@ const getColor = (rentPerPerson, predictedRent) => {
 
 .error-metrics {
   color: #dc2626;
+}
+
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  font-size: 1.2rem;
+  color: #6b7280;
 }
 
 @media (max-width: 768px) {

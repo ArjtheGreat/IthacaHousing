@@ -20,7 +20,7 @@ def define_X_Y_variables(apartments_for_rent):
         safety_col = "OverallSafetyRatingPct"
     elif "overallsafetyratingpct" in apartments_for_rent.columns:
         safety_col = "overallsafetyratingpct"
-    
+    print(apartments_for_rent.columns)
     base_cols = [
         "LengthAvailable", 
         "Pets", 
@@ -42,7 +42,15 @@ def define_X_Y_variables(apartments_for_rent):
     if safety_col:
         base_cols.append(safety_col)
     
-    X = apartments_for_rent[base_cols]
+    available_cols = [col for col in base_cols if col in apartments_for_rent.columns]
+    
+    if len(available_cols) == 0:
+        raise ValueError("No features available for model training. Check data columns.")
+    
+    print(f"📊 Using {len(available_cols)} features for model training")
+    print(f"📋 Feature columns: {available_cols}")
+    
+    X = apartments_for_rent[available_cols]
     y = apartments_for_rent["rent_per_person"]
 
     return X, y
