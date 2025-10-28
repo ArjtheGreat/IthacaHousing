@@ -4,6 +4,8 @@ Serialization functions for converting database models to JSON-compatible dictio
 import numpy as np
 import json
 import ast
+import re
+import shlex
 
 
 def safe_float(value):
@@ -40,14 +42,12 @@ def parse_listing_types(value):
     if value is None:
         return None
     
-    # If it's already a list, return it
     if isinstance(value, list):
         return value
     
     if not isinstance(value, str):
         return None
     
-    # Try to parse as JSON first
     try:
         parsed = json.loads(value)
         if isinstance(parsed, list):
@@ -55,7 +55,6 @@ def parse_listing_types(value):
     except (json.JSONDecodeError, ValueError):
         pass
     
-    # Try to parse as Python list format using ast.literal_eval
     try:
         parsed = ast.literal_eval(value)
         if isinstance(parsed, list):
@@ -63,9 +62,7 @@ def parse_listing_types(value):
     except (ValueError, SyntaxError):
         pass
     
-    # If parsing fails, return the original value as a single-item list
     return [value] if value else None
-
 
 def serialize_listing(listing):
     """

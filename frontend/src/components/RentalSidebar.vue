@@ -333,7 +333,7 @@
                         <i class="fa-solid fa-shield-check"></i>
                     </div>
                     <div class="info-content">
-                        <div class="info-label">Safety Status</div>
+                        <div class="info-label safety-report-label">Safety Certificate</div>
                         <div class="assessment-value-container">
                             <div class="info-value" :class="getComplianceClass()">
                                 {{ getComplianceStatus() }}
@@ -383,7 +383,7 @@
                         <i class="fa-solid fa-list"></i>
                     </div>
                     <div class="info-content">
-                        <div class="info-label">Listing Type</div>
+                        <div class="info-label">Lease Available For</div>
                         <div class="info-value">{{ formatListingTypes(listing.listingtypes) }}</div>
                     </div>
                 </div>
@@ -394,7 +394,7 @@
                         <i class="fa-solid fa-calendar-times"></i>
                     </div>
                     <div class="info-content">
-                        <div class="info-label">Expires</div>
+                        <div class="info-label">Lease Offer Expires</div>
                         <div class="info-value">{{ formatDate(listing.listingexpirationdate) }}</div>
                     </div>
                 </div>
@@ -696,9 +696,9 @@ const formatListingTypes = (value: string | string[] | undefined): string => {
  */
 const getComplianceStatus = (): string => {
     if (props.listing?.valid_certificate_of_compliance === 1) {
-        return 'Compliant';
+        return 'Yes';
     } else if (props.listing?.valid_certificate_of_compliance === 0) {
-        return 'Not Compliant';
+        return 'Not Available';
     }
     return 'Unknown';
 };
@@ -1103,58 +1103,63 @@ const handleTooltipPosition = () => {
 };
 
 /**
- * Format owner names from various formats to a readable string
- * @param {string} ownerName - The raw owner name string
+ * Parse owner names from PostgreSQL array format
+ * @param {string} ownerStr - The raw owner string from database
+ * @returns {string[]} - Parsed array of owner names
+ */
+const parseOwnerNames = (ownerStr: string | undefined): string[] => {
+    if (!ownerStr || ownerStr.trim() === "{}" || ownerStr.trim() === "") return [];
+
+    try {
+        // Step 1: Remove the outer curly braces
+        let cleaned = ownerStr.replace(/^{|}$/g, "").trim();
+
+        // Step 2: If empty after cleaning
+        if (!cleaned) return [];
+
+        // Step 3: Wrap in brackets to form a JSON-like array if it isn't already
+        if (!cleaned.startsWith("[")) cleaned = `[${cleaned}]`;
+
+        // Step 4: Replace any single quotes with double quotes for JSON compatibility
+        cleaned = cleaned.replace(/'/g, '"');
+
+        // Step 5: Parse JSON safely
+        return JSON.parse(cleaned);
+    } catch (err) {
+        console.warn("Could not parse owner string:", ownerStr);
+        return [ownerStr as string];
+    }
+};
+
+/**
+ * Format owner names to a readable string
+ * @param {string | string[]} ownerName - The owner name(s) - can be raw string or array
  * @returns {string} - Formatted owner names
  */
-const formatOwnerNames = (ownerName: string): string => {
-    if (!ownerName || ownerName === 'undefined' || ownerName === 'null') return '';
-    
-    try {
-        // Handle JSON-like strings like {"Fumio Onishi", "Deidre Onishi"}
-        if (ownerName.includes('{') && ownerName.includes('}')) {
-            // Remove parentheses and braces
-            let cleaned = ownerName.replace(/[(){}]/g, '');
-            // Split by comma and clean up quotes
-            const names = cleaned.split(',').map(name => 
-                name.trim().replace(/"/g, '').replace(/'/g, '')
-            ).filter(name => name.length > 0 && name !== 'undefined' && name !== 'null');
-            
-            if (names.length === 0) return '';
-            if (names.length === 1) {
-                return names[0];
-            } else if (names.length === 2) {
-                return `${names[0]} and ${names[1]}`;
-            } else {
-                return names.slice(0, -1).join(', ') + `, and ${names[names.length - 1]}`;
-            }
-        }
-        
-        // Handle comma-separated names
-        if (ownerName.includes(',')) {
-            const names = ownerName.split(',').map(name => name.trim())
-                .filter(name => name.length > 0 && name !== 'undefined' && name !== 'null');
-            
-            if (names.length === 0) return '';
-            if (names.length === 1) {
-                return names[0];
-            } else if (names.length === 2) {
-                return `${names[0]} and ${names[1]}`;
-            } else {
-                return names.slice(0, -1).join(', ') + `, and ${names[names.length - 1]}`;
-            }
-        }
-        
-        // Return as-is for single names (but filter out undefined/null)
-        const trimmed = ownerName.trim();
-        if (trimmed === 'undefined' || trimmed === 'null' || trimmed === '') {
-            return '';
-        }
-        return trimmed;
-    } catch (error) {
-        console.warn('Error parsing owner names:', error);
+const formatOwnerNames = (ownerName: string | string[] | undefined): string => {
+    if (!ownerName) {
         return '';
     }
+    
+    // If it's a string (raw database format), parse it first
+    let namesArray: string[];
+    if (typeof ownerName === 'string') {
+        namesArray = parseOwnerNames(ownerName);
+    } else if (Array.isArray(ownerName)) {
+        namesArray = ownerName;
+    } else {
+        return '';
+    }
+    
+    // Filter out empty names and ensure all are strings
+    const names = namesArray
+        .filter(name => name && typeof name === 'string' && name.trim() !== '')
+        .map(name => name.trim());
+    
+    if (names.length === 0) return '';
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return `${names[0]} and ${names[1]}`;
+    return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
 };
 
 /**
@@ -1175,15 +1180,16 @@ const getLandlordHeader = (): string => {
 const getLandlordNames = (): string => {
     const ownerName = props.listing?.owner_name;
     
-    // Handle undefined, null, empty string, or "undefined" string
-    if (!ownerName || ownerName === 'undefined' || ownerName === 'null' || ownerName.trim() === '') {
+    // Handle empty values
+    if (!ownerName || 
+        (typeof ownerName === 'string' && (ownerName.trim() === '' || ownerName === 'undefined' || ownerName === 'null' || ownerName === '{}'))) {
         return 'Unknown';
     }
     
     const formatted = formatOwnerNames(ownerName);
     
-    // Double-check if formatting resulted in undefined or empty
-    if (!formatted || formatted === 'undefined' || formatted.trim() === '') {
+    // Double-check if formatting resulted in empty
+    if (!formatted || formatted.trim() === '') {
         return 'Unknown';
     }
     
@@ -1191,34 +1197,24 @@ const getLandlordNames = (): string => {
 };
 
 /**
- * Count the number of owner names in the string
- * @param {string} ownerName - The raw owner name string
+ * Count the number of owner names
+ * @param {string | string[] | undefined} ownerName - The owner name(s)
  * @returns {number} - Number of names
  */
-const countOwnerNames = (ownerName: string): number => {
+const countOwnerNames = (ownerName: string | string[] | undefined): number => {
     if (!ownerName) return 0;
     
-    try {
-        // Handle JSON-like strings like {"Fumio Onishi", "Deidre Onishi"}
-        if (ownerName.includes('{') && ownerName.includes('}')) {
-            let cleaned = ownerName.replace(/[(){}]/g, '');
-            const names = cleaned.split(',').map(name => 
-                name.trim().replace(/"/g, '').replace(/'/g, '')
-            ).filter(name => name.length > 0);
-            return names.length;
-        }
-        
-        // Handle comma-separated names
-        if (ownerName.includes(',')) {
-            return ownerName.split(',').filter(name => name.trim().length > 0).length;
-        }
-        
-        // Single name
-        return ownerName.trim().length > 0 ? 1 : 0;
-    } catch (error) {
-        console.warn('Error counting owner names:', error);
-        return 1; // Fallback to single
+    // Parse if it's a string
+    let namesArray: string[];
+    if (typeof ownerName === 'string') {
+        namesArray = parseOwnerNames(ownerName);
+    } else if (Array.isArray(ownerName)) {
+        namesArray = ownerName;
+    } else {
+        return 0;
     }
+    
+    return namesArray.filter(name => name && typeof name === 'string' && name.trim() !== '').length;
 };
 
 onMounted(async () => {
@@ -1585,6 +1581,10 @@ watch<Listing | undefined>(
     letter-spacing: 0.025em;
     margin-bottom: 1px;
     line-height: 1;
+}
+
+.safety-report-label {
+    font-size: 0.6rem
 }
 
 .info-value {
