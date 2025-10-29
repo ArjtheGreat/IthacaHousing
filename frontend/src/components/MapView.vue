@@ -133,6 +133,13 @@
                 <i class="fa-solid fa-shopping-basket"></i>
                 Groceries
               </button>
+              <button 
+                @click="togglePOI('neighborhoods')" 
+                :class="['poi-btn', { active: activePOI === 'neighborhoods' }]"
+              >
+                <i class="fa-solid fa-map"></i>
+                Neighborhoods
+              </button>
               <!-- <button 
                 @click="togglePOI('shopping')" 
                 :class="['poi-btn', { active: activePOI === 'shopping' }]"
@@ -288,6 +295,7 @@ const showMobileFilters = ref(false); // Controls mobile filter visibility
 const showDesktopRecommendation = ref(false); // Controls desktop recommendation popup
 const poiMarkers = ref([]); // Stores POI markers on the map
 const poiData = ref({ groceries: [], shopping: [], attractions: [] }); // Stores loaded POI data
+const neighborhoodsLayer = ref(null); // Stores the neighborhoods GeoJSON layer
 
 // Search functionality
 const searchQuery = ref('');
@@ -1230,22 +1238,31 @@ const loadPOIData = async (type) => {
 const togglePOI = async (type) => {
   // If clicking the same type, clear it
   if (activePOI.value === type) {
-    clearPOIMarkers();
+    if (type === 'neighborhoods') {
+      clearNeighborhoodsLayer();
+    } else {
+      clearPOIMarkers();
+    }
     activePOI.value = null;
     return;
   }
 
-  // Load data if not already loaded
-  await loadPOIData(type);
-
-  // Clear existing POI markers
+  // Clear existing POI markers and neighborhoods layer
   clearPOIMarkers();
+  clearNeighborhoodsLayer();
 
   // Set active POI type
   activePOI.value = type;
 
-  // Add new markers
-  displayPOIMarkers(type);
+  // Handle neighborhoods differently
+  if (type === 'neighborhoods') {
+    await loadNeighborhoodsLayer();
+  } else {
+    // Load data if not already loaded
+    await loadPOIData(type);
+    // Add new markers
+    displayPOIMarkers(type);
+  }
 };
 
 /**
@@ -1307,6 +1324,63 @@ const clearPOIMarkers = () => {
   poiMarkers.value = [];
 };
 
+/**
+ * Load and display neighborhoods GeoJSON layer
+ */
+const loadNeighborhoodsLayer = async () => {
+  try {
+    const response = await fetch('/maps/IthacaN_Cleaned.geojson');
+    const geojsonData = await response.json();
+    
+    // Define colors for different neighborhoods
+    const neighborhoodColors = {
+      'Collegetown': '#3b82f6',
+      'Fall Creek': '#8b5cf6', 
+      'North Side': '#f59e0b',
+      'Downtown': '#10b981',
+      'South Side': '#ef4444',
+      'South Hill': '#06b6d4',
+      'Belle Sherman': '#84cc16'
+    };
+    
+    neighborhoodsLayer.value = L.geoJSON(geojsonData, {
+      style: function(feature) {
+        const neighborhoodName = feature.properties.name;
+        return {
+          color: neighborhoodColors[neighborhoodName] || '#6b7280',
+          weight: 2,
+          opacity: 0.8,
+          fillColor: neighborhoodColors[neighborhoodName] || '#6b7280',
+          fillOpacity: 0.2
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        const neighborhoodName = feature.properties.name;
+        layer.bindPopup(`
+          <div style="text-align: center; min-width: 120px;">
+            <strong>${neighborhoodName}</strong><br>
+            <span style="color: #6b7280; font-size: 0.9em;">Ithaca Neighborhood</span>
+          </div>
+        `);
+      }
+    }).addTo(map.value);
+    
+    console.log('Neighborhoods layer loaded and displayed');
+  } catch (error) {
+    console.error('Error loading neighborhoods GeoJSON:', error);
+  }
+};
+
+/**
+ * Clear neighborhoods layer from the map
+ */
+const clearNeighborhoodsLayer = () => {
+  if (neighborhoodsLayer.value) {
+    map.value.removeLayer(neighborhoodsLayer.value);
+    neighborhoodsLayer.value = null;
+  }
+};
+
 const resetAllFilters = () => {
   selectedBeds.value = 0;
   selectedBaths.value = 0;
@@ -1317,6 +1391,7 @@ const resetAllFilters = () => {
   
   // Clear POI
   clearPOIMarkers();
+  clearNeighborhoodsLayer();
   activePOI.value = null;
   
   // Clear all active filters
@@ -2227,7 +2302,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   color: #4b5563;
   border: 2px solid #e5e7eb;
   border-radius: 10px;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -2265,9 +2340,9 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 .poi-btn.active:nth-child(2) {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  border-color: #f59e0b;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .poi-btn.active:nth-child(3) {

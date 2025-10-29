@@ -412,7 +412,7 @@ def get_pipeline_metrics(db: Session = Depends(get_db)):
     try:
         query = text("""
             SELECT run_timestamp, spatial_patterns, landlord_behavior, overpricing, 
-                   model_performance, feature_importance, spatial_residuals
+                   model_performance, feature_importance
             FROM rental_model_runs 
             ORDER BY run_timestamp DESC
         """)
@@ -444,8 +444,7 @@ def get_pipeline_metrics(db: Session = Depends(get_db)):
             "landlord_behavior": parse_json_column(latest_result[2]),
             "overpricing": parse_json_column(latest_result[3]),
             "model_performance": parse_json_column(latest_result[4]),
-            "feature_importance": parse_json_column(latest_result[5]),
-            "spatial_residuals": parse_json_column(latest_result[6])
+            "feature_importance": parse_json_column(latest_result[5])
         }
         
         mean_rent_time_series = []

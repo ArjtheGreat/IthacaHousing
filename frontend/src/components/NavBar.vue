@@ -21,6 +21,7 @@
         <ul class="navbar-menu" :class="{ 'menu-open': menuOpen }">
             <li><router-link to="/" active-class="active-link">Home</router-link></li>
             <li><router-link to="/rent" active-class="active-link">Fair Rent Map</router-link></li>
+            <li><router-link to="/analytics" active-class="active-link">Analytics</router-link></li>
             <li><router-link to="/about" active-class="active-link">About</router-link></li>
             <li><router-link to="/contact" active-class="active-link">Contact</router-link></li>
             <!-- <li><router-link to="/inside-ithaca" active-class="active-link">Inside Ithaca</router-link></li> -->

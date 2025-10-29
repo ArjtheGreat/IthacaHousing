@@ -227,6 +227,8 @@ const heatmapData = ref(null);
 const heatmapLayer = ref(null);
 const markers = ref([]);
 const neighborhoodData = ref([]);
+const neighborhoodsLayer = ref(null);
+const currentNeighborhoodLayer = ref(null);
 
 // Pipeline metrics variables
 const pipelineMetrics = ref(null);
@@ -257,6 +259,8 @@ const topOverpricedLandlords = computed(() => {
 const topUnderpricedLandlords = computed(() => {
   if (!pipelineMetrics.value?.landlord_behavior) return [];
   
+  console.log('🔍 Debug: landlord_behavior data:', pipelineMetrics.value.landlord_behavior);
+  
   const landlords = Object.entries(pipelineMetrics.value.landlord_behavior)
     .filter(([name, price]) => {
       // Filter out empty strings, empty objects, and non-underpriced landlords
@@ -270,6 +274,7 @@ const topUnderpricedLandlords = computed(() => {
     .sort((a, b) => b.price - a.price)
     .slice(0, 3);
     
+  console.log('🔍 Debug: filtered underpriced landlords:', landlords);
   return landlords;
 });
 
@@ -311,7 +316,10 @@ const showClusters = () => {
 const plotHeatmap = () => {
   if (activeFilter.value === "heatmap") {
     activeFilter.value = "";
-    addMarkers(allListings.value, false);
+    if (heatmapLayer.value) {
+      exploreMap.value.removeLayer(heatmapLayer.value);
+      heatmapLayer.value = null;
+    }
   } else {
     switchFilter("heatmap");
     heatmapLayer.value = L.heatLayer(heatmapData.value, {
@@ -372,8 +380,22 @@ const calculateNeighborhoodStats = () => {
 };
 
 const showNeighborhoodsByRent = () => {
+  if (activeFilter.value === "neighborhoods") {
+    activeFilter.value = "";
+    if (currentNeighborhoodLayer.value) {
+      exploreMap.value.removeLayer(currentNeighborhoodLayer.value);
+      currentNeighborhoodLayer.value = null;
+    }
+    return;
+  }
+
   if (!allListings.value || allListings.value.length === 0) {
     console.warn('No listings data available');
+    return;
+  }
+
+  if (!neighborhoodsLayer.value) {
+    console.warn('Neighborhoods GeoJSON not loaded yet');
     return;
   }
 
@@ -388,51 +410,72 @@ const showNeighborhoodsByRent = () => {
   // Remove existing markers and heatmap
   switchFilter('neighborhoods');
   
+  // Remove existing neighborhood layer if it exists
+  if (currentNeighborhoodLayer.value) {
+    exploreMap.value.removeLayer(currentNeighborhoodLayer.value);
+  }
+  
   // Calculate rent range for color coding
   const rents = neighborhoods.map(n => n.medianRent).filter(r => r > 0);
   const minRent = Math.min(...rents);
   const maxRent = Math.max(...rents);
   
+  // Create a map of neighborhood names to rent data
+  const neighborhoodRentMap = {};
   neighborhoods.forEach(neighborhood => {
-    // Find all listings in this neighborhood and get their coords
-    const coords = allListings.value
-      .filter(l => (l.neighborhood || 'Unknown') === neighborhood.name)
-      .filter(l => l.latitude && l.longitude)
-      .map(l => [l.latitude, l.longitude]);
-    
-    if (coords.length === 0) return;
-    
-    // Calculate center point
-    const centerLat = coords.reduce((sum, c) => sum + c[0], 0) / coords.length;
-    const centerLng = coords.reduce((sum, c) => sum + c[1], 0) / coords.length;
-    
-    // Get color based on median rent
-    const color = getRentColor(neighborhood.medianRent, minRent, maxRent);
-    
-    // Create a circle marker for the neighborhood
-    const circle = L.circleMarker([centerLat, centerLng], {
-      radius: Math.max(8, Math.min(20, neighborhood.count * 0.5)),
-      fillColor: color,
-      color: color,
-      weight: 2,
-      opacity: 0.8,
-      fillOpacity: 0.6
-    }).addTo(exploreMap.value);
-    
-    // Add popup with neighborhood info
-    circle.bindPopup(`
-      <div style="text-align: center; min-width: 150px;">
-        <strong>${neighborhood.name}</strong><br>
-        Listings: ${neighborhood.count}<br>
-        Median Rent: $${neighborhood.medianRent.toFixed(2)}<br>
-        Avg Rent: $${neighborhood.avgRent.toFixed(2)}
-      </div>
-    `);
-    
-    markers.value.push(circle);
+    neighborhoodRentMap[neighborhood.name] = neighborhood;
   });
   
-  console.log(`Displayed ${neighborhoods.length} neighborhoods on map`);
+  // Create the choropleth layer using GeoJSON
+  currentNeighborhoodLayer.value = L.geoJSON(neighborhoodsLayer.value, {
+    style: function(feature) {
+      const neighborhoodName = feature.properties.name;
+      const rentData = neighborhoodRentMap[neighborhoodName];
+      
+      if (!rentData || rentData.medianRent === 0) {
+        return {
+          color: '#6b7280',
+          weight: 2,
+          opacity: 0.8,
+          fillColor: '#6b7280',
+          fillOpacity: 0.1
+        };
+      }
+      
+      const color = getRentColor(rentData.medianRent, minRent, maxRent);
+      return {
+        color: color,
+        weight: 2,
+        opacity: 0.8,
+        fillColor: color,
+        fillOpacity: 0.6
+      };
+    },
+    onEachFeature: function(feature, layer) {
+      const neighborhoodName = feature.properties.name;
+      const rentData = neighborhoodRentMap[neighborhoodName];
+      
+      if (rentData && rentData.medianRent > 0) {
+        layer.bindPopup(`
+          <div style="text-align: center; min-width: 150px;">
+            <strong>${neighborhoodName}</strong><br>
+            Listings: ${rentData.count}<br>
+            Median Rent: $${rentData.medianRent.toFixed(2)}<br>
+            Avg Rent: $${rentData.avgRent.toFixed(2)}
+          </div>
+        `);
+      } else {
+        layer.bindPopup(`
+          <div style="text-align: center; min-width: 120px;">
+            <strong>${neighborhoodName}</strong><br>
+            <span style="color: #6b7280; font-size: 0.9em;">No rental data available</span>
+          </div>
+        `);
+      }
+    }
+  }).addTo(exploreMap.value);
+  
+  console.log(`Displayed ${neighborhoods.length} neighborhoods as choropleth`);
 };
 
 const getRentColor = (rent, minRent, maxRent) => {
@@ -451,7 +494,6 @@ const getRentColor = (rent, minRent, maxRent) => {
 // Filter options (moved from MapView)
 const filterOptions = [
   { value: "heatmap", label: "Market Hotspots", action: plotHeatmap },
-  { value: "cluster", label: "Rental Clusters", action: showClusters },
   { value: "neighborhoods", label: "By Median Rent", action: showNeighborhoodsByRent },
 ];
 
@@ -485,6 +527,55 @@ async function initializeMap() {
   });
 
   tileLayer.addTo(exploreMap.value);
+  
+  // Add Ithaca neighborhoods GeoJSON layer
+  await loadNeighborhoodsLayer();
+}
+
+async function loadNeighborhoodsLayer() {
+  try {
+    const response = await fetch('/maps/IthacaN_Cleaned.geojson');
+    const geojsonData = await response.json();
+    
+    // Store the GeoJSON data for later use
+    neighborhoodsLayer.value = geojsonData;
+    
+    // Define colors for different neighborhoods (default styling)
+    const neighborhoodColors = {
+      'Collegetown': '#3b82f6',
+      'Fall Creek': '#8b5cf6', 
+      'North Side': '#f59e0b',
+      'Downtown': '#10b981',
+      'South Side': '#ef4444',
+      'South Hill': '#06b6d4',
+      'Belle Sherman': '#84cc16'
+    };
+    
+    L.geoJSON(geojsonData, {
+      style: function(feature) {
+        const neighborhoodName = feature.properties.name;
+        return {
+          color: neighborhoodColors[neighborhoodName] || '#6b7280',
+          weight: 2,
+          opacity: 0.8,
+          fillColor: neighborhoodColors[neighborhoodName] || '#6b7280',
+          fillOpacity: 0.1
+        };
+      },
+      onEachFeature: function(feature, layer) {
+        const neighborhoodName = feature.properties.name;
+        layer.bindPopup(`
+          <div style="text-align: center; min-width: 120px;">
+            <strong>${neighborhoodName}</strong><br>
+            <span style="color: #6b7280; font-size: 0.9em;">Ithaca Neighborhood</span>
+          </div>
+        `);
+      }
+    }).addTo(exploreMap.value);
+    
+  } catch (error) {
+    console.error('Error loading neighborhoods GeoJSON:', error);
+  }
 }
 
 async function loadPipelineMetrics() {
@@ -749,7 +840,7 @@ const getColor = (rentPerPerson, predictedRent) => {
 
 .header {
   text-align: center;
-  padding: 4rem 2rem 2rem;
+  padding: 2rem 2rem 2rem;
   background: #061559;
   color: white;
   width: 100%;
@@ -771,6 +862,7 @@ const getColor = (rentPerPerson, predictedRent) => {
   grid-template-rows: auto auto;
   gap: 2rem;
   align-items: start;
+  width: 80%;
 }
 
 .explore-section,
@@ -874,7 +966,6 @@ const getColor = (rentPerPerson, predictedRent) => {
 
 .explore-map {
   height: 500px;
-  width: 100%;
 }
 
 .map-legend {

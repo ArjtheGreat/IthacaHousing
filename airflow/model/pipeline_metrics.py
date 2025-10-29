@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import geopandas as gpd
 from libpysal.weights import KNN
-from esda import Moran
+from esda import Moran, Moran_Local
 from sklearn.metrics import r2_score
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.inspection import permutation_importance
@@ -36,9 +36,47 @@ def compute_spatial_patterns(apartments_for_rent):
 
     return {
         "global_moran": {"I": moran.I, "p_value": moran.p_sim},
+        "average_moran_i": moran.I, 
         "mean_rent": mean_rent,
         "rent_by_neighborhood": rent_by_neigh,
     }
+
+
+def compute_lisa_for_each_point(apartments_for_rent):
+    """
+    Compute Local Moran's I (LISA) for each data point to identify 
+    spatial clusters and outliers.
+    """
+    try:
+        gdf = gpd.GeoDataFrame(
+            apartments_for_rent,
+            geometry=gpd.points_from_xy(apartments_for_rent.longitude, apartments_for_rent.latitude),
+            crs="EPSG:4326"
+        )
+        w = KNN.from_dataframe(gdf, k=8)
+        w.transform = "R"
+
+        lisa = Moran_Local(gdf["rent_per_person"], w)
+        
+        lisa_results = pd.DataFrame({
+            "listing_id": gdf.index,
+            "I": lisa.Is,
+            "p_value": lisa.p_norm,
+            "z_value": lisa.z_norm
+        })
+        
+        sig = lisa.p_norm < 0.05
+        lisa_results["cluster_type"] = "Not Significant"
+        lisa_results.loc[sig & (lisa.q == 1), "cluster_type"] = "High-High Cluster"
+        lisa_results.loc[sig & (lisa.q == 2), "cluster_type"] = "Low-High Outlier"
+        lisa_results.loc[sig & (lisa.q == 3), "cluster_type"] = "Low-Low Cluster"
+        lisa_results.loc[sig & (lisa.q == 4), "cluster_type"] = "High-Low Outlier"
+        
+        return lisa_results
+        
+    except Exception as e:
+        print(f"⚠️ Error computing LISA statistics: {e}")
+        return None
 
 
 # ---------- 2. LANDLORD BEHAVIOR ----------
@@ -58,19 +96,34 @@ def analyze_landlords(gdf):
     if len(gdf_copy) == 0:
         return None
 
-    multi_landlords = gdf_copy.groupby("owner_name_str").filter(lambda x: len(x) >= 3)
+    multi_landlords = gdf_copy.groupby("owner_name_str").filter(lambda x: len(x) >= 2)
+    
+    if len(multi_landlords) == 0:
+        print("⚠️ No landlords with 2+ properties, trying 1+ properties...")
+        multi_landlords = gdf_copy.groupby("owner_name_str").filter(lambda x: len(x) >= 1)
     
     if len(multi_landlords) == 0:
         return None
         
-    top_landlords = (
+    landlord_stats = (
         multi_landlords.groupby("owner_name_str")["differenceinfairvalue"]
         .mean()
         .sort_values(ascending=False)
-        .head(5)
     )
-
-    return top_landlords
+    
+    print(f"📊 Total landlords with 3+ properties: {len(landlord_stats)}")
+    print(f"📊 Landlords with positive pricing (overpriced): {(landlord_stats > 0).sum()}")
+    print(f"📊 Landlords with negative pricing (underpriced): {(landlord_stats < 0).sum()}")
+    
+    if (landlord_stats < 0).sum() > 0:
+        print(f"📊 Top 3 underpriced landlords:")
+        top_underpriced = landlord_stats[landlord_stats < 0].nsmallest(3)
+        for name, price in top_underpriced.items():
+            print(f"   - {name}: ${price:.2f}")
+    
+    landlord_dict = landlord_stats.to_dict()
+    
+    return landlord_dict
 
 
 # ---------- 3. OVERPRICING STATISTICS ----------
@@ -94,17 +147,46 @@ def analyze_overpricing(gdf):
 
 def summarize_model_performance(results_df, best_model_name):
     results_df = results_df.set_index(results_df.index.astype(str))
-    top_model_row = results_df.loc[str(best_model_name)]
-
-    return {
-        "all_model_metrics": results_df[["R2", "RMSE", "MAPE"]],
+    
+    # Get best model metrics
+    top_model_row = None
+    if str(best_model_name) in results_df.index:
+        top_model_row = results_df.loc[str(best_model_name)]
+    
+    # Include full results for all models
+    all_results = results_df[["R2", "RMSE", "MAPE", "flagged"]].to_dict('index')
+    
+    # Get specific model results
+    rf_results = None
+    linear_results = None
+    spatial_durbin_results = None
+    
+    for model_name in results_df.index:
+        model_name_lower = model_name.lower()
+        if 'randomforest' in model_name_lower:
+            rf_results = results_df.loc[model_name].to_dict()
+        elif 'linearregression' in model_name_lower:
+            linear_results = results_df.loc[model_name].to_dict()
+        elif 'durbin' in model_name_lower:
+            spatial_durbin_results = results_df.loc[model_name].to_dict()
+    
+    result = {
+        "all_model_metrics": results_df[["R2", "RMSE", "MAPE", "flagged"]],
+        "all_model_results": all_results,
         "best_model": str(best_model_name),
-        "best_model_metrics": {
+        "random_forest_results": rf_results,
+        "linear_regression_results": linear_results,
+        "spatial_durbin_results": spatial_durbin_results,
+    }
+    
+    if top_model_row is not None:
+        result["best_model_metrics"] = {
             "R2": top_model_row["R2"],
             "RMSE": top_model_row["RMSE"],
             "MAPE": top_model_row["MAPE"],
-        },
-    }
+        }
+    
+    return result
 
 
 # ---------- 5. FEATURE IMPORTANCE ----------
@@ -167,11 +249,11 @@ def analyze_market_and_model(apartments_for_rent, results_df, X, X_spatial, y, b
 
     analysis = {
         "spatial_patterns": compute_spatial_patterns(apartments_for_rent),
+        "lisa_for_each_point": compute_lisa_for_each_point(apartments_for_rent),
         "landlord_behavior": analyze_landlords(gdf),
         "overpricing": analyze_overpricing(gdf),
         "model_performance": summarize_model_performance(results_df, best_model_name),
-        "feature_importance": compute_feature_importance(best_model_name, X_spatial, y),
-        "spatial_residuals": spatial_residual_analysis(gdf),
+        "feature_importance": compute_feature_importance(best_model_name, X_spatial, y)
     }
 
     return analysis
@@ -231,20 +313,20 @@ def insert_pipeline_metrics(analysis_dict):
         run_record = {
             'run_timestamp': datetime.now(),
             'spatial_patterns': json.dumps(serialized_metrics.get('spatial_patterns', {})),
+            'lisa_for_each_point': json.dumps(serialized_metrics.get('lisa_for_each_point')),
             'landlord_behavior': json.dumps(serialized_metrics.get('landlord_behavior', {})),
             'overpricing': json.dumps(serialized_metrics.get('overpricing', {})),
             'model_performance': json.dumps(serialized_metrics.get('model_performance', {})),
-            'feature_importance': json.dumps(serialized_metrics.get('feature_importance', {})),
-            'spatial_residuals': json.dumps(serialized_metrics.get('spatial_residuals', {}))
+            'feature_importance': json.dumps(serialized_metrics.get('feature_importance', {}))
         }
         
         with engine.begin() as conn:
             insert_query = text("""
                 INSERT INTO rental_model_runs 
-                (run_timestamp, spatial_patterns, landlord_behavior, overpricing, 
-                 model_performance, feature_importance, spatial_residuals)
-                VALUES (:run_timestamp, :spatial_patterns, :landlord_behavior, :overpricing,
-                        :model_performance, :feature_importance, :spatial_residuals)
+                (run_timestamp, spatial_patterns, lisa_for_each_point, landlord_behavior, overpricing, 
+                 model_performance, feature_importance)
+                VALUES (:run_timestamp, :spatial_patterns, :lisa_for_each_point, :landlord_behavior, :overpricing,
+                        :model_performance, :feature_importance)
             """)
             
             conn.execute(insert_query, run_record)
