@@ -110,6 +110,7 @@ def housing_data_pipeline():
     print("🏠 Extracting neighborhoods...")
     apartments_for_rent = extract_rental_data.extract_neighborhood(apartments_for_rent)
     
+    
     print("🏗️ Adding property features...")
     apartments_for_rent = data_preprocessing.add_property_features(apartments_for_rent)
     

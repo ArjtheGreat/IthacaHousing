@@ -203,7 +203,6 @@ def extract_rental_data(apartments_for_rent):
     """
     Run Apply to extract rental data - only for new listings or changed descriptions
     """
-    # Get existing data from database
     existing_data = get_existing_rental_data()
     
     def smart_extract(row):
@@ -222,7 +221,6 @@ def extract_rental_data(apartments_for_rent):
                     "num_people": existing_data[listing_id]['num_people']
                 }
         
-        # Description changed or new listing - run LLM extraction
         print(f"🤖 Running LLM extraction for listing {listing_id} (new or description changed)")
         return safe_process(row)
     
@@ -257,6 +255,12 @@ def extract_neighborhood(apartments_for_rent):
         print("⚠️ IthacaN_Cleaned.geojson not found, skipping neighborhood extraction")
         return apartments_for_rent
 
+    apartments_for_rent["Coordinates"] = apartments_for_rent.apply(
+        lambda row: f'{{"lng": {row["longitude"]}, "lat": {row["latitude"]}}}'
+        if pd.notna(row["longitude"]) and pd.notna(row["latitude"]) else None,
+        axis=1
+    )
+
     def parse_coordinates(x):
         if isinstance(x, str):
             try:
@@ -276,6 +280,15 @@ def extract_neighborhood(apartments_for_rent):
     )
     result_gdf = apartments_for_rent_gdf.sjoin(ithaca_neighborhoods_gdf, how='left')
     result_gdf = result_gdf.rename(columns={'name': 'neighborhood'})
+    
+    if 'neighborhood' in result_gdf.columns:
+        non_null_neighborhoods = result_gdf['neighborhood'].notna().sum()
+        print(f"✅ Neighborhood extraction: {non_null_neighborhoods}/{len(result_gdf)} listings have neighborhoods")
+        if non_null_neighborhoods > 0:
+            print(f"📊 Sample neighborhoods: {result_gdf['neighborhood'].value_counts().head(5).to_dict()}")
+    else:
+        print("⚠️ WARNING: 'neighborhood' column not found after spatial join!")
+        print(f"📋 Available columns: {list(result_gdf.columns)}")
     
     result_df = result_gdf.drop(columns=['geometry'])
 

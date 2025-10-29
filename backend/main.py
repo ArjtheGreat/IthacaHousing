@@ -412,7 +412,7 @@ def get_pipeline_metrics(db: Session = Depends(get_db)):
     try:
         query = text("""
             SELECT run_timestamp, spatial_patterns, landlord_behavior, overpricing, 
-                   model_performance, feature_importance
+                   model_performance, feature_importance, lisa_for_each_point
             FROM rental_model_runs 
             ORDER BY run_timestamp DESC
         """)
@@ -425,18 +425,23 @@ def get_pipeline_metrics(db: Session = Depends(get_db)):
                 content={"error": "No pipeline metrics found"}
             )
         
-        def parse_json_column(value):
+        def parse_json_column(value, default_empty=dict):
+            """
+            Parse JSON column value - handles both arrays and objects.
+            For lisa_for_each_point, default_empty should Any[] (list).
+            """
             if value is None:
-                return {}
-            elif isinstance(value, dict):
+                return [] if default_empty == list else {}
+            elif isinstance(value, (dict, list)):
                 return value
             elif isinstance(value, str):
                 try:
-                    return json.loads(value)
+                    parsed = json.loads(value)
+                    return parsed
                 except json.JSONDecodeError:
-                    return {}
+                    return [] if default_empty == list else {}
             else:
-                return {}
+                return [] if default_empty == list else {}
         
         latest_result = results[0]
         latest_metrics = {
@@ -444,7 +449,8 @@ def get_pipeline_metrics(db: Session = Depends(get_db)):
             "landlord_behavior": parse_json_column(latest_result[2]),
             "overpricing": parse_json_column(latest_result[3]),
             "model_performance": parse_json_column(latest_result[4]),
-            "feature_importance": parse_json_column(latest_result[5])
+            "feature_importance": parse_json_column(latest_result[5]),
+            "lisa_for_each_point": parse_json_column(latest_result[6], default_empty=list)
         }
         
         mean_rent_time_series = []

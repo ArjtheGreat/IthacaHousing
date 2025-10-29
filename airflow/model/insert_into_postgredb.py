@@ -135,8 +135,7 @@ def psql_insert_copy(df):
     if "nearest_neighbor_listingIds" in df.columns:
         df["nearest_neighbor_listingIds"] = df["nearest_neighbor_listingIds"].apply(
             lambda x: json.dumps(x) if isinstance(x, (list, dict)) else x
-        )
-
+        )    
     df.columns = (
         df.columns.str.strip()
         .str.lower()

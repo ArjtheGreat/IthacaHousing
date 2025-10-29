@@ -11,10 +11,9 @@
     <div class="content-grid">
       <!-- Top Left: Map -->
       <div class="explore-section">
-        <h2>Explore Ithaca</h2>
+        <h2>Spatial Trends Panel</h2>
         <div class="filter-container">
           <RadioGroup v-model="activeFilter">
-            <RadioGroupLabel class="filter-title">Explore Ithaca</RadioGroupLabel>
             <div class="radio-options">
               <RadioGroupOption 
                 as="template" 
@@ -71,12 +70,26 @@
               </div>
             </div>
           </div>
-        </div>
+         </div>
+         
+          <!-- Moran's I -->
+          <div v-if="pipelineMetrics" class="metric-card">
+             <h3>🔍 Spatial Autocorrelation</h3>
+             <div class="metric-item">
+               <span class="metric-label">Average Moran's I</span>
+               <span class="metric-value">{{ (pipelineMetrics.spatial_patterns?.average_moran_i || 0).toFixed(3) }}</span>
+             </div>
+             <div class="moran-description">
+               <small>{{ getMoranInterpretation(pipelineMetrics.spatial_patterns?.average_moran_i || 0) }}</small>
+             </div>
+           </div>
+           
       </div>
+      
 
       <!-- Top Right: Descriptive Statistics -->
       <div class="stats-section">
-        <h2>Market Statistics</h2>
+        <h2>Income Panel</h2>
         
         <div v-if="pipelineMetrics" class="metrics-container">
           <!-- Mean Rent Time Series -->
@@ -92,19 +105,6 @@
               </div>
             </div>
           </div>
-          
-          <!-- Moran's I -->
-          <div class="metric-card">
-            <h3>🔍 Spatial Autocorrelation</h3>
-            <div class="metric-item">
-              <span class="metric-label">Average Moran's I</span>
-              <span class="metric-value">{{ (pipelineMetrics.spatial_patterns?.average_moran_i || 0).toFixed(3) }}</span>
-            </div>
-            <div class="moran-description">
-              <small>{{ getMoranInterpretation(pipelineMetrics.spatial_patterns?.average_moran_i || 0) }}</small>
-            </div>
-          </div>
-          
           <!-- Market Pricing -->
           <div class="metric-card">
             <h3>💰 Market Pricing</h3>
@@ -134,7 +134,7 @@
 
       <!-- Bottom Left: Model Information -->
       <div class="model-section">
-        <h2>Model Performance</h2>
+        <h2>Model Performance Panel</h2>
         
         <div v-if="pipelineMetrics" class="metrics-container">
           <!-- Best Model -->
@@ -173,7 +173,7 @@
 
       <!-- Bottom Right: Landlords -->
       <div class="landlords-section">
-        <h2>Landlord Behavior</h2>
+        <h2>Risk Panel</h2>
         
         <div v-if="pipelineMetrics" class="metrics-container">
           <!-- Top Overpriced Landlords -->
@@ -229,6 +229,7 @@ const markers = ref([]);
 const neighborhoodData = ref([]);
 const neighborhoodsLayer = ref(null);
 const currentNeighborhoodLayer = ref(null);
+const baseNeighborhoodLayer = ref(null); // Always-visible base outlines
 
 // Pipeline metrics variables
 const pipelineMetrics = ref(null);
@@ -381,6 +382,7 @@ const calculateNeighborhoodStats = () => {
 
 const showNeighborhoodsByRent = () => {
   if (activeFilter.value === "neighborhoods") {
+    // Toggle off: remove colored layer, keep base outlines
     activeFilter.value = "";
     if (currentNeighborhoodLayer.value) {
       exploreMap.value.removeLayer(currentNeighborhoodLayer.value);
@@ -410,7 +412,7 @@ const showNeighborhoodsByRent = () => {
   // Remove existing markers and heatmap
   switchFilter('neighborhoods');
   
-  // Remove existing neighborhood layer if it exists
+  // Remove existing colored layer if it exists (base outlines stay)
   if (currentNeighborhoodLayer.value) {
     exploreMap.value.removeLayer(currentNeighborhoodLayer.value);
   }
@@ -426,7 +428,7 @@ const showNeighborhoodsByRent = () => {
     neighborhoodRentMap[neighborhood.name] = neighborhood;
   });
   
-  // Create the choropleth layer using GeoJSON
+  // Create the colored choropleth layer (on top of base outlines)
   currentNeighborhoodLayer.value = L.geoJSON(neighborhoodsLayer.value, {
     style: function(feature) {
       const neighborhoodName = feature.properties.name;
@@ -445,8 +447,8 @@ const showNeighborhoodsByRent = () => {
       const color = getRentColor(rentData.medianRent, minRent, maxRent);
       return {
         color: color,
-        weight: 2,
-        opacity: 0.8,
+        weight: 2.5,
+        opacity: 0.9,
         fillColor: color,
         fillOpacity: 0.6
       };
@@ -491,10 +493,105 @@ const getRentColor = (rent, minRent, maxRent) => {
   return '#dc2626'; // Red
 };
 
+const showOutlierListings = () => {
+  if (activeFilter.value === "outliers") {
+    activeFilter.value = "";
+    markers.value.forEach(marker => exploreMap.value.removeLayer(marker));
+    markers.value = [];
+    return;
+  }
+
+  if (!allListings.value || allListings.value.length === 0) {
+    console.warn('No listings data available');
+    return;
+  }
+
+  if (!pipelineMetrics.value?.lisa_for_each_point) {
+    console.warn('No LISA data available');
+    return;
+  }
+
+  console.log(pipelineMetrics.value)
+  let lisaData = pipelineMetrics.value.lisa_for_each_point;
+  
+  if (!Array.isArray(lisaData)) {
+    if (lisaData && typeof lisaData === 'object') {
+      lisaData = Object.values(lisaData);
+    } else {
+      console.warn('LISA data is not in expected format:', lisaData);
+      return;
+    }
+  }  
+  const outlierListingIds = lisaData
+    .filter(item => item && (item.cluster_type === 'Low-High Outlier' || item.cluster_type === 'High-Low Outlier'))
+    .map(item => item.listing_id);
+
+  const outlierListings = allListings.value.filter((listing, index) => {
+    return outlierListingIds.includes(index) || 
+           outlierListingIds.includes(listing.listingid) ||
+           outlierListingIds.includes(listing.listingId);
+  });
+
+  if (outlierListings.length === 0) {
+    console.warn('No outlier listings found');
+    return;
+  }
+
+  switchFilter('outliers');
+  
+  // Add markers for outlier listings
+  outlierListings.forEach(listing => {
+    if (!listing.latitude || !listing.longitude || 
+        isNaN(listing.latitude) || isNaN(listing.longitude)) {
+      return;
+    }
+
+    // Find the LISA data for this listing
+    const lisaItem = lisaData.find(item => 
+      item.listing_id === listing.listingid || 
+      item.listing_id === listing.listingId ||
+      item.listing_id === allListings.value.indexOf(listing)
+    );
+
+    // Color based on outlier type
+    let color = '#f59e0b'; // Default orange
+    if (lisaItem?.cluster_type === 'Low-High Outlier') {
+      color = '#ef4444'; // Red - low value surrounded by high
+    } else if (lisaItem?.cluster_type === 'High-Low Outlier') {
+      color = '#3b82f6'; // Blue - high value surrounded by low
+    }
+
+    const marker = L.circleMarker([listing.latitude, listing.longitude], {
+      color: color,
+      fillColor: color,
+      fillOpacity: 0.85,
+      radius: 12,
+      weight: 3,
+      opacity: 1,
+      className: 'outlier-marker'
+    }).addTo(exploreMap.value);
+
+    // Create popup content
+    const popupContent = `
+      <div style="text-align: left; min-width: 200px;">
+        <strong>${lisaItem?.cluster_type || 'Outlier'}</strong><br>
+        ${listing.listingaddress || 'N/A'}<br>
+        Rent: $${(listing.rent_per_person || listing.rentamount || 0).toFixed(2)}<br>
+        ${lisaItem ? `Moran's I: ${lisaItem.I.toFixed(3)}<br>p-value: ${lisaItem.p_value.toFixed(3)}` : ''}
+      </div>
+    `;
+    marker.bindPopup(popupContent);
+    markers.value.push(marker);
+  });
+
+  console.log(`Displayed ${outlierListings.length} outlier listings`);
+};
+
 // Filter options (moved from MapView)
 const filterOptions = [
   { value: "heatmap", label: "Market Hotspots", action: plotHeatmap },
   { value: "neighborhoods", label: "By Median Rent", action: showNeighborhoodsByRent },
+  { value: "outliers", label: "Outlier Listings", action: showOutlierListings },
 ];
 
 onMounted(async () => {
@@ -540,38 +637,29 @@ async function loadNeighborhoodsLayer() {
     // Store the GeoJSON data for later use
     neighborhoodsLayer.value = geojsonData;
     
-    // Define colors for different neighborhoods (default styling)
-    const neighborhoodColors = {
-      'Collegetown': '#3b82f6',
-      'Fall Creek': '#8b5cf6', 
-      'North Side': '#f59e0b',
-      'Downtown': '#10b981',
-      'South Side': '#ef4444',
-      'South Hill': '#06b6d4',
-      'Belle Sherman': '#84cc16'
-    };
-    
-    L.geoJSON(geojsonData, {
-      style: function(feature) {
-        const neighborhoodName = feature.properties.name;
-        return {
-          color: neighborhoodColors[neighborhoodName] || '#6b7280',
-          weight: 2,
-          opacity: 0.8,
-          fillColor: neighborhoodColors[neighborhoodName] || '#6b7280',
-          fillOpacity: 0.1
-        };
-      },
-      onEachFeature: function(feature, layer) {
-        const neighborhoodName = feature.properties.name;
-        layer.bindPopup(`
-          <div style="text-align: center; min-width: 120px;">
-            <strong>${neighborhoodName}</strong><br>
-            <span style="color: #6b7280; font-size: 0.9em;">Ithaca Neighborhood</span>
-          </div>
-        `);
-      }
-    }).addTo(exploreMap.value);
+    // Always add base neighborhood outlines (no fill, just boundaries)
+    if (exploreMap.value && neighborhoodsLayer.value) {
+      baseNeighborhoodLayer.value = L.geoJSON(neighborhoodsLayer.value, {
+        style: {
+          color: '#6b7280',
+          weight: 1.5,
+          opacity: 0.6,
+          fillColor: 'transparent',
+          fillOpacity: 0
+        },
+        onEachFeature: function(feature, layer) {
+          const neighborhoodName = feature.properties.name;
+          layer.bindPopup(`
+            <div style="text-align: center; min-width: 120px;">
+              <strong>${neighborhoodName}</strong><br>
+              <span style="color: #6b7280; font-size: 0.9em;">Click "By Median Rent" for pricing data</span>
+            </div>
+          `);
+        }
+      }).addTo(exploreMap.value);
+      
+      console.log('✅ Base neighborhood outlines added to map');
+    }
     
   } catch (error) {
     console.error('Error loading neighborhoods GeoJSON:', error);
@@ -711,6 +799,12 @@ const switchFilter = (newFilter) => {
   if (heatmapLayer.value) {
     exploreMap.value.removeLayer(heatmapLayer.value); 
     heatmapLayer.value = null;
+  }
+
+  // Remove colored choropleth layer when switching filters (base outlines stay)
+  if (currentNeighborhoodLayer.value) {
+    exploreMap.value.removeLayer(currentNeighborhoodLayer.value);
+    currentNeighborhoodLayer.value = null;
   }
 
   activeFilter.value = newFilter;

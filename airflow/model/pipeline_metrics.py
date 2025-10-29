@@ -27,10 +27,17 @@ def compute_spatial_patterns(apartments_for_rent):
     mean_rent = gdf["rent_per_person"].mean()
 
     rent_by_neigh = None
+    listings_per_neighborhood = None
     if "neighborhood" in gdf.columns:
         rent_by_neigh = (
             gdf.groupby("neighborhood")["rent_per_person"]
             .mean()
+            .sort_values(ascending=False)
+        )
+        
+        listings_per_neighborhood = (
+            gdf.groupby("neighborhood")
+            .size()
             .sort_values(ascending=False)
         )
 
@@ -39,6 +46,7 @@ def compute_spatial_patterns(apartments_for_rent):
         "average_moran_i": moran.I, 
         "mean_rent": mean_rent,
         "rent_by_neighborhood": rent_by_neigh,
+        "listings_per_neighborhood": listings_per_neighborhood,
     }
 
 
@@ -48,41 +56,82 @@ def compute_lisa_for_each_point(apartments_for_rent):
     spatial clusters and outliers.
     """
     try:
-        gdf = gpd.GeoDataFrame(
-            apartments_for_rent,
-            geometry=gpd.points_from_xy(apartments_for_rent.longitude, apartments_for_rent.latitude),
+        diff_col = None
+        for col_name in ["differenceinfairvalue", "DifferenceinFairValue", "difference_in_fair_value"]:
+            if col_name in apartments_for_rent.columns:
+                diff_col = col_name
+                break
+        
+        if diff_col is None:
+            print("⚠️ Cannot compute LISA: 'differenceinfairvalue' column not found")
+            print(f"   Available columns: {list(apartments_for_rent.columns)}")
+            return None
+        
+        valid_data = apartments_for_rent[diff_col].dropna()
+        if len(valid_data) == 0:
+            print("⚠️ Cannot compute LISA: All values in 'differenceinfairvalue' are null")
+            return None
+        
+        if len(valid_data) < 8:
+            print(f"⚠️ Cannot compute LISA: Need at least 8 data points, but only {len(valid_data)} valid values found")
+            return None
+        
+        gdf_valid = gpd.GeoDataFrame(
+            apartments_for_rent.dropna(subset=[diff_col]),
+            geometry=gpd.points_from_xy(
+                apartments_for_rent.dropna(subset=[diff_col]).longitude, 
+                apartments_for_rent.dropna(subset=[diff_col]).latitude
+            ),
             crs="EPSG:4326"
         )
-        w = KNN.from_dataframe(gdf, k=8)
+        
+        if len(gdf_valid) < 8:
+            print(f"⚠️ Cannot compute LISA: Need at least 8 data points, but only {len(gdf_valid)} valid points found after filtering")
+            return None
+        
+        w = KNN.from_dataframe(gdf_valid, k=min(8, len(gdf_valid) - 1))
         w.transform = "R"
 
-        lisa = Moran_Local(gdf["rent_per_person"], w)
+        lisa = Moran_Local(gdf_valid[diff_col], w)
         
         lisa_results = pd.DataFrame({
-            "listing_id": gdf.index,
+            "listing_id": gdf_valid.index,
             "I": lisa.Is,
-            "p_value": lisa.p_norm,
-            "z_value": lisa.z_norm
+            "p_value": lisa.p_sim,
+            "z_value": lisa.z_sim
         })
         
-        sig = lisa.p_norm < 0.05
+        sig = lisa.p_sim < 0.05
         lisa_results["cluster_type"] = "Not Significant"
         lisa_results.loc[sig & (lisa.q == 1), "cluster_type"] = "High-High Cluster"
         lisa_results.loc[sig & (lisa.q == 2), "cluster_type"] = "Low-High Outlier"
         lisa_results.loc[sig & (lisa.q == 3), "cluster_type"] = "Low-Low Cluster"
         lisa_results.loc[sig & (lisa.q == 4), "cluster_type"] = "High-Low Outlier"
         
+        print(f"✅ Computed LISA for {len(lisa_results)} points")
         return lisa_results
         
     except Exception as e:
         print(f"⚠️ Error computing LISA statistics: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
 # ---------- 2. LANDLORD BEHAVIOR ----------
 
 def analyze_landlords(gdf):
-    if "owner_name" not in gdf.columns or "differenceinfairvalue" not in gdf.columns:
+    # Check for required columns (try different case variations)
+    if "owner_name" not in gdf.columns:
+        return None
+    
+    diff_col = None
+    for col_name in ["differenceinfairvalue", "DifferenceinFairValue", "difference_in_fair_value"]:
+        if col_name in gdf.columns:
+            diff_col = col_name
+            break
+    
+    if diff_col is None:
         return None
 
     gdf_copy = gdf.copy()
@@ -106,7 +155,7 @@ def analyze_landlords(gdf):
         return None
         
     landlord_stats = (
-        multi_landlords.groupby("owner_name_str")["differenceinfairvalue"]
+        multi_landlords.groupby("owner_name_str")[diff_col]
         .mean()
         .sort_values(ascending=False)
     )
@@ -129,12 +178,25 @@ def analyze_landlords(gdf):
 # ---------- 3. OVERPRICING STATISTICS ----------
 
 def analyze_overpricing(gdf):
-    overpriced_pct = (gdf["differenceinfairvalue"] > 0).mean() * 100
+    # Check for differenceinfairvalue column (try different case variations)
+    diff_col = None
+    for col_name in ["differenceinfairvalue", "DifferenceinFairValue", "difference_in_fair_value"]:
+        if col_name in gdf.columns:
+            diff_col = col_name
+            break
+    
+    if diff_col is None:
+        return {
+            "percent_overpriced": 0.0,
+            "avg_overpricing_by_neighborhood": None,
+        }
+    
+    overpriced_pct = (gdf[diff_col] > 0).mean() * 100
 
     avg_overpricing_by_neigh = None
     if "neighborhood" in gdf.columns:
         avg_overpricing_by_neigh = (
-            gdf.groupby("neighborhood")["differenceinfairvalue"].mean()
+            gdf.groupby("neighborhood")[diff_col].mean()
         )
 
     return {
