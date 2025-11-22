@@ -214,7 +214,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
 import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
-import { fetchClusters, fetchHeatMap, fetchListings, fetchPipelineMetrics } from '@/services/fetch';
+import { fetchClusters, fetchHeatMap, fetchListings, fetchListingsMinimal, fetchPipelineMetrics } from '@/services/fetch';
 import NavBar from "@/components/NavBar.vue";
 import Chart from 'chart.js/auto';
 
@@ -532,6 +532,23 @@ const showOutlierListings = () => {
            outlierListingIds.includes(listing.listingId);
   });
 
+  const outlierIdSet = new Set(
+    outlierListingIds
+      .filter(id => id !== null && id !== undefined)
+      .map(id => String(id))
+  );
+
+  const nonOutlierListings = allListings.value.filter((listing, index) => {
+    const identifiers = [
+      index,
+      listing.listingid,
+      listing.listingId
+    ].filter(id => id !== null && id !== undefined)
+     .map(id => String(id));
+
+    return !identifiers.some(id => outlierIdSet.has(id));
+  });
+
   if (outlierListings.length === 0) {
     console.warn('No outlier listings found');
     return;
@@ -539,6 +556,26 @@ const showOutlierListings = () => {
 
   switchFilter('outliers');
   
+  // Add muted markers for non-outlier listings to provide context
+  nonOutlierListings.forEach(listing => {
+    if (!listing.latitude || !listing.longitude || 
+        isNaN(listing.latitude) || isNaN(listing.longitude)) {
+      return;
+    }
+
+    const marker = L.circleMarker([listing.latitude, listing.longitude], {
+      color: '#9ca3af',
+      fillColor: '#9ca3af',
+      fillOpacity: 0.4,
+      radius: 5,
+      weight: 1,
+      opacity: 0.7,
+      className: 'non-outlier-marker'
+    }).addTo(exploreMap.value);
+
+    markers.value.push(marker);
+  });
+
   // Add markers for outlier listings
   outlierListings.forEach(listing => {
     if (!listing.latitude || !listing.longitude || 
@@ -584,7 +621,7 @@ const showOutlierListings = () => {
     markers.value.push(marker);
   });
 
-  console.log(`Displayed ${outlierListings.length} outlier listings`);
+  console.log(`Displayed ${outlierListings.length} outlier listings with ${nonOutlierListings.length} contextual listings`);
 };
 
 // Filter options (moved from MapView)
@@ -758,7 +795,7 @@ async function loadData() {
     // Load all the data we need
     // For neighborhoods view, we need full listings data with neighborhood field
     const [listings, clusters, heatmap, metrics] = await Promise.all([
-      fetchListings(), // Use full listings for neighborhood data
+      fetchListingsMinimal(), // Use full listings for neighborhood data
       fetchClusters(),
       fetchHeatMap(),
       loadPipelineMetrics()

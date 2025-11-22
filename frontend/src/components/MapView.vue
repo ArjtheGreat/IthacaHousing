@@ -221,17 +221,26 @@
 
       <!-- Legend -->
       <div class="legend">
-        <h4>Price Differential</h4>
+        <div class="legend-header">
+          <h4>{{ priceDisplayMode === 'differential' ? 'Price Differential' : 'Raw Price' }}</h4>
+          <button @click="togglePriceDisplayMode" class="price-mode-toggle">
+            {{ priceDisplayMode === 'differential' ? 'Show Raw Prices' : 'Show Differential' }}
+          </button>
+        </div>
         <div class="gradient-legend">
-          <div class="gradient-bar"></div>
+          <div class="gradient-bar" :style="{ background: priceDisplayMode === 'differential' 
+            ? 'linear-gradient(to right, #d73027, #fee08b, #1a9850)' 
+            : 'linear-gradient(to right, #10b981 0%, #10b981 5%, #bfdbfe 5%, #1e3a8a 95%, #ef4444 95%, #ef4444 100%)' }"></div>
           <div class="gradient-labels">
-            <span class="label-start">Higher</span>
-            <span class="label-middle">Fair Price</span>
-            <span class="label-end">Lower</span>
+            <span class="label-start">{{ priceDisplayMode === 'differential' ? 'Higher' : 'Low Outlier' }}</span>
+            <span class="label-middle">{{ priceDisplayMode === 'differential' ? 'Fair Price' : 'Normal Range' }}</span>
+            <span class="label-end">{{ priceDisplayMode === 'differential' ? 'Lower' : 'High Outlier' }}</span>
           </div>
         </div>
         <div class="legend-disclaimer">
-          Colors show how actual rent compares to fair rent.
+          {{ priceDisplayMode === 'differential' 
+            ? 'Colors show how actual rent compares to fair rent.' 
+            : 'Green = very cheap (bottom 5%), Blue = normal range, Red = very expensive (top 5%)' }}
           <!-- <br/>
           <div class="disclaimer-disclaimer">
             Estimates for research purposes only.
@@ -288,6 +297,9 @@ const showCommutePanel = ref(false); // Controls visibility of new commute panel
 
 // Points of Interest variables
 const activePOI = ref(null); // Tracks which POI is currently displayed
+
+// Price display mode: 'differential' or 'raw'
+const priceDisplayMode = ref('differential'); // 'differential' or 'raw'
 
 // Mobile functionality variables
 const isMobile = ref(false); // Tracks if user is on mobile
@@ -349,7 +361,6 @@ const messages = [
   "Locating affordable housing (404 not found)...",
   "Scanning for deals in the wild...",
   "Counting beds, baths and beyond...",
-  "Texting your ex-girlfriend you miss her",
   "Powered by Maitrix Labs",
 ];
 
@@ -378,6 +389,35 @@ function getColor(rent, predicted) {
         // Interpolate between yellow and green
         const t = (normalized - 0.5) * 2; // 0 to 1
         return interpolateColor('#fee08b', '#1a9850', t);
+    }
+}
+
+/**
+ * Gets the color of the dot based on raw price (rent_per_person) with outlier highlighting
+ * @param rent - Actual rent per person
+ * @param minRent - Minimum rent in the dataset
+ * @param maxRent - Maximum rent in the dataset
+ * @param p5 - 5th percentile (low outlier threshold)
+ * @param p95 - 95th percentile (high outlier threshold)
+ */
+function getColorByRawPrice(rent, minRent, maxRent, p5, p95) {
+    if (!rent || isNaN(rent) || maxRent === minRent) {
+        return '#93c5fd'; // Default light blue for invalid values
+    }
+    
+    // Identify outliers
+    if (rent <= p5) {
+        // Low outlier (very cheap) - Green
+        return '#10b981'; // Emerald green
+    } else if (rent >= p95) {
+        // High outlier (very expensive) - Red/Orange
+        return '#ef4444'; // Red
+    } else {
+        // Normal range - Blue gradient from light to dark
+        // Normalize to 0-1 range within the normal range (p5 to p95)
+        const normalized = (rent - p5) / (p95 - p5);
+        // Smooth gradient from light blue to dark blue
+        return interpolateColor('#bfdbfe', '#1e3a8a', normalized);
     }
 }
 
@@ -637,8 +677,42 @@ function addMarkers(listings, filtered) {
     const dispersed = groupListingsByLocation(listings);
     dispersedListings.value = dispersed; // Store for search matching
 
+    // Calculate rent statistics for raw price mode (for outlier detection)
+    let rentValues = [];
+    let minRent = Infinity;
+    let maxRent = -Infinity;
+    let p5 = 0;
+    let p95 = 0;
+    if (priceDisplayMode.value === 'raw') {
+        rentValues = dispersed
+            .map(listing => listing.rent_per_person)
+            .filter(rent => rent && !isNaN(rent))
+            .sort((a, b) => a - b);
+        
+        if (rentValues.length > 0) {
+            minRent = rentValues[0];
+            maxRent = rentValues[rentValues.length - 1];
+            // Calculate 5th and 95th percentiles for outlier detection
+            const p5Index = Math.floor(rentValues.length * 0.05);
+            const p95Index = Math.ceil(rentValues.length * 0.95) - 1;
+            p5 = rentValues[p5Index] || minRent;
+            p95 = rentValues[p95Index] || maxRent;
+        } else {
+            // Fallback if no valid rents found
+            minRent = 0;
+            maxRent = 1000;
+            p5 = 0;
+            p95 = 1000;
+        }
+    }
+
     dispersed.forEach(listing => {
-        const color = getColor(listing.rent_per_person, listing.predictedrent);
+        let color;
+        if (priceDisplayMode.value === 'raw') {
+            color = getColorByRawPrice(listing.rent_per_person, minRent, maxRent, p5, p95);
+        } else {
+            color = getColor(listing.rent_per_person, listing.predictedrent);
+        }
 
         const marker = L.circleMarker([listing.displayLat, listing.displayLng], {
           color,
@@ -985,6 +1059,26 @@ onBeforeUnmount(() => {
     } else {
         switchFilter("cluster");
         plotClustersOnMap();
+    }
+};
+
+/**
+ * Toggle between price differential and raw price display
+ */
+const togglePriceDisplayMode = () => {
+    priceDisplayMode.value = priceDisplayMode.value === 'differential' ? 'raw' : 'differential';
+    // Refresh markers with new color scheme
+    if (activeFilter.value === "" || activeFilter.value === null) {
+        addMarkers(allListings.value, false);
+    } else if (activeFilter.value === "topTen") {
+        addMarkers(topTenListings.value, false);
+    } else if (activeFilter.value === "bottomTen") {
+        addMarkers(bottomTenListings.value, false);
+    } else if (activeFilter.value === "cluster") {
+        plotClustersOnMap();
+    } else {
+        // For filtered listings, use merged filters
+        mergeFilters();
     }
 };
 
@@ -2073,6 +2167,40 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   margin-top: 8px;
   line-height: 1.3;
   text-align: center;
+}
+
+.legend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.legend-header h4 {
+  margin: 0;
+  flex: 1;
+}
+
+.price-mode-toggle {
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.price-mode-toggle:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+.price-mode-toggle:active {
+  background: #d1d5db;
 }
 
 .disclaimer-disclaimer {

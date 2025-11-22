@@ -278,6 +278,13 @@ def extract_neighborhood(apartments_for_rent):
     apartments_for_rent_gdf = gpd.GeoDataFrame(
         apartments_for_rent, geometry="geometry", crs="EPSG:4326"
     )
+    
+    # Drop index columns from previous spatial joins to avoid conflicts
+    index_cols_to_drop = ['index_right', 'index_left']
+    existing_index_cols = [col for col in index_cols_to_drop if col in apartments_for_rent_gdf.columns]
+    if existing_index_cols:
+        apartments_for_rent_gdf = apartments_for_rent_gdf.drop(columns=existing_index_cols)
+    
     result_gdf = apartments_for_rent_gdf.sjoin(ithaca_neighborhoods_gdf, how='left')
     result_gdf = result_gdf.rename(columns={'name': 'neighborhood'})
     

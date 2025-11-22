@@ -19,12 +19,21 @@ openrouteservice>=2.3.0
 contextily>=1.4.0
 osmnx>=1.2.0
 esda==2.6.0
+geopandas>=0.13.0
+shapely>=2.0.0
+geocoder>=1.38.1
+h3>=3.7.0
 
 # Statistical and ML packages
 statsmodels>=0.13.0
 networkx>=2.8.0
 xgboost>=1.7.0
 spreg>=1.4.0
+scikit-learn>=1.0.0
+libpysal>=4.6.0
+
+# Database
+sqlalchemy>=1.4.0
 
 # Additional utilities
 openai

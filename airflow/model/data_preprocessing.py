@@ -146,7 +146,9 @@ def median_mode_imputation(X):
                 mode = "No" 
         X.fillna({col: mode}, inplace=True)
     
-    X["Pets"] = X["Pets"].map({"No": 0, "Yes": 1})
+    if "Pets" in X.columns:
+        X["Pets"] = X["Pets"].map({"No": 0, "Yes": 1, "no": 0, "yes": 1, 0: 0, 1: 1})
+        X["Pets"] = pd.to_numeric(X["Pets"], errors='coerce').fillna(0)
 
     return X
 

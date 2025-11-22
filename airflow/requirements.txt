@@ -18,6 +18,7 @@ geopandas>=0.14.0
 shapely>=2.0.0
 geopy>=2.3.0
 osmnx>=1.2.0
+h3>=3.7.0
 
 # Network analysis
 networkx>=2.8.0

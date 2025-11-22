@@ -1,12 +1,17 @@
 import numpy as np
-import statsmodels.api as sm
 import pandas as pd
+import statsmodels.api as sm
+import xgboost as xgb
+from xgboost import XGBRegressor
 from spreg import ML_Lag
 from libpysal.weights import KNN, lag_spatial
 from sklearn.ensemble import RandomForestRegressor, HistGradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_percentage_error
-from xgboost import XGBRegressor
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_percentage_error, mean_absolute_error
+from sklearn.neighbors import NearestNeighbors, kneighbors_graph, BallTree
+from sklearn.cluster import SpectralClustering
+from sklearn.preprocessing import OneHotEncoder
+from h3 import latlng_to_cell
 
 
 def define_X_Y_variables(apartments_for_rent):
@@ -55,6 +60,407 @@ def define_X_Y_variables(apartments_for_rent):
 
     return X, y
 
+
+def add_h3_cells(df, h3_reses=(6,), lat_col='latitude', lon_col='longitude'):
+    """
+    Add H3 cell columns to dataframe for geospatial indexing.
+    
+    Args:
+        df: DataFrame with latitude and longitude columns
+        h3_reses: tuple of H3 resolution levels to add (default: (6,))
+        lat_col: name of latitude column
+        lon_col: name of longitude column
+    
+    Returns:
+        DataFrame with added H3 columns (h3_{res} for each res in h3_reses)
+    """
+    df = df.copy()
+    
+    if lat_col not in df.columns or lon_col not in df.columns:
+        raise ValueError(f"Dataframe must contain '{lat_col}' and '{lon_col}' columns")
+    
+    for res in h3_reses:
+        col = f"h3_{res}"
+        df[col] = [
+            latlng_to_cell(float(lat), float(lon), res)
+            for lat, lon in zip(df[lat_col].values, df[lon_col].values)
+        ]
+    
+    return df
+
+
+def knn_distance_weighted_lag_train_test(
+    X_train_raw,
+    X_test_raw,
+    values_train,
+    lat_col="latitude",
+    lon_col="longitude",
+    k=10,
+):
+    """
+    Compute distance-weighted KNN lag for train & test.
+
+    - Neighbors are drawn ONLY from the training set.
+    - For train points: neighbors = other train points.
+    - For test points: neighbors = train points.
+    """
+
+    coords_train = X_train_raw[[lat_col, lon_col]].to_numpy()
+    coords_test  = X_test_raw[[lat_col, lon_col]].to_numpy()
+
+    nn = NearestNeighbors(n_neighbors=k+1, algorithm="ball_tree")
+    nn.fit(coords_train)
+
+    dist_tr, idx_tr = nn.kneighbors(coords_train)
+    lag_train = []
+    for d, nbrs in zip(dist_tr, idx_tr):
+        d = d[1:]
+        nbrs = nbrs[1:]
+        w = 1.0 / (d + 1e-6)
+        lag_train.append(np.average(values_train[nbrs], weights=w))
+
+    dist_te, idx_te = nn.kneighbors(coords_test)
+    lag_test = []
+    for d, nbrs in zip(dist_te, idx_te):
+        w = 1.0 / (d + 1e-6)
+        lag_test.append(np.average(values_train[nbrs], weights=w))
+
+    lag_train = pd.Series(lag_train, index=X_train_raw.index)
+    lag_test  = pd.Series(lag_test, index=X_test_raw.index)
+
+    return lag_train, lag_test
+
+
+def spatial_spectral_clustering(df, n_clusters=6, lat_col='latitude', lon_col='longitude', n_neighbors=10):
+    coords = df[[lat_col, lon_col]].to_numpy()
+
+    knn_graph = kneighbors_graph(
+        coords,
+        n_neighbors=n_neighbors,
+        include_self=False,
+        mode='connectivity'
+    )
+
+    affinity = 0.5 * (knn_graph + knn_graph.T)
+
+    clustering = SpectralClustering(
+        n_clusters=n_clusters,
+        affinity='precomputed',
+        assign_labels='kmeans',
+        random_state=42
+    )
+
+    df['spatial_cluster'] = clustering.fit_predict(affinity.toarray())
+    return df
+
+
+def spatial_block_cv_xgb(
+    df,
+    y,
+    x_cols,
+    cluster_col="spatial_cluster",
+    h3_reses=(6, 7, ),
+    k_knn=10,
+    n_estimators=25,
+    max_depth=6,
+):
+    """
+    Spatial block CV for XGBoost with:
+      - per-fold H3 target encoding
+      - per-fold residual estimation
+      - per-fold distance-weighted KNN lags of rent & residuals
+      - proper one-hot encoding of categoricals only
+    """
+
+    if isinstance(y, pd.Series):
+        y_series_all = y
+    else:
+        y_series_all = pd.Series(y, index=df.index)
+    y_array = y_series_all.to_numpy().astype(float)
+
+    metrics = []
+    feature_importances = []
+
+    blocks = df[cluster_col].unique()
+
+    for blk in blocks:
+        test_idx = df.index[df[cluster_col] == blk].to_numpy()
+        train_idx = df.index[df[cluster_col] != blk].to_numpy()
+
+        cols_with_coords = list(x_cols) + ['latitude', 'longitude']
+        cols_with_coords = [col for col in cols_with_coords if col in df.columns]
+        
+        X_train = df.iloc[train_idx][cols_with_coords].copy()
+        X_test  = df.iloc[test_idx][cols_with_coords].copy()
+
+        y_train = y_array[train_idx]
+        y_test  = y_array[test_idx]
+        y_train_series = pd.Series(y_train, index=X_train.index)
+        global_mean = y_train_series.mean()
+
+        for res in h3_reses:
+            h3_col = f"h3_{res}"
+            te_col = f"h3_{res}_te"
+
+            if h3_col not in X_train.columns:
+                continue
+
+            cell_means = y_train_series.groupby(X_train[h3_col]).mean()
+
+            X_train[te_col] = X_train[h3_col].map(cell_means)
+            X_test[te_col]  = X_test[h3_col].map(cell_means).fillna(global_mean)
+
+        drop_cols = [f"h3_{res}" for res in h3_reses if f"h3_{res}" in X_train.columns]
+        X_train = X_train.drop(columns=drop_cols, errors="ignore")
+        X_test  = X_test.drop(columns=drop_cols, errors="ignore")
+
+        baseline = xgb.XGBRegressor(
+            n_estimators=100,
+            max_depth=5,
+            learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            n_jobs=-1,
+        )
+
+        X_train_baseline = X_train.drop(columns=['latitude', 'longitude'], errors='ignore')
+        X_test_baseline = X_test.drop(columns=['latitude', 'longitude'], errors='ignore')
+        
+        for col in X_train_baseline.columns:
+            if X_train_baseline[col].dtype == 'object':
+                X_train_baseline[col] = pd.to_numeric(X_train_baseline[col], errors='coerce').fillna(0)
+            if X_test_baseline[col].dtype == 'object':
+                X_test_baseline[col] = pd.to_numeric(X_test_baseline[col], errors='coerce').fillna(0)
+        
+        baseline.fit(X_train_baseline, y_train)
+
+        train_residuals = y_train - baseline.predict(X_train_baseline)
+        test_residuals  = y_test  - baseline.predict(X_test_baseline)
+
+        X_train["residual"] = train_residuals
+        X_test["residual"]  = test_residuals
+
+        rent_train = y_train.copy()
+        rent_lag_tr, rent_lag_te = knn_distance_weighted_lag_train_test(
+            X_train, X_test, rent_train, lat_col="latitude", lon_col="longitude", k=k_knn
+        )
+        X_train[f"knn_rent_dw_{k_knn}"] = rent_lag_tr
+        X_test[f"knn_rent_dw_{k_knn}"]  = rent_lag_te
+
+        resid_lag_tr, resid_lag_te = knn_distance_weighted_lag_train_test(
+            X_train, X_test, train_residuals, lat_col="latitude", lon_col="longitude", k=k_knn
+        )
+        X_train[f"knn_resid_dw_{k_knn}"] = resid_lag_tr
+        X_test[f"knn_resid_dw_{k_knn}"]  = resid_lag_te
+
+
+        year_vals = X_train["YR_BUILT_ENCODED"].to_numpy()
+
+        year_lag_tr, year_lag_te = knn_distance_weighted_lag_train_test(
+            X_train, X_test, year_vals, lat_col="latitude", lon_col="longitude", k=k_knn
+        )
+
+        X_train[f"knn_yearbuilt_dw_{k_knn}"] = year_lag_tr
+        X_test[f"knn_yearbuilt_dw_{k_knn}"]  = year_lag_te
+
+        X_train_model = X_train.drop(columns=['latitude', 'longitude'], errors='ignore')
+        X_test_model = X_test.drop(columns=['latitude', 'longitude'], errors='ignore')
+        
+        model = xgb.XGBRegressor(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            n_jobs=-1,
+        )
+        model.fit(X_train_model, y_train)
+
+        y_pred = model.predict(X_test_model)
+
+        rmse = mean_squared_error(y_test, y_pred)
+        mae  = mean_absolute_error(y_test, y_pred)
+        r2   = r2_score(y_test, y_pred)
+        bias = float(np.mean(y_pred - y_test))
+        block_size = len(y_test)
+
+        imp = pd.Series(
+            model.feature_importances_,
+            index=X_train_model.columns
+        )
+        feature_importances.append(imp)
+
+        metrics.append({"block": blk, "rmse": rmse, "mae": mae, "r2": r2, "bias": bias, "block_size": block_size})
+        print(f"Block {blk}: RMSE={rmse:.4f}, R²={r2:.4f}, Bias={bias:.4f} Block Size={block_size}")
+
+    metrics_df = pd.DataFrame(metrics)
+    avg = metrics_df.mean(numeric_only=True).to_dict()
+    print("\n--- Overall Spatial CV Performance ---")
+    print(f"Mean RMSE: {avg['rmse']:.4f}, Mean R²: {avg['r2']:.4f}, Mean Bias: {avg['bias']:.4f}")
+
+    fi_df = pd.DataFrame(feature_importances)
+
+    fi_mean = fi_df.mean().sort_values(ascending=False)
+
+    print("\n--- Average Feature Importance Across Spatial Folds ---")
+    print(fi_mean)
+
+    return metrics_df, avg
+
+def compute_fair_rent(
+    apartments_for_rent,
+    y,
+    x_cols,
+    cluster_col="spatial_cluster",
+    h3_reses=(6,),
+    k_knn=10,
+    n_estimators=100,
+    max_depth=6,
+):
+    """
+    Produces:
+       - OOF fair rent predictions (spatially valid)
+       - mispricing (DifferenceInFairValue) = actual - fair
+       - percent mispricing (DifferenceInFairValue)
+
+    This is the CORRECT way to compute fair value.
+    """
+
+    if isinstance(y, pd.Series):
+        y_series_all = y
+    else:
+        y_series_all = pd.Series(y, index=apartments_for_rent.index)
+    y_array = y_series_all.to_numpy().astype(float)
+
+    fair_pred = pd.Series(index=apartments_for_rent.index, dtype=float)
+
+    blocks = apartments_for_rent[cluster_col].unique()
+
+    for blk in blocks:
+        print(f"Processing block {blk}...")
+
+        test_idx = apartments_for_rent.index[apartments_for_rent[cluster_col] == blk].to_numpy()
+        train_idx = apartments_for_rent.index[apartments_for_rent[cluster_col] != blk].to_numpy()
+
+        cols_with_coords = list(x_cols) + ['latitude', 'longitude']
+        cols_with_coords = [col for col in cols_with_coords if col in apartments_for_rent.columns]
+        
+        X_train = apartments_for_rent.loc[train_idx, cols_with_coords].copy()
+        X_test  = apartments_for_rent.loc[test_idx,  cols_with_coords].copy()
+
+        y_train = y_array[train_idx]
+        y_test  = y_array[test_idx]
+        y_train_series = pd.Series(y_train, index=X_train.index)
+
+        global_mean = y_train_series.mean()
+
+        for res in h3_reses:
+            h3_col = f"h3_{res}"
+            te_col = f"h3_{res}_te"
+
+            if h3_col not in X_train.columns:
+                continue
+
+            cell_means = y_train_series.groupby(X_train[h3_col]).mean()
+
+            X_train[te_col] = X_train[h3_col].map(cell_means)
+            X_test[te_col]  = X_test[h3_col].map(cell_means).fillna(global_mean)
+
+        drop_cols = [f"h3_{res}" for res in h3_reses if f"h3_{res}" in X_train.columns]
+        X_train = X_train.drop(columns=drop_cols, errors="ignore")
+        X_test  = X_test.drop(columns=drop_cols, errors="ignore")
+
+        X_train_baseline = X_train.drop(columns=['latitude', 'longitude'], errors='ignore')
+        X_test_baseline = X_test.drop(columns=['latitude', 'longitude'], errors='ignore')
+        
+        for col in X_train_baseline.columns:
+            if X_train_baseline[col].dtype == 'object':
+                X_train_baseline[col] = pd.to_numeric(X_train_baseline[col], errors='coerce').fillna(0)
+            if X_test_baseline[col].dtype == 'object':
+                X_test_baseline[col] = pd.to_numeric(X_test_baseline[col], errors='coerce').fillna(0)
+        
+        baseline = xgb.XGBRegressor(
+            n_estimators=50,
+            max_depth=4,
+            learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            n_jobs=-1,
+        )
+        baseline.fit(X_train_baseline, y_train)
+
+        train_resid = y_train - baseline.predict(X_train_baseline)
+        test_resid  = y_test  - baseline.predict(X_test_baseline)
+
+        X_train["residual"] = train_resid
+        X_test["residual"]  = test_resid
+
+        rent_lag_tr, rent_lag_te = knn_distance_weighted_lag_train_test(
+            X_train, X_test, y_train,
+            lat_col="latitude", lon_col="longitude", k=k_knn
+        )
+        X_train[f"knn_rent_dw_{k_knn}"] = rent_lag_tr
+        X_test[f"knn_rent_dw_{k_knn}"]  = rent_lag_te
+
+        resid_lag_tr, resid_lag_te = knn_distance_weighted_lag_train_test(
+            X_train, X_test, train_resid,
+            lat_col="latitude", lon_col="longitude", k=k_knn
+        )
+        X_train[f"knn_resid_dw_{k_knn}"] = resid_lag_tr
+        X_test[f"knn_resid_dw_{k_knn}"]  = resid_lag_te
+
+        year_vals = X_train["YR_BUILT_ENCODED"].to_numpy()
+        year_lag_tr, year_lag_te = knn_distance_weighted_lag_train_test(
+            X_train, X_test, year_vals,
+            lat_col="latitude", lon_col="longitude", k=k_knn
+        )
+        X_train[f"knn_yearbuilt_dw_{k_knn}"] = year_lag_tr
+        X_test[f"knn_yearbuilt_dw_{k_knn}"]  = year_lag_te
+
+        X_train_model = X_train.drop(columns=['latitude', 'longitude'], errors='ignore')
+        X_test_model = X_test.drop(columns=['latitude', 'longitude'], errors='ignore')
+        
+        for col in X_train_model.columns:
+            if X_train_model[col].dtype == 'object':
+                X_train_model[col] = pd.to_numeric(X_train_model[col], errors='coerce').fillna(0)
+            if X_test_model[col].dtype == 'object':
+                X_test_model[col] = pd.to_numeric(X_test_model[col], errors='coerce').fillna(0)
+        
+        model = xgb.XGBRegressor(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            n_jobs=-1
+        )
+
+        model.fit(X_train_model, y_train)
+
+        y_pred_test = model.predict(X_test_model)
+        fair_pred.loc[test_idx] = y_pred_test
+
+    apartments_for_rent_out = apartments_for_rent.copy()
+    apartments_for_rent_out["log_rent"] = y_series_all
+    apartments_for_rent_out["log_PredictedRent"] = fair_pred
+
+    apartments_for_rent_out["actual_rent"] = np.exp(apartments_for_rent_out["log_rent"])
+    apartments_for_rent_out["PredictedRent"] = np.exp(apartments_for_rent_out["log_PredictedRent"])
+
+    apartments_for_rent_out["DifferenceInFairValue"] = apartments_for_rent_out["actual_rent"] - apartments_for_rent_out["PredictedRent"]
+    apartments_for_rent_out["DifferenceInFairValuePct"] = (apartments_for_rent_out["DifferenceInFairValue"]) / apartments_for_rent_out["actual_rent"]
+
+
+    return apartments_for_rent_out
+
+### 
+# OLD MODEL STORAGE
+# FOR MEMORIES
+###
 def train_model(X, y, apartments_for_rent):
     """
     Defines X and Y Variables, scales variables throughto RobustScaler
@@ -216,6 +622,10 @@ def spatial_xgboost_regressor(X_with_spatial, y, apartments_for_rent):
     Train XGBoost model with spatial features
     """
     y_clean = np.nan_to_num(y, nan=0.0, posinf=0.0, neginf=0.0)
+    
+    for col in X_with_spatial.columns:
+        if X_with_spatial[col].dtype == 'object':
+            X_with_spatial[col] = pd.to_numeric(X_with_spatial[col], errors='coerce').fillna(0)
     
     xgb = XGBRegressor(
         n_estimators=300,

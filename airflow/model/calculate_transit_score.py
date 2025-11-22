@@ -127,9 +127,7 @@ def calculate_transit_score(apartments_for_rent):
                   & (travel_times_df["to_id"] == dest_stop_id),
                   "travel_time",
               ]
-              print(f"{origin_stop_id}, {type(origin_stop_id)} {dest_stop_id}, {type(dest_stop_id)}")
               if not match.empty:
-                  print(match.iloc[0])
                   return float(match.iloc[0]) 
               else:
                   return np.inf

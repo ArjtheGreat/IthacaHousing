@@ -24,7 +24,8 @@ def build_graphs(dist=2000, center_lat=42.4472, center_lon=-76.4822):
         try:
             print(f"Building base {mode} graph…")
             G = ox.graph_from_point((center_lat, center_lon), dist=dist, network_type=mode)
-            speed_kph = {'walk': 3.5, 'bike': 10, 'drive': 25}[mode]
+            speed_kph = {'walk': 5, 'bike': 16, 'drive': 25}[mode]
+
             for _, _, _, data in G.edges(keys=True, data=True):
                 data["speed_kph"] = speed_kph
             G = ox.add_edge_travel_times(G)
