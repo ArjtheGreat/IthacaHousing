@@ -14,8 +14,8 @@ model_dir = dag_dir / "model"
 import sys
 sys.path.append(str(model_dir))
 
-from fetch_housing_data import fetch_active_listings
-from extract_safety_features import extract_safety_features
+from core.fetch_housing_data import fetch_active_listings
+from extractors.extract_safety_features import extract_safety_features
 
 # Database connection
 DB_URI = os.getenv("DB_URI", "postgresql://postgres:password@localhost:5432/ithaca_housing")

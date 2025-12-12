@@ -17,9 +17,9 @@ if not os.path.exists(MODEL_PATH):
 if MODEL_PATH not in sys.path:
     sys.path.append(MODEL_PATH)
 
-import fetch_housing_data
+import core.fetch_housing_data as fetch_housing_data
 import pipeline
-import insert_into_postgredb
+import core.insert_into_postgredb as insert_into_postgredb
 
 os.environ['NO_PROXY'] = '*'
 
@@ -72,7 +72,6 @@ def retrain_rental_model():
     def upload_to_database(**context):
         return insert_into_postgredb.confirmation()
 
-    # Task dependencies
     fetch_result = fetch_active_listings()
     pipeline_result = call_pipeline()
     upload_result = upload_to_database()

@@ -15,7 +15,7 @@ if not os.path.exists(MODEL_PATH):
 if MODEL_PATH not in sys.path:
     sys.path.append(MODEL_PATH)
 
-import extract_rental_data
+import extractors.extract_rental_data as extract_rental_data
 
 os.environ['NO_PROXY'] = '*'
 

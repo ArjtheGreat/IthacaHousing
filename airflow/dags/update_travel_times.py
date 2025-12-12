@@ -14,7 +14,7 @@ if not os.path.exists(MODEL_PATH):
 if MODEL_PATH not in sys.path:
     sys.path.append(MODEL_PATH)
 
-import calculate_travel_times_distance
+import calculators.calculate_travel_times_distance as calculate_travel_times_distance
 
 os.environ['NO_PROXY'] = '*'
 

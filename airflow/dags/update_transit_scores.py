@@ -15,7 +15,7 @@ if not os.path.exists(MODEL_PATH):
 if MODEL_PATH not in sys.path:
     sys.path.append(MODEL_PATH)
 
-import calculate_transit_score
+import calculators.calculate_transit_score as calculate_transit_score
 
 os.environ['NO_PROXY'] = '*'
 

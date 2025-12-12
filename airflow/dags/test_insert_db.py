@@ -11,7 +11,7 @@ if not os.path.exists(MODEL_PATH):
     MODEL_PATH = os.path.join(os.path.dirname(current_file), "..", "model")
 sys.path.append(MODEL_PATH)
 
-from insert_into_postgredb import psql_insert_copy
+from core.insert_into_postgredb import psql_insert_copy
 
 @dag(
     dag_id="test_insert_db",

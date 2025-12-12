@@ -1,16 +1,31 @@
 import pandas as pd
-import fetch_housing_data
-import calculate_amenity_score
-import calculate_travel_times_distance
-import calculate_transit_score
-import data_preprocessing
-import extract_safety_features
-import model_training
-import comparative_market_analysis
-import extract_rental_data
-import landlord_extraction
-import insert_into_postgredb
-import pipeline_metrics
+import sys
+import os
+from pathlib import Path
+
+MODEL_PATH = "/opt/airflow/model"
+if not os.path.exists(MODEL_PATH):
+    MODEL_PATH = os.path.dirname(os.path.abspath(__file__))
+if MODEL_PATH not in sys.path:
+    sys.path.insert(0, MODEL_PATH)
+
+import core.fetch_housing_data as fetch_housing_data
+import core.insert_into_postgredb as insert_into_postgredb
+import core.pipeline_metrics as pipeline_metrics
+
+import calculators.calculate_amenity_score as calculate_amenity_score
+import calculators.calculate_travel_times_distance as calculate_travel_times_distance
+import calculators.calculate_transit_score as calculate_transit_score
+
+import extractors.extract_safety_features as extract_safety_features
+import extractors.extract_rental_data as extract_rental_data
+import extractors.extract_land_assessment_features as extract_land_assessment_features
+import extractors.extract_poi_features as extract_poi_features
+import core.landlord_extraction as landlord_extraction
+
+import ml.data_preprocessing as data_preprocessing
+import ml.model_training as model_training
+import ml.comparative_market_analysis as comparative_market_analysis
 from sqlalchemy import create_engine, text
 import os
 
@@ -49,7 +64,10 @@ def get_existing_listings_dataframe():
             query = text("""
                 SELECT listingid, listingaddress, listingcity, listingzip, neighborhood,
                        rentamount, rent_per_person, available_bedrooms, available_bathrooms,
-                       year_built, createdate, listingexpirationdate
+                       year_built, createdate, listingexpirationdate, lengthavailable,
+                       housingtype, owner_name, listingtypes, sale_price, property_acres,
+                       assessment_sqft, latitude, longitude, drive_time_urishall,
+                       drive_time_agriculturequad, drive_time_artsquad, drive_time_engineeringquad
                 FROM housing_listings
             """)
             result = conn.execute(query)
@@ -150,16 +168,60 @@ def track_removed_listings(existing_df, new_ids: set):
         return
 
     existing_df = existing_df.copy()
-    print(existing_df["listingid"])
-    existing_df["listingid"] = existing_df["listingid"].astype(str)
-    removed_df = existing_df[~existing_df["listingid"].isin(new_ids)]
+    
+    existing_df["listingid"] = pd.to_numeric(existing_df["listingid"], errors='coerce')
+    existing_df = existing_df[existing_df["listingid"].notna()].copy()
+    existing_df["listingid"] = existing_df["listingid"].astype(int)
+    
+    new_ids_int = set()
+    for x in new_ids:
+        try:
+            if isinstance(x, (int, float)):
+                new_ids_int.add(int(x))
+            elif isinstance(x, str):
+                if x.isdigit() or (x.lstrip('-').isdigit()):
+                    new_ids_int.add(int(x))
+        except (ValueError, TypeError):
+            continue
+    
+    removed_df = existing_df[~existing_df["listingid"].isin(new_ids_int)].copy()
 
-    print(removed_df)
     if removed_df.empty:
         print("✅ No removed listings detected this run")
         return
 
     print(f"🗑️ Detected {len(removed_df)} removed listings - recording...")
+
+    records = []
+    for _, row in removed_df.iterrows():
+        record = {
+            'listingid': int(row['listingid']) if pd.notna(row['listingid']) else None,
+            'listingaddress': str(row.get('listingaddress', '')) if pd.notna(row.get('listingaddress')) else None,
+            'listingcity': str(row.get('listingcity', '')) if pd.notna(row.get('listingcity')) else None,
+            'listingzip': str(row.get('listingzip', '')) if pd.notna(row.get('listingzip')) else None,
+            'neighborhood': str(row.get('neighborhood', '')) if pd.notna(row.get('neighborhood')) else None,
+            'rentamount': float(row.get('rentamount', 0)) if pd.notna(row.get('rentamount')) else None,
+            'rent_per_person': int(row.get('rent_per_person', 0)) if pd.notna(row.get('rent_per_person')) else 0,
+            'available_bedrooms': int(row.get('available_bedrooms', 0)) if pd.notna(row.get('available_bedrooms')) else 0,
+            'available_bathrooms': int(row.get('available_bathrooms', 0)) if pd.notna(row.get('available_bathrooms')) else 0,
+            'year_built': int(row.get('year_built', 0)) if pd.notna(row.get('year_built')) and row.get('year_built', 0) > 0 else None,
+            'sale_price': float(row.get('sale_price', 0)) if pd.notna(row.get('sale_price')) and row.get('sale_price', 0) > 0 else None,
+            'property_acres': float(row.get('property_acres', 0)) if pd.notna(row.get('property_acres')) and row.get('property_acres', 0) > 0 else None,
+            'assessment_sqft': float(row.get('assessment_sqft', 0)) if pd.notna(row.get('assessment_sqft')) and row.get('assessment_sqft', 0) > 0 else None,
+            'latitude': float(row.get('latitude', 0)) if pd.notna(row.get('latitude')) else None,
+            'longitude': float(row.get('longitude', 0)) if pd.notna(row.get('longitude')) else None,
+            'drive_time_urishall': float(row.get('drive_time_urishall', 0)) if pd.notna(row.get('drive_time_urishall')) else None,
+            'drive_time_agriculturequad': float(row.get('drive_time_agriculturequad', 0)) if pd.notna(row.get('drive_time_agriculturequad')) else None,
+            'drive_time_artsquad': float(row.get('drive_time_artsquad', 0)) if pd.notna(row.get('drive_time_artsquad')) else None,
+            'drive_time_engineeringquad': float(row.get('drive_time_engineeringquad', 0)) if pd.notna(row.get('drive_time_engineeringquad')) else None,
+            'createdate': pd.to_datetime(row.get('createdate')).to_pydatetime() if pd.notna(row.get('createdate')) else None,
+            'listingexpirationdate': pd.to_datetime(row.get('listingexpirationdate')).to_pydatetime() if pd.notna(row.get('listingexpirationdate')) else None,
+            'lengthavailable': float(row.get('lengthavailable', 0)) if pd.notna(row.get('lengthavailable')) else None,
+            'housingtype': str(row.get('housingtype', '')) if pd.notna(row.get('housingtype')) else None,
+            'owner_name': str(row.get('owner_name', '')) if pd.notna(row.get('owner_name')) else '',
+            'listingtypes': str(row.get('listingtypes', '')) if pd.notna(row.get('listingtypes')) else None,
+        }
+        records.append(record)
 
     try:
         with engine.begin() as conn:
@@ -167,18 +229,24 @@ def track_removed_listings(existing_df, new_ids: set):
                 INSERT INTO sold_listings (
                     listingid, listingaddress, listingcity, listingzip, neighborhood,
                     rentamount, rent_per_person, available_bedrooms, available_bathrooms,
-                    year_built, createdate, listingexpirationdate, removed_timestamp
+                    year_built, sale_price, property_acres, assessment_sqft, latitude, longitude,
+                    drive_time_urishall, drive_time_agriculturequad, drive_time_artsquad, drive_time_engineeringquad,
+                    createdate, listingexpirationdate, lengthavailable, housingtype, owner_name, listingtypes,
+                    removed_timestamp
                 )
                 VALUES (
                     :listingid, :listingaddress, :listingcity, :listingzip, :neighborhood,
                     :rentamount, :rent_per_person, :available_bedrooms, :available_bathrooms,
-                    :year_built, :createdate, :listingexpirationdate, NOW()
+                    :year_built, :sale_price, :property_acres, :assessment_sqft, :latitude, :longitude,
+                    :drive_time_urishall, :drive_time_agriculturequad, :drive_time_artsquad, :drive_time_engineeringquad,
+                    :createdate, :listingexpirationdate, :lengthavailable, :housingtype, :owner_name, :listingtypes,
+                    CURRENT_DATE
                 )
                 ON CONFLICT (listingid)
                 DO UPDATE SET removed_timestamp = EXCLUDED.removed_timestamp;
             """)
 
-            conn.execute(insert_sql, removed_df.to_dict(orient="records"))
+            conn.execute(insert_sql, records)
 
         print("✅ Removed listings recorded in sold_listings table")
 
@@ -232,6 +300,12 @@ def housing_data_pipeline():
 
     print("🏗️ Adding property/structural features...")
     apartments_for_rent = data_preprocessing.add_property_features(apartments_for_rent)
+
+    print("🏛️ Extracting land assessment features...")
+    apartments_for_rent = extract_land_assessment_features.extract_land_assessment_features(apartments_for_rent)
+
+    print("📍 Extracting Point of Interest (POI) features...")
+    apartments_for_rent = extract_poi_features.extract_poi_features(apartments_for_rent)
 
     # ============================================================
     # 3) FETCH EXISTING DATA FROM DB
@@ -372,7 +446,7 @@ def housing_data_pipeline():
             apartments_for_rent[h3_col] = X_with_coords[h3_col].values
     
     print("💰 Computing fair rent predictions...")
-    apartments_for_rent = model_training.compute_fair_rent(
+    apartments_for_rent = model_training.compute_fair_rent_oof(
         apartments_for_rent=apartments_for_rent,
         y=y,
         x_cols=x_cols,

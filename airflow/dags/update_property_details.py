@@ -15,7 +15,7 @@ if not os.path.exists(MODEL_PATH):
 if MODEL_PATH not in sys.path:
     sys.path.append(MODEL_PATH)
 
-import landlord_extraction
+import core.landlord_extraction as landlord_extraction
 
 os.environ['NO_PROXY'] = '*'
 

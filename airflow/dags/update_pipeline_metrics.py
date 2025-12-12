@@ -16,11 +16,11 @@ if not os.path.exists(MODEL_PATH):
     MODEL_PATH = str(Path(current_file).resolve().parent.parent / "model")
 
 if MODEL_PATH not in sys.path:
-    sys.path.append(MODEL_PATH)
+    sys.path.insert(0, MODEL_PATH)
 
-import pipeline_metrics
-import model_training
-import data_preprocessing
+import core.pipeline_metrics as pipeline_metrics
+import ml.model_training as model_training
+import ml.data_preprocessing as data_preprocessing
 
 os.environ['NO_PROXY'] = '*'
 
@@ -55,8 +55,6 @@ def fetch_housing_listings():
     
     try:
         with engine.connect() as conn:
-            # Only fetch columns needed for metrics calculations
-            # Based on what pipeline_metrics functions actually use:
             required_columns = [
                 'listingid',
                 'longitude',
