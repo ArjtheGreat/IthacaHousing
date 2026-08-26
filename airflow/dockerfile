@@ -1,10 +1,22 @@
 # Start from Astro Airflow runtime
 FROM astrocrpublic.azurecr.io/runtime:3.1-2
+
 # Copy your requirements first
 COPY requirements.txt .
 
-# Install manually instead of using Astro's auto installer
+# Install Python deps (includes playwright)
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Playwright: system libs + Chromium (shared path so the astro user can run it)
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+USER root
+RUN apt-get update \
+    && playwright install-deps chromium \
+    && playwright install chromium \
+    && chmod -R a+rX /ms-playwright \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+USER astro
+
 # Copy the model directory with CSV files
 COPY model/ /opt/airflow/model/
-

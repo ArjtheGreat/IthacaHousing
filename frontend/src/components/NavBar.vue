@@ -3,7 +3,7 @@
     <div class="navbar-inner">
         <!-- Logo and Brand (Aligned to the far left) -->
         <div class="navbar-brand">
-            <img src="@/assets/MaitrixLabsLogo.png" alt="Logo" class="navbar-logo" />
+            <img src="@/assets/MaitrixLabsLogoNew.png" alt="Logo" class="navbar-logo" />
             <div class="navbar-title">
             <router-link to="/" class="navbar-name">Ithaca Insights</router-link>
             <span class="navbar-subtitle">by Maitrix Labs</span>

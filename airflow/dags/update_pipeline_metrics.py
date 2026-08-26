@@ -7,7 +7,7 @@ import numpy as np
 import json
 from pathlib import Path
 from sqlalchemy import create_engine, text
-from prometheus_client import Counter, Summary, push_to_gateway
+from prometheus_client import CollectorRegistry, Counter, Summary, push_to_gateway
 
 MODEL_PATH = "/opt/airflow/model"
 
@@ -24,22 +24,40 @@ import ml.data_preprocessing as data_preprocessing
 
 os.environ['NO_PROXY'] = '*'
 
-DAG_SUCCESS = Counter("dag_success_total", "Total successful DAG runs", ["dag_id"])
-DAG_FAILURE = Counter("dag_failure_total", "Total failed DAG runs", ["dag_id"])
-DAG_DURATION = Summary("dag_duration_seconds", "DAG execution duration in seconds", ["dag_id"])
-PUSHGATEWAY_URL = "http://localhost:9091"  
+_PROM_REGISTRY = CollectorRegistry()
+DAG_SUCCESS = Counter(
+    "dag_success_total", "Total successful DAG runs", ["dag_id"], registry=_PROM_REGISTRY
+)
+DAG_FAILURE = Counter(
+    "dag_failure_total", "Total failed DAG runs", ["dag_id"], registry=_PROM_REGISTRY
+)
+DAG_DURATION = Summary(
+    "dag_duration_seconds", "DAG execution duration in seconds", ["dag_id"], registry=_PROM_REGISTRY
+)
+PUSHGATEWAY_URL = os.environ.get("AIRFLOW_PROMETHEUS_PUSHGATEWAY", "http://localhost:9091")
+
+
+def _push_metrics(job: str) -> None:
+    if not PUSHGATEWAY_URL:
+        return
+    try:
+        push_to_gateway(PUSHGATEWAY_URL, job=job, registry=_PROM_REGISTRY)
+    except OSError:
+        pass
+
 
 def on_success_callback(context):
     dag_id = context["dag"].dag_id
     DAG_SUCCESS.labels(dag_id=dag_id).inc()
     duration = context["dag_run"].end_date - context["dag_run"].start_date
     DAG_DURATION.labels(dag_id=dag_id).observe(duration.total_seconds())
-    push_to_gateway(PUSHGATEWAY_URL, job=dag_id, registry=None)  
+    _push_metrics(dag_id)
+
 
 def on_failure_callback(context):
     dag_id = context["dag"].dag_id
     DAG_FAILURE.labels(dag_id=dag_id).inc()
-    push_to_gateway(PUSHGATEWAY_URL, job=dag_id, registry=None)
+    _push_metrics(dag_id)
 
 
 def fetch_housing_listings():

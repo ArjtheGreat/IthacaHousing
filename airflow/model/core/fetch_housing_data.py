@@ -1,4 +1,4 @@
-import requests
+import asyncio
 import pandas as pd
 import numpy as np
 import time
@@ -68,16 +68,9 @@ GEOJSON_PATH = get_geojson_path()
 print(f"🗺️ Using GeoJSON path: {GEOJSON_PATH}")
 
 def fetch_active_listings():
-    """Fetches Active Listings from Cornell Off-Campus Housing API"""
-    url = "https://listings.offcampusliving.cornell.edu/api/activeListings"
-    response = requests.get(url)
-    data = response.json()
-    
+    """Fetches Active Listings by scraping Cornell Off-Campus Housing site"""
+    data = asyncio.run(scrape_all_listings())
     housing_data_df = pd.DataFrame(data)
-    housing_data_df["SafetyRatings"] = housing_data_df["SafetyRatings"].apply(
-        lambda x: json.dumps(x) if isinstance(x, dict) else x
-    )
-
     housing_data_df.to_csv(DATA_PATH, index=False)
     return housing_data_df
 
@@ -171,3 +164,329 @@ def housing_data_preprocessing(existing_coordinates=None):
     
     print(apartments_for_rent.head())
     return apartments_for_rent
+
+
+# @title Scraping for Ithaca
+import re
+from playwright.async_api import async_playwright
+
+
+URL = "https://offcampus.housing.cornell.edu/listing"
+
+
+def clean_text(text):
+    if not text:
+        return None
+
+    return " ".join(
+        text.replace("\xa0", " ").split()
+    )
+
+
+def parse_address(raw_addr):
+    """
+    Example:
+    210 East Green Street, Ithaca, NY 14850
+
+    ->
+    address_line: 210 East Green Street
+    city_state_zip: Ithaca, NY 14850
+    """
+
+    if not raw_addr:
+        return None, None
+
+    raw_addr = clean_text(raw_addr)
+
+    match = re.search(
+        r"(.+?),\s*([A-Za-z .'-]+,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)$",
+        raw_addr
+    )
+
+    if match:
+        return (
+            match.group(1).strip(),
+            match.group(2).strip()
+        )
+
+    return raw_addr, None
+
+
+async def get_text(locator):
+    """
+    Safely get text from a locator.
+    """
+    try:
+        if await locator.count() == 0:
+            return None
+
+        return clean_text(
+            await locator.first.inner_text()
+        )
+    except:
+        return None
+
+
+async def scrape_all_listings():
+
+    async with async_playwright() as p:
+
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage"
+            ]
+        )
+
+        page = await browser.new_page(
+            viewport={
+                "width": 1440,
+                "height": 1200
+            }
+        )
+
+        print("🌐 Loading Cornell housing site...")
+
+        await page.goto(
+            URL,
+            wait_until="domcontentloaded",
+            timeout=60000
+        )
+
+        # Wait until listings actually render
+        await page.wait_for_selector(
+            "li.c-list[data-property-id]",
+            timeout=30000
+        )
+
+        # --------------------------------------------------
+        # Cookie / disclaimer popup
+        # --------------------------------------------------
+
+        understand_button = page.locator(
+            '[aria-label="I understand"]'
+        )
+
+        try:
+            if await understand_button.count() > 0:
+                if await understand_button.first.is_visible():
+                    print("🍪 Closing disclaimer...")
+                    await understand_button.first.click()
+        except:
+            pass
+
+        # --------------------------------------------------
+        # LOAD ALL LISTINGS
+        # --------------------------------------------------
+
+        previous_count = 0
+
+        while True:
+
+            cards = page.locator(
+                "li.c-list[data-property-id]"
+            )
+
+            current_count = await cards.count()
+
+            print(
+                f"📦 Listings currently loaded: {current_count}"
+            )
+
+            load_more = page.locator(
+                'button[aria-label="load more"]'
+            )
+
+            # No load more button -> done
+            if await load_more.count() == 0:
+                print("✅ No load-more button remains.")
+                break
+
+            try:
+                visible = await load_more.first.is_visible()
+            except:
+                visible = False
+
+            if not visible:
+                print("✅ Load-more button hidden.")
+                break
+
+            # Prevent infinite loop if the site stops adding results
+            if (
+                current_count == previous_count
+                and previous_count != 0
+            ):
+                print(
+                    "⚠️ Listing count did not increase. Stopping."
+                )
+                break
+
+            previous_count = current_count
+
+            print("⚡ Loading more listings...")
+
+            await load_more.first.scroll_into_view_if_needed()
+
+            await load_more.first.click()
+
+            # Rather than sleeping blindly, wait until
+            # the number of cards increases.
+            try:
+                await page.wait_for_function(
+                    """
+                    previousCount => {
+                        return document.querySelectorAll(
+                            'li.c-list[data-property-id]'
+                        ).length > previousCount
+                    }
+                    """,
+                    arg=current_count,
+                    timeout=10000
+                )
+
+            except:
+                # Sometimes final click removes button
+                await page.wait_for_timeout(1500)
+
+        # --------------------------------------------------
+        # SCRAPE CARDS
+        # --------------------------------------------------
+
+        cards = page.locator(
+            "li.c-list[data-property-id]"
+        )
+
+        count = await cards.count()
+
+        print(f"\n🏠 Total listings found: {count}\n")
+
+        results = []
+
+        for i in range(count):
+
+            card = cards.nth(i)
+
+            property_id = await card.get_attribute(
+                "data-property-id"
+            )
+
+            print(
+                f"🔍 Scraping {i + 1}/{count} "
+                f"(property {property_id})"
+            )
+
+            # ---------------------------
+            # Name
+            # ---------------------------
+
+            name = await get_text(
+                card.locator(".tmlpCard__title")
+            )
+
+            # ---------------------------
+            # Address
+            # ---------------------------
+
+            raw_address = await get_text(
+                card.locator(".tmlpCard__address")
+            )
+
+            address_line, city_state_zip = (
+                parse_address(raw_address)
+            )
+
+            # ---------------------------
+            # Availability
+            # ---------------------------
+
+            availability = await get_text(
+                card.locator(".tmlpCard__availability")
+            )
+
+            if availability:
+                availability = re.sub(
+                    r"^Available:\s*",
+                    "",
+                    availability,
+                    flags=re.I
+                )
+
+            # ---------------------------
+            # Price
+            # ---------------------------
+
+            price = await get_text(
+                card.locator(".tmlpCard__priceLine")
+            )
+
+            # Remove "/mo" from normalized price
+            if price:
+                price = re.sub(
+                    r"\s*/\s*mo\s*$",
+                    "",
+                    price,
+                    flags=re.I
+                ).strip()
+
+            # ---------------------------
+            # Beds
+            # ---------------------------
+
+            beds = await get_text(
+                card.locator(".tmlpCard__bedBadge")
+            )
+
+            # ---------------------------
+            # Walk time
+            # ---------------------------
+
+            walk_time = await get_text(
+                card.locator(
+                    ".tmlpCard__walk strong"
+                )
+            )
+
+            # ---------------------------
+            # Phone
+            # ---------------------------
+
+            phone = None
+
+            phone_buttons = card.locator(
+                ".tmlpCard__actions "
+                "button.tmlpCard__action--secondary"
+            )
+
+            if await phone_buttons.count() > 0:
+                phone = await get_text(
+                    phone_buttons.first
+                )
+
+            results.append({
+                "property_id": property_id,
+                "name": name,
+
+                "address": raw_address,
+                "address_line": address_line,
+                "city_state_zip": city_state_zip,
+
+                "availability": availability,
+                "price": price,
+                "beds": beds,
+
+                "walk_time": walk_time,
+                "phone": phone,
+
+                # Very useful if you later open details
+                "detail_url": (
+                    f"{URL}?property={property_id}"
+                    if property_id
+                    else None
+                )
+            })
+
+        await browser.close()
+
+        return results

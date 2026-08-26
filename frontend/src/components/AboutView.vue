@@ -83,7 +83,7 @@ import ethanImg from '@/assets/avatars/ethanyang.jpeg';
 import vivianImg from '@/assets/avatars/vivianguo.jpeg';
 import cdjLogo from '@/assets/CDJLogo.png';
 import armadaLogo from '@/assets/armadalogo.png';
-import maitrixLogo from '@/assets/MaitrixLabsLogo.png';
+import maitrixLogo from '@/assets/MaitrixLabsLogoNew.png';
 
 const teamMembers = [
   {
