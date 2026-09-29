@@ -75,7 +75,7 @@ def serialize_listing(listing):
         dict: JSON-serializable dictionary with all listing fields
     """
     return {
-        "listingid": int(listing.listingid) if listing.listingid else None,
+        "listingid": str(listing.listingid) if listing.listingid is not None else None,
         "listingaddress": listing.listingaddress,
         "listingcity": listing.listingcity,
         "listingzip": listing.listingzip,

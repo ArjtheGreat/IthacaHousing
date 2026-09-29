@@ -339,11 +339,11 @@ def get_top_ten_listings(db: Session = Depends(get_db)):
     return [serialize_listing(listing) for listing in listings] 
 
 @app.get("/listing/{listing_id}")
-def get_listing(listing_id: int, db: Session = Depends(get_db)):
+def get_listing(listing_id: str, db: Session = Depends(get_db)):
     """
     Gets listing from database by ID
     """
-    listing = db.query(HousingListing).filter(HousingListing.listingid==listing_id).first()
+    listing = db.query(HousingListing).filter(HousingListing.listingid == listing_id).first()
     if not listing:
         raise HTTPException(status_code=404, detail="Listing not found")
     return serialize_listing(listing)

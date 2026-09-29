@@ -249,11 +249,18 @@ def get_openai_response_for_landlord_extraction(
 
     raise RuntimeError("❌ Failed to get response from OpenAI after multiple retries.")
 
+_ownership_cache = None
+
+
 def prepare_ownership_data():
     """
     Prepare and process ownership data once to avoid duplicate computation
     Returns processed address_ownership_unique dataframe
     """
+    global _ownership_cache
+    if _ownership_cache is not None:
+        return _ownership_cache
+
     print("🔄 Preparing ownership data...")
     address_ownership_df = load_ownership_data()
     tompkins_assessment_data = load_assessment_data()
@@ -285,22 +292,62 @@ def prepare_ownership_data():
     address_ownership_unique = address_ownership_unique.rename(columns=column_rename_map)
     
     print("✅ Ownership data prepared")
+    _ownership_cache = address_ownership_unique
     return address_ownership_unique
+
 
 def extract_address_data(apartments_for_rent):
     """
     Prepare apartment data by cleaning addresses and splitting components
     """
     print("🔄 Preparing apartment data...")
-    
-    apartments_for_rent["ListingAddress_formatted"] = clean_address_series(apartments_for_rent["ListingAddress"])
-    
-    house_start, house_end, street_core = split_address_components(apartments_for_rent["ListingAddress_formatted"])
+
+    apartments_for_rent["ListingAddress_formatted"] = clean_address_series(
+        apartments_for_rent["ListingAddress"]
+    )
+
+    house_start, house_end, street_core = split_address_components(
+        apartments_for_rent["ListingAddress_formatted"]
+    )
     apartments_for_rent["HouseNumStart"] = house_start
     apartments_for_rent["HouseNumEnd"] = house_end
     apartments_for_rent["StreetCore"] = street_core
-    
+
     print("✅ Apartment data prepared")
+    return apartments_for_rent
+
+
+def match_addresses_once(apartments_for_rent, address_ownership_unique, columns_to_add):
+    """
+    Match ownership/assessment fields once per unique formatted address,
+    then broadcast results to every unit row at that address.
+    """
+    apartments_for_rent = extract_address_data(apartments_for_rent)
+    key_col = "ListingAddress_formatted"
+
+    unique_rows = apartments_for_rent.drop_duplicates(subset=[key_col], keep="first").copy()
+    print(
+        f"🔑 Matching {len(unique_rows)} unique addresses "
+        f"(broadcasting to {len(apartments_for_rent)} unit rows)..."
+    )
+
+    matches = unique_rows.apply(
+        lambda r: match_address(
+            r, address_ownership_unique, columns_to_add=columns_to_add
+        ),
+        axis=1,
+    )
+    matches_df = pd.DataFrame(list(matches), index=unique_rows.index)
+    matches_df[key_col] = unique_rows[key_col].values
+
+    # Drop any leftover target columns before merge to avoid _x/_y collisions
+    drop_existing = [c for c in columns_to_add if c in apartments_for_rent.columns]
+    if drop_existing:
+        apartments_for_rent = apartments_for_rent.drop(columns=drop_existing)
+
+    apartments_for_rent = apartments_for_rent.merge(
+        matches_df, on=key_col, how="left", suffixes=("", "_matched")
+    )
     return apartments_for_rent
 
 
@@ -311,7 +358,6 @@ def add_property_details(apartments_for_rent):
     """
     print("🏠 Adding property details from assessment data...")
     address_ownership_unique = prepare_ownership_data()
-    apartments_for_rent = extract_address_data(apartments_for_rent)
 
     columns_to_add = [
         "neighborhood_assessment",
@@ -326,13 +372,9 @@ def add_property_details(apartments_for_rent):
         "sale_price",
         "assessment_sqft"
     ]
-    matches = apartments_for_rent.apply(
-        lambda r: match_address(r, address_ownership_unique, columns_to_add=columns_to_add),
-        axis=1
+    apartments_for_rent = match_addresses_once(
+        apartments_for_rent, address_ownership_unique, columns_to_add
     )
-
-    matches_df = pd.DataFrame(list(matches))
-    apartments_for_rent = pd.concat([apartments_for_rent, matches_df], axis=1)
     apartments_for_rent["ListingAddress"] = apartments_for_rent["ListingAddress_formatted"]
     
     temp_columns = ["ListingAddress_formatted", "HouseNumStart", "HouseNumEnd", "StreetCore"]
@@ -353,25 +395,13 @@ def extract_landlord_names(apartments_for_rent):
     """
     print("🏠 Extracting landlord names...")
     address_ownership_unique = prepare_ownership_data()
-    apartments_for_rent = extract_address_data(apartments_for_rent)
-
-    columns_to_add = ["Owner Name"]
-    matches = apartments_for_rent.apply(
-        lambda r: match_address(r, address_ownership_unique, columns_to_add=columns_to_add),
-        axis=1
+    apartments_for_rent = match_addresses_once(
+        apartments_for_rent, address_ownership_unique, columns_to_add=["Owner Name"]
     )
 
-    matches_df = pd.DataFrame(list(matches))
-    apartments_for_rent = pd.concat([apartments_for_rent, matches_df], axis=1)
-
-    def process_owner_name(row):
-        """Process owner name for a single row"""
-        if pd.notna(row.get("Owner Name")):
-            return str(row["Owner Name"])
-        else:
-            return "Not Found"
-    
-    apartments_for_rent["owner_name"] = apartments_for_rent.apply(process_owner_name, axis=1)
+    apartments_for_rent["owner_name"] = apartments_for_rent["Owner Name"].apply(
+        lambda x: str(x) if pd.notna(x) else "Not Found"
+    )
     
     temp_columns = ["ListingAddress_formatted", "HouseNumStart", "HouseNumEnd", "StreetCore", "Owner Name"]
     for col in temp_columns:
@@ -381,8 +411,13 @@ def extract_landlord_names(apartments_for_rent):
     print(f"✅ Extracted landlord names for {len(apartments_for_rent)} listings")
     matched_count = (apartments_for_rent["owner_name"] != "Not Found").sum()
     print(f"📊 Successfully matched {matched_count}/{len(apartments_for_rent)} listings to owners")
-    
-    apartments_for_rent["owner_name"] = apartments_for_rent["owner_name"].apply(process_prompt_for_landlord)
+
+    # Normalize unique owner names once (OpenAI) then broadcast
+    unique_owners = apartments_for_rent["owner_name"].dropna().unique().tolist()
+    print(f"🤖 Normalizing {len(unique_owners)} unique owner names...")
+    owner_map = {name: process_prompt_for_landlord(name) for name in unique_owners}
+    apartments_for_rent["owner_name"] = apartments_for_rent["owner_name"].map(
+        lambda n: owner_map.get(n, n)
+    )
   
     return apartments_for_rent
-    

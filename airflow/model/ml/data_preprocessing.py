@@ -29,13 +29,30 @@ def calc_adjusted_bed_bath_values(apartments_for_rent):
     """
     Returns new combined bedroom and bathrooms columns
     """
-    print("Calculating rent adjustments using extracted data...")    
-    apartments_for_rent["bedroom_bathroom_ratio"] = 1.5*apartments_for_rent["Bedrooms"]/apartments_for_rent["Bathrooms"]
-    apartments_for_rent["available_bedrooms_to_total_bedrooms_ratio"] = apartments_for_rent["available_bedrooms"]/apartments_for_rent["Bedrooms"]
-    apartments_for_rent["available_bathrooms"] = round(apartments_for_rent["available_bedrooms"]/apartments_for_rent["bedroom_bathroom_ratio"])
+    print("Calculating rent adjustments using extracted data...")
+    beds = pd.to_numeric(apartments_for_rent["Bedrooms"], errors="coerce").replace(0, np.nan)
+    baths = pd.to_numeric(apartments_for_rent["Bathrooms"], errors="coerce").replace(0, np.nan)
+    avail_beds = pd.to_numeric(apartments_for_rent["available_bedrooms"], errors="coerce")
+
+    apartments_for_rent["bedroom_bathroom_ratio"] = (1.5 * beds / baths).replace(
+        [np.inf, -np.inf], np.nan
+    )
+    apartments_for_rent["available_bedrooms_to_total_bedrooms_ratio"] = (
+        avail_beds / beds
+    ).replace([np.inf, -np.inf], np.nan)
+
+    ratio = apartments_for_rent["bedroom_bathroom_ratio"].replace(0, np.nan)
+    apartments_for_rent["available_bathrooms"] = np.round(avail_beds / ratio)
+    apartments_for_rent["available_bathrooms"] = (
+        apartments_for_rent["available_bathrooms"]
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(baths)
+        .fillna(1)
+    )
 
     apartments_for_rent["combined_bedrooms_bathrooms"] = (
-        1.5 * apartments_for_rent["available_bedrooms"] + apartments_for_rent["available_bathrooms"]
+        1.5 * avail_beds.fillna(beds).fillna(1)
+        + apartments_for_rent["available_bathrooms"]
     )
 
     return apartments_for_rent
@@ -104,8 +121,10 @@ def clean_up_x_y(X, y):
         except Exception as e:
             print(f"⚠️ Error converting column {col} to numeric: {e}")
             X_clean[col] = pd.to_numeric(X_clean[col].values, errors='coerce')
-    
-    X_clean = X_clean.fillna(X_clean.median())
+
+    X_clean = X_clean.replace([np.inf, -np.inf], np.nan)
+    X_clean = X_clean.fillna(X_clean.median(numeric_only=True))
+    X_clean = X_clean.fillna(0)
     
     for col in X_clean.columns:
         X_clean[col] = X_clean[col].astype('float64')
@@ -116,6 +135,7 @@ def clean_up_x_y(X, y):
         y_clean = pd.Series(y) if hasattr(y, '__iter__') and not isinstance(y, str) else pd.Series([y])
     
     y_clean = pd.to_numeric(y_clean, errors='coerce')
+    y_clean = y_clean.replace([np.inf, -np.inf], np.nan)
     y_clean = y_clean.fillna(y_clean.median())
     y_clean = y_clean.astype('float64')
 
@@ -130,6 +150,8 @@ def median_mode_imputation(X):
     """
 
     for col in numerical_columns:
+        if col not in X.columns:
+            continue
         X[col] = pd.to_numeric(X[col], errors="coerce")
         median = X[col].median()
         
@@ -155,6 +177,8 @@ def median_mode_imputation(X):
 
     # For Categorical Categories, use Mode Imputation
     for col in categorical_columns:
+        if col not in X.columns:
+            continue
         mode_series = X[col].mode()
         if len(mode_series) > 0:
             mode = mode_series[0]
@@ -199,7 +223,11 @@ def outlier_imputation(X):
 
 
 def log_transform_prices(y):
-    y = pd.to_numeric(y, errors='coerce')
+    y = pd.to_numeric(y, errors="coerce")
+    y = y.replace([np.inf, -np.inf], np.nan)
+    positive = y[y > 0]
+    fill = float(positive.median()) if len(positive) else 1.0
+    y = y.where(y > 0, fill)
     y = np.log(y)
-
+    y = pd.Series(y).replace([np.inf, -np.inf], np.nan).fillna(np.log(fill))
     return y

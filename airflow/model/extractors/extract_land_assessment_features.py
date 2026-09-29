@@ -104,6 +104,17 @@ def extract_land_assessment_features(apartments_for_rent):
             else:
                 print("⚠️ No geometry or lat/lng columns found, skipping spatial join")
                 return apartments_for_rent
+
+        # Prior spatial joins (e.g. neighborhoods) leave index_right/index_left,
+        # which geopandas refuses to join on again.
+        stale_index_cols = [
+            c for c in ("index_right", "index_left")
+            if c in apartments_for_rent_bounded.columns
+        ]
+        if stale_index_cols:
+            apartments_for_rent_bounded = apartments_for_rent_bounded.drop(
+                columns=stale_index_cols
+            )
         
         print("🔗 Performing spatial join with parcel data...")
         apartments_for_rent_bounded = apartments_for_rent_bounded.sjoin(

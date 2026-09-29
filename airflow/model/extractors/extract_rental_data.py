@@ -2,6 +2,7 @@ from openai import OpenAI
 import os
 import json
 import pandas as pd
+import numpy as np
 import ast
 import time
 from shapely.geometry import Point
@@ -199,44 +200,130 @@ def get_existing_rental_data():
         print(f"⚠️ Error fetching existing rental data: {e}")
         return {}
 
+def deterministic_extract(row):
+    """Compute rent_per_person from structured scrape fields — no LLM."""
+    rent = pd.to_numeric(row.get("RentAmount"), errors="coerce")
+    bedrooms = pd.to_numeric(row.get("Bedrooms"), errors="coerce")
+    bathrooms = pd.to_numeric(row.get("Bathrooms"), errors="coerce")
+
+    if pd.isna(bedrooms) or bedrooms <= 0:
+        bedrooms = 1.0
+    if pd.isna(bathrooms) or bathrooms <= 0:
+        bathrooms = 1.0
+
+    rent_type = str(row.get("RentType") or "")
+    per_person = "person" in rent_type.lower()
+
+    if pd.isna(rent):
+        rent_per_person = np.nan
+    elif per_person:
+        rent_per_person = float(rent)
+    else:
+        rent_per_person = float(rent) / float(bedrooms)
+
+    return {
+        "available_bedrooms": float(bedrooms),
+        "available_bathrooms": float(bathrooms),
+        "rent_per_person": rent_per_person,
+        "num_people": float(bedrooms),
+    }
+
+
+def rental_extraction_key(row):
+    """Stable key so identical unit configs share one extraction."""
+    return "|".join(
+        [
+            str(row.get("PropertyId") or ""),
+            str(row.get("Bedrooms") or ""),
+            str(row.get("Bathrooms") or ""),
+            str(row.get("RentAmount") or ""),
+            str(row.get("RentType") or ""),
+            str(row.get("ShortDescription") or "")[:240],
+        ]
+    )
+
+
+def has_structured_rent_fields(row):
+    rent = pd.to_numeric(row.get("RentAmount"), errors="coerce")
+    bedrooms = pd.to_numeric(row.get("Bedrooms"), errors="coerce")
+    return pd.notna(rent) and pd.notna(bedrooms)
+
+
 def extract_rental_data(apartments_for_rent):
     """
-    Run Apply to extract rental data - only for new listings or changed descriptions
+    Extract rental features once per unique unit config.
+
+    Structured scrape rows (beds + rent present) use deterministic math — no OpenAI.
+    Only ambiguous rows hit the LLM, and those are cached by extraction key.
     """
     existing_data = get_existing_rental_data()
-    
+    cache = {}
+    llm_calls = 0
+    deterministic_hits = 0
+    db_hits = 0
+
     def smart_extract(row):
-        listing_id = row["ListingId"]
-        current_description = str(row["ShortDescription"]) if pd.notna(row["ShortDescription"]) else ""
-        
+        nonlocal llm_calls, deterministic_hits, db_hits
+        listing_id = str(row.get("ListingId", ""))
+        current_description = (
+            str(row["ShortDescription"]) if pd.notna(row.get("ShortDescription")) else ""
+        )
+
         if listing_id in existing_data:
-            existing_desc = str(existing_data[listing_id]['shortdescription']) if pd.notna(existing_data[listing_id]['shortdescription']) else ""
-            
+            existing_desc = (
+                str(existing_data[listing_id]["shortdescription"])
+                if pd.notna(existing_data[listing_id].get("shortdescription"))
+                else ""
+            )
             if current_description == existing_desc:
-                print(f"📋 Using cached data for listing {listing_id} (description unchanged)")
+                db_hits += 1
                 return {
-                    "available_bedrooms": existing_data[listing_id]['available_bedrooms'],
-                    "available_bathrooms": existing_data[listing_id]['available_bathrooms'],
-                    "rent_per_person": existing_data[listing_id]['rent_per_person'],
-                    "num_people": existing_data[listing_id]['num_people']
+                    "available_bedrooms": existing_data[listing_id]["available_bedrooms"],
+                    "available_bathrooms": existing_data[listing_id]["available_bathrooms"],
+                    "rent_per_person": existing_data[listing_id]["rent_per_person"],
+                    "num_people": existing_data[listing_id]["num_people"],
                 }
-        
-        print(f"🤖 Running LLM extraction for listing {listing_id} (new or description changed)")
-        return safe_process(row)
-    
+
+        key = rental_extraction_key(row)
+        if key in cache:
+            return cache[key]
+
+        # Floor-plan scrape already has beds/rent — skip LLM
+        if has_structured_rent_fields(row):
+            result = deterministic_extract(row)
+            cache[key] = result
+            deterministic_hits += 1
+            return result
+
+        print(
+            f"🤖 Running LLM extraction for listing {listing_id} "
+            f"(missing structured rent/beds)"
+        )
+        result = safe_process(row)
+        cache[key] = result
+        llm_calls += 1
+        return result
+
+    apartments_for_rent = apartments_for_rent.copy()
     apartments_for_rent["extracted_rental_data"] = apartments_for_rent.apply(
         smart_extract, axis=1
     )
 
-    apartments_for_rent["extracted_rental_data"] = apartments_for_rent["extracted_rental_data"].apply(
-        lambda x: ast.literal_eval(x) if isinstance(x, str) else x
-    )
+    apartments_for_rent["extracted_rental_data"] = apartments_for_rent[
+        "extracted_rental_data"
+    ].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
 
     extracted_df = pd.json_normalize(apartments_for_rent["extracted_rental_data"])
-
     apartments_for_rent = pd.concat([apartments_for_rent, extracted_df], axis=1)
-    apartments_for_rent["total_rent_amount"] = apartments_for_rent["rent_per_person"]*apartments_for_rent["num_people"]
+    apartments_for_rent["total_rent_amount"] = (
+        apartments_for_rent["rent_per_person"] * apartments_for_rent["num_people"]
+    )
 
+    print(
+        f"✅ Rental extract: {deterministic_hits} deterministic, "
+        f"{db_hits} DB cache, {llm_calls} LLM, "
+        f"{len(cache)} unique configs"
+    )
     return apartments_for_rent
 
 MODEL_PATH = "/opt/airflow/model"

@@ -43,7 +43,7 @@ def get_existing_listing_ids():
     try:
         with engine.connect() as conn:
             result = conn.execute(text("SELECT listingid FROM housing_listings"))
-            existing_ids = {row[0] for row in result}
+            existing_ids = {str(row[0]) for row in result if row[0] is not None}
             print(f"📊 Found {len(existing_ids)} existing listings in database")
             return existing_ids
     except Exception as e:
@@ -168,23 +168,11 @@ def track_removed_listings(existing_df, new_ids: set):
         return
 
     existing_df = existing_df.copy()
-    
-    existing_df["listingid"] = pd.to_numeric(existing_df["listingid"], errors='coerce')
-    existing_df = existing_df[existing_df["listingid"].notna()].copy()
-    existing_df["listingid"] = existing_df["listingid"].astype(int)
-    
-    new_ids_int = set()
-    for x in new_ids:
-        try:
-            if isinstance(x, (int, float)):
-                new_ids_int.add(int(x))
-            elif isinstance(x, str):
-                if x.isdigit() or (x.lstrip('-').isdigit()):
-                    new_ids_int.add(int(x))
-        except (ValueError, TypeError):
-            continue
-    
-    removed_df = existing_df[~existing_df["listingid"].isin(new_ids_int)].copy()
+    existing_df["listingid"] = existing_df["listingid"].astype(str)
+    existing_df = existing_df[existing_df["listingid"].notna() & (existing_df["listingid"] != "nan")].copy()
+
+    new_ids_str = {str(x) for x in new_ids if x is not None and str(x) not in ("", "nan", "None")}
+    removed_df = existing_df[~existing_df["listingid"].isin(new_ids_str)].copy()
 
     if removed_df.empty:
         print("✅ No removed listings detected this run")
@@ -195,7 +183,7 @@ def track_removed_listings(existing_df, new_ids: set):
     records = []
     for _, row in removed_df.iterrows():
         record = {
-            'listingid': int(row['listingid']) if pd.notna(row['listingid']) else None,
+            'listingid': str(row['listingid']) if pd.notna(row['listingid']) else None,
             'listingaddress': str(row.get('listingaddress', '')) if pd.notna(row.get('listingaddress')) else None,
             'listingcity': str(row.get('listingcity', '')) if pd.notna(row.get('listingcity')) else None,
             'listingzip': str(row.get('listingzip', '')) if pd.notna(row.get('listingzip')) else None,
@@ -472,8 +460,12 @@ def housing_data_pipeline():
     # 11) CMA
     # ============================================================
     print("📈 Running CMA...")
-    if 'predictedrent' not in apartments_for_rent.columns:
-        apartments_for_rent['predictedrent'] = apartments_for_rent['PredictedRent']
+    if "predictedrent" not in apartments_for_rent.columns:
+        if "PredictedRent" in apartments_for_rent.columns:
+            apartments_for_rent["predictedrent"] = apartments_for_rent["PredictedRent"]
+        elif "fair_rent" in apartments_for_rent.columns:
+            apartments_for_rent["predictedrent"] = apartments_for_rent["fair_rent"]
+            apartments_for_rent["PredictedRent"] = apartments_for_rent["fair_rent"]
     
     X_cma = comparative_market_analysis.define_X_for_cma(apartments_for_rent)
     apartments_for_rent = comparative_market_analysis.perform_cma(X_cma, apartments_for_rent)

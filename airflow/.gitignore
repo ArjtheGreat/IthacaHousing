@@ -9,3 +9,4 @@ airflow-webserver.pid
 webserver_config.py
 airflow.cfg
 airflow.db
+model/core/scraped_properties_raw.json

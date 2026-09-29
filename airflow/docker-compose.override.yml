@@ -5,6 +5,7 @@ services:
       - ./include:/usr/local/airflow/include
       - ./plugins:/usr/local/airflow/plugins
       - ./model:/usr/local/airflow/model
+      - ./model:/opt/airflow/model
 
   scheduler:
     volumes:
@@ -12,3 +13,20 @@ services:
       - ./include:/usr/local/airflow/include
       - ./plugins:/usr/local/airflow/plugins
       - ./model:/usr/local/airflow/model
+      - ./model:/opt/airflow/model
+
+  dag-processor:
+    volumes:
+      - ./dags:/usr/local/airflow/dags
+      - ./include:/usr/local/airflow/include
+      - ./plugins:/usr/local/airflow/plugins
+      - ./model:/usr/local/airflow/model
+      - ./model:/opt/airflow/model
+
+  triggerer:
+    volumes:
+      - ./dags:/usr/local/airflow/dags
+      - ./include:/usr/local/airflow/include
+      - ./plugins:/usr/local/airflow/plugins
+      - ./model:/usr/local/airflow/model
+      - ./model:/opt/airflow/model

@@ -63,6 +63,34 @@ def calculate_safety_score(apartments_for_rent):
 
     apartments_for_rent = pd.concat([apartments_for_rent, safety_df], axis=1)
 
+    # Empty SafetyRatings "{}" leaves these as null/object — force numeric for XGBoost.
+    for col in (
+        "OverallSafetyRating",
+        "OverallSafetyRatingPct",
+        "HasValidCertificateOfOccupancy",
+        "MeetsMinimumRequirements",
+        "ExceedsRequirements",
+        "HasFireResistantConstructionType",
+        "SatisfiesApplicableCode",
+    ):
+        if col in apartments_for_rent.columns:
+            apartments_for_rent[col] = pd.to_numeric(
+                apartments_for_rent[col], errors="coerce"
+            ).fillna(0)
+
+    # DB / frontend expect this name; scrape often has only SafetyRatings JSON.
+    if "valid_certificate_of_compliance" not in apartments_for_rent.columns:
+        if "HasValidCertificateOfOccupancy" in apartments_for_rent.columns:
+            apartments_for_rent["valid_certificate_of_compliance"] = (
+                apartments_for_rent["HasValidCertificateOfOccupancy"].astype(int)
+            )
+        elif "OverallSafetyRatingPct" in apartments_for_rent.columns:
+            apartments_for_rent["valid_certificate_of_compliance"] = (
+                (apartments_for_rent["OverallSafetyRatingPct"] > 0).astype(int)
+            )
+        else:
+            apartments_for_rent["valid_certificate_of_compliance"] = 0
+
     if "Valid Certificate of Compliance" in apartments_for_rent.columns:
         print("🔍 Original values:", apartments_for_rent["Valid Certificate of Compliance"].head())
         print("🔍 Value counts:", apartments_for_rent["Valid Certificate of Compliance"].value_counts(dropna=False))

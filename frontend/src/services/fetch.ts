@@ -44,16 +44,18 @@ export const fetchListingsMinimal = async (): Promise<any[]> => {
  * Fetches listing with specific ID from PostgreSQL Database
  * @returns Listing with that listing id
  */
-export const fetchListing = async (listing_id: Number): Promise<Listing | null> => {
+export const fetchListing = async (listing_id: string | number): Promise<Listing | null> => {
     try {
-        const response: AxiosResponse<Listing> = await axios.get(`${baseURL}/listing/${listing_id}`);
+        const response: AxiosResponse<Listing> = await axios.get(
+            `${baseURL}/listing/${encodeURIComponent(String(listing_id))}`
+        );
         if (response.status === 200) {
             return response.data; 
         } else {
             throw new Error(`Unexpected status code: ${response.status}`);
         }
     } catch (error) {
-        console.error("Error fetching listings:", error);
+        console.error("Error fetching listing:", error);
         return null; 
     }
 };

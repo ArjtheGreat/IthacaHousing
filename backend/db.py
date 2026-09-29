@@ -32,11 +32,11 @@ class HousingListing(Base):
     """
     __tablename__ = "housing_listings"
     
-    listingid = Column(Integer, primary_key=True, index=True)
+    listingid = Column(String, primary_key=True, index=True)
     listingaddress = Column(String)
     listingcity = Column(String)
     listingzip = Column(String)
-    createdate = Column(DateTime, default=func.now(), nullable=False)
+    createdate = Column(DateTime, server_default=func.now(), nullable=False)
     shortdescription = Column(Text)
     rentamount = Column(Numeric)
     renttype = Column(String)

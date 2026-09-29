@@ -85,7 +85,7 @@ def retrain_rental_model():
         # Data is saved to DATA_PATH; do not return DataFrame (XCom can't serialize it)
 
     @task(
-        execution_timeout=duration(minutes=15)
+        execution_timeout=duration(minutes=60)
     )
     def call_pipeline(**context):
         return pipeline.housing_data_pipeline()

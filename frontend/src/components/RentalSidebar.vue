@@ -1027,35 +1027,35 @@ function parsePostgresArray(pgArrayString: String) {
  async function fetchSimilarListings() {
     const rawIds = props.listing?.nearest_neighbor_listingids;
     
-    let ids: number[] = [];
+    let ids: string[] = [];
     
     if (rawIds) {
         try {
             // If it's already an array, use it directly
             if (Array.isArray(rawIds)) {
-                ids = rawIds.map(id => Number(id)).filter(id => !isNaN(id));
+                ids = rawIds.map(id => String(id).trim()).filter(id => id.length > 0);
             } 
             // If it's a string, try to parse it as JSON first
             else if (typeof rawIds === 'string') {
                 try {
                     const parsed = JSON.parse(rawIds);
                     if (Array.isArray(parsed)) {
-                        ids = parsed.map(id => Number(id)).filter(id => !isNaN(id));
+                        ids = parsed.map(id => String(id).trim()).filter(id => id.length > 0);
                     } else {
                         // Fallback to old string processing
                         ids = rawIds
-                            .replace(/[{}]/g, '')     
+                            .replace(/[{}\[\]]/g, '')     
                             .split(',')                
-                            .map((id: string) => Number(id))
-                            .filter(id => !isNaN(id));
+                            .map((id: string) => id.trim().replace(/^["']|["']$/g, ''))
+                            .filter(id => id.length > 0);
                     }
                 } catch {
                     // If JSON parsing fails, use old string processing
                     ids = rawIds
-                        .replace(/[{}]/g, '')     
+                        .replace(/[{}\[\]]/g, '')     
                         .split(',')                
-                        .map((id: string) => Number(id))
-                        .filter(id => !isNaN(id));
+                        .map((id: string) => id.trim().replace(/^["']|["']$/g, ''))
+                        .filter(id => id.length > 0);
                 }
             }
         } catch (error) {
@@ -1065,7 +1065,7 @@ function parsePostgresArray(pgArrayString: String) {
     }
 
     const fetched = await Promise.all(
-        ids.map((id: Number) => fetchListing(id))
+        ids.map((id: string) => fetchListing(id))
     );
 
     similarListings.value = fetched.filter(l => l !== null) as Listing[];

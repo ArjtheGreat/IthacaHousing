@@ -276,6 +276,17 @@ def spatial_block_cv_xgb(
 
         X_train_model = X_train.drop(columns=['latitude', 'longitude'], errors='ignore')
         X_test_model = X_test.drop(columns=['latitude', 'longitude'], errors='ignore')
+
+        for frame in (X_train_model, X_test_model):
+            for col in frame.columns:
+                frame[col] = pd.to_numeric(frame[col], errors="coerce")
+            frame.replace([np.inf, -np.inf], np.nan, inplace=True)
+            frame.fillna(0, inplace=True)
+
+        y_train = np.asarray(y_train, dtype=float)
+        y_test = np.asarray(y_test, dtype=float)
+        y_train = np.nan_to_num(y_train, nan=0.0, posinf=0.0, neginf=0.0)
+        y_test = np.nan_to_num(y_test, nan=0.0, posinf=0.0, neginf=0.0)
         
         model = xgb.XGBRegressor(
             n_estimators=n_estimators,
@@ -289,6 +300,7 @@ def spatial_block_cv_xgb(
         model.fit(X_train_model, y_train)
 
         y_pred = model.predict(X_test_model)
+        y_pred = np.nan_to_num(y_pred, nan=0.0, posinf=0.0, neginf=0.0)
 
         rmse = mean_squared_error(y_test, y_pred)
         mae  = mean_absolute_error(y_test, y_pred)
@@ -396,6 +408,12 @@ def compute_fair_rent_oof(
         X_train_base = X_train.drop(columns=["latitude", "longitude"], errors="ignore")
         X_test_base  = X_test.drop(columns=["latitude", "longitude"], errors="ignore")
 
+        for frame in (X_train_base, X_test_base, X_train, X_test):
+            for col in frame.columns:
+                frame[col] = pd.to_numeric(frame[col], errors="coerce")
+            frame.replace([np.inf, -np.inf], np.nan, inplace=True)
+            frame.fillna(0, inplace=True)
+
         baseline = xgb.XGBRegressor(
             n_estimators=50,
             max_depth=4,
@@ -431,6 +449,14 @@ def compute_fair_rent_oof(
         X_train[f"knn_yearbuilt_dw_{k_knn}"] = year_lag_tr
         X_test[f"knn_yearbuilt_dw_{k_knn}"]  = year_lag_te
 
+        X_train_model = X_train.drop(columns=["latitude", "longitude"], errors="ignore")
+        X_test_model = X_test.drop(columns=["latitude", "longitude"], errors="ignore")
+        for frame in (X_train_model, X_test_model):
+            for col in frame.columns:
+                frame[col] = pd.to_numeric(frame[col], errors="coerce")
+            frame.replace([np.inf, -np.inf], np.nan, inplace=True)
+            frame.fillna(0, inplace=True)
+
         model = xgb.XGBRegressor(
             n_estimators=n_estimators,
             max_depth=max_depth,
@@ -440,9 +466,9 @@ def compute_fair_rent_oof(
             random_state=42,
             n_jobs=-1
         )
-        model.fit(X_train, y_train)
+        model.fit(X_train_model, y_train)
 
-        y_pred_test = model.predict(X_test)
+        y_pred_test = model.predict(X_test_model)
         fair_pred.loc[test_idx] = y_pred_test
 
     apartments_for_rent_out = apartments_for_rent.copy()

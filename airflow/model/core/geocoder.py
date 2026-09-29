@@ -86,7 +86,10 @@ def get_coordinates(row):
     result = geocode_google(query)
     
     if 'error' in result:
-        return result
+        return {
+            'latitude': None,
+            'longitude': None,
+        }
     else:
         return {
             'latitude': result.get('lat'),

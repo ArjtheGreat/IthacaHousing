@@ -101,6 +101,35 @@ def get_safety_col(df):
             return c
     return None
 
+
+def normalize_safety_for_db(df):
+    """
+    housing_listings only has valid_certificate_of_compliance (int 0/1).
+    Map scraped OverallSafetyRatingPct / certificate flags onto that column.
+    """
+    if "valid_certificate_of_compliance" in df.columns:
+        df["valid_certificate_of_compliance"] = (
+            pd.to_numeric(df["valid_certificate_of_compliance"], errors="coerce")
+            .fillna(0)
+            .astype(int)
+        )
+        return df
+
+    if "hasvalidcertificateofoccupancy" in df.columns:
+        df["valid_certificate_of_compliance"] = (
+            pd.to_numeric(df["hasvalidcertificateofoccupancy"], errors="coerce")
+            .fillna(0)
+            .astype(int)
+        )
+    elif "overallsafetyratingpct" in df.columns:
+        pct = pd.to_numeric(df["overallsafetyratingpct"], errors="coerce").fillna(0)
+        df["valid_certificate_of_compliance"] = (pct > 0).astype(int)
+    else:
+        df["valid_certificate_of_compliance"] = 0
+
+    return df
+
+
 def psql_insert_copy(df):
     """
     Insert cleaned housing listing data into Supabase (PostgreSQL).
@@ -145,7 +174,7 @@ def psql_insert_copy(df):
     
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
 
-    safety_col = get_safety_col(df)
+    df = normalize_safety_for_db(df)
 
     base_columns = [
         "listingid", "listingaddress", "listingcity", "listingzip", "createdate",
@@ -160,7 +189,8 @@ def psql_insert_copy(df):
         "transit_time_to_arts_quad", "transit_time_to_eng_quad",
         "iso15", "neighborhood", "neighborhood_assessment", "property_depth",
         "property_frontage", "property_acres", "property_pc", "water_access",
-        "sewer_access", "sewer_name", "year_built", "assessment_sqft", "sale_price"
+        "sewer_access", "sewer_name", "year_built", "assessment_sqft", "sale_price",
+        "valid_certificate_of_compliance",
     ]
 
     travel_time_cols = [
@@ -170,12 +200,51 @@ def psql_insert_copy(df):
     ]
 
     available_columns = [c for c in base_columns + travel_time_cols if c in df.columns]
-    if safety_col:
-        available_columns.append(safety_col)
 
-    df = df[available_columns]
+    df = df[available_columns].copy() if available_columns else df.copy()
+
+    # createdate is NOT NULL; scrape has no CreateDate — stamp insert time.
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if "createdate" not in df.columns:
+        df["createdate"] = now
+        available_columns = ["createdate"] + available_columns
+    else:
+        df["createdate"] = pd.to_datetime(df["createdate"], errors="coerce")
+        df["createdate"] = df["createdate"].fillna(now)
+
+    df = df[available_columns].copy()
+
+    # Unit-level scrape IDs are strings like "7734-17720".
+    if "listingid" in df.columns:
+        df["listingid"] = df["listingid"].astype(str)
 
     with engine.begin() as conn:
+        # Migrate legacy integer PK → text for composite unit IDs (idempotent).
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'housing_listings'
+                      AND column_name = 'listingid'
+                      AND data_type IN ('integer', 'bigint', 'smallint')
+                ) THEN
+                    ALTER TABLE housing_listings
+                        ALTER COLUMN listingid TYPE text USING listingid::text;
+                END IF;
+
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'sold_listings'
+                      AND column_name = 'listingid'
+                      AND data_type IN ('integer', 'bigint', 'smallint')
+                ) THEN
+                    ALTER TABLE sold_listings
+                        ALTER COLUMN listingid TYPE text USING listingid::text;
+                END IF;
+            END $$;
+        """))
         conn.execute(text("TRUNCATE TABLE housing_listings RESTART IDENTITY CASCADE;"))
         print("🧹 Table truncated successfully")
 
@@ -187,11 +256,22 @@ def psql_insert_copy(df):
         VALUES ({", ".join(placeholders)})
     """)
 
-    records = df.to_dict(orient="records")
+    records = df.where(pd.notnull(df), None).to_dict(orient="records")
 
     for record in records:
         for col in ["amenities", "listingphotos", "nearest_neighbor_listingids"]:
             record[col] = clean_json_field(record.get(col))
+        if "owner_name" in record:
+            owner = record["owner_name"]
+            if isinstance(owner, (list, dict)):
+                record["owner_name"] = json.dumps(owner) if owner else None
+            elif owner is None or (isinstance(owner, float) and pd.isna(owner)):
+                record["owner_name"] = None
+            else:
+                record["owner_name"] = str(owner)
+        for k, v in list(record.items()):
+            if isinstance(v, float) and pd.isna(v):
+                record[k] = None
         record = convert_property_fields(record)
         record = convert_date_fields(record)
 
