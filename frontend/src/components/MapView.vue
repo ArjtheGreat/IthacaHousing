@@ -211,7 +211,7 @@
               :class="{ highlighted: index === highlightedIndex }"
             >
               <div class="suggestion-address">{{ suggestion.address }}</div>
-              <div class="suggestion-details">{{ suggestion.available_bedrooms }} bed • ${{ suggestion.rent }}</div>
+              <div class="suggestion-details">{{ suggestion.details }}</div>
             </div>
           </div>
         </div>
@@ -252,7 +252,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, markRaw, toRaw } from "vue";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
@@ -263,6 +263,9 @@ import NavBar from "@/components/NavBar.vue";
 import RentalSidebar from "@/components/RentalSidebar.vue";
 import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
 import "leaflet.heat";
+import { groupIntoComplexes, getColor, interpolateColor, valueScore, colorForScore, bucketForScore, sortByValue, BUCKET_COLORS } from "@/utils/complexes";
+import { complexMarkerSvg, compactMarkerSvg, complexPopupHtml } from "@/utils/complexMarker";
+import "@/assets/complexes.css";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 
 const map = ref(null); // Holds the ref for the map
@@ -270,7 +273,12 @@ const isSidebarVisible = ref(false); // Toggle state for whether the Rental Side
 const selectedListing = ref(null); // Holds the prop state for the selected listing to pass to RentalSidebar
 const selectedMarker = ref(null); // Holds the currently selected marker for highlighting
 const markers = ref([]); // Store all markers
-const dispersedListings = ref([]); // Store dispersed listings for search matching
+const complexes = ref([]); // Buildings currently on the map (one per address), used for search matching
+const COMPLEX_FULL_ZOOM = 17; // Below this zoom, building markers shrink to plain dots
+let markerEntries = []; // { complex, marker, paint } for every listing marker on the map
+let entryByListingId = new Map(); // listingid -> its marker entry
+let selectedEntry = null; // Entry whose marker is currently highlighted
+let isCompactZoom = true; // Whether markers are drawn in their zoomed-out form
 const cornellBoundaryLayer = ref(null); // Store the Cornell boundary layer
 const allListings = ref([]); // Store all listings
 const topTenListings = ref([]); // Store top 10 listings
@@ -366,33 +374,6 @@ const messages = [
 
 
 /**
- * Gets the color of the dot based on price
- * @param rent - Actual rent
- * @param predicted - Predicted rent
- */
-function getColor(rent, predicted) {
-    const percent_change = (predicted - rent) / rent;
-    
-    // Clamp percent_change to a narrower range for more dramatic colors (-0.2 to 0.2)
-    const clamped = Math.max(-0.2, Math.min(0.2, percent_change));
-    
-    // Normalize to 0-1 range (0 = very overpriced, 1 = very underpriced)
-    const normalized = (clamped + 0.2) / 0.4;
-    
-    // Interpolate between the three colors
-    // Red (#d73027) -> Yellow (#fee08b) -> Green (#1a9850)
-    if (normalized <= 0.5) {
-        // Interpolate between red and yellow
-        const t = normalized * 2; // 0 to 1
-        return interpolateColor('#d73027', '#fee08b', t);
-    } else {
-        // Interpolate between yellow and green
-        const t = (normalized - 0.5) * 2; // 0 to 1
-        return interpolateColor('#fee08b', '#1a9850', t);
-    }
-}
-
-/**
  * Gets the color of the dot based on raw price (rent_per_person) with outlier highlighting
  * @param rent - Actual rent per person
  * @param minRent - Minimum rent in the dataset
@@ -421,26 +402,6 @@ function getColorByRawPrice(rent, minRent, maxRent, p5, p95) {
     }
 }
 
-// Helper function to interpolate between two hex colors
-function interpolateColor(color1, color2, factor) {
-    const hex1 = color1.replace('#', '');
-    const hex2 = color2.replace('#', '');
-    
-    const r1 = parseInt(hex1.substr(0, 2), 16);
-    const g1 = parseInt(hex1.substr(2, 2), 16);
-    const b1 = parseInt(hex1.substr(4, 2), 16);
-    
-    const r2 = parseInt(hex2.substr(0, 2), 16);
-    const g2 = parseInt(hex2.substr(2, 2), 16);
-    const b2 = parseInt(hex2.substr(4, 2), 16);
-    
-    const r = Math.round(r1 + (r2 - r1) * factor);
-    const g = Math.round(g1 + (g2 - g1) * factor);
-    const b = Math.round(b1 + (b2 - b1) * factor);
-    
-    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-}
-
 // Tab functionality moved to InsideIthacaView
 
 /**
@@ -457,93 +418,174 @@ function clearAllHighlights() {
             });
         }
     });
+    selectedEntry?.marker.getElement?.()?.classList.remove('complex-selected');
+    selectedEntry = null;
     selectedMarker.value = null;
 }
 
 /**
- * Highlights the selected marker
+ * Highlights the marker that holds the selected listing (its own dot, or its building's marker)
  */
 function highlightSelectedMarker(listing) {
     // Clear ALL highlights first
     clearAllHighlights();
 
-    // Use displayLat/displayLng if available, otherwise fall back to latitude/longitude
-    const lat = listing.displayLat || listing.latitude;
-    const lng = listing.displayLng || listing.longitude;
+    const entry = entryByListingId.get(String(listing?.listingid));
+    if (!entry) return; // Listing is not on the map (e.g. hidden by filters)
 
-    // Find and highlight the new marker (with small tolerance for floating point precision)
-    const marker = markers.value.find(m => {
-        const markerLat = m.getLatLng().lat;
-        const markerLng = m.getLatLng().lng;
-        const latDiff = Math.abs(markerLat - lat);
-        const lngDiff = Math.abs(markerLng - lng);
-        return latDiff < 0.0001 && lngDiff < 0.0001; // Very small tolerance
+    selectedEntry = entry;
+    selectedMarker.value = entry.marker;
+
+    if (entry.complex.count > 1) {
+        entry.marker.getElement()?.classList.add('complex-selected');
+        return;
+    }
+
+    const marker = entry.marker;
+    // Store original properties if not already stored
+    if (!marker.options.originalRadius) {
+        marker.options.originalRadius = marker.options.radius;
+        marker.options.originalColor = marker.options.color;
+    }
+    marker.setStyle({
+        weight: 4,
+        radius: marker.options.originalRadius + 5,
+        color: '#124a10',
+        fillColor: marker.options.fillColor
     });
+}
 
-    console.log('Looking for marker at:', lat, lng);
-    console.log('Available markers:', markers.value.length);
+/**
+ * Rent statistics used by raw price mode (for outlier detection)
+ */
+function getRawPriceStats(listings) {
+    const rentValues = listings
+        .map(listing => listing.rent_per_person)
+        .filter(rent => rent && !isNaN(rent))
+        .sort((a, b) => a - b);
 
-    
-    if (marker) {
-        selectedMarker.value = marker;
-        // Store original properties if not already stored
-        if (!marker.options.originalRadius) {
-            marker.options.originalRadius = marker.options.radius;
-            marker.options.originalColor = marker.options.color;
-        }
-        marker.setStyle({
-            weight: 4,
-            radius: marker.options.originalRadius + 5,
-            color: '#124a10',
-            fillColor: marker.options.fillColor
-        });
+    if (rentValues.length === 0) {
+        // Fallback if no valid rents found
+        return { minRent: 0, maxRent: 1000, p5: 0, p95: 1000 };
+    }
+    const minRent = rentValues[0];
+    const maxRent = rentValues[rentValues.length - 1];
+    // Calculate 5th and 95th percentiles for outlier detection
+    const p5Index = Math.floor(rentValues.length * 0.05);
+    const p95Index = Math.ceil(rentValues.length * 0.95) - 1;
+    return { minRent, maxRent, p5: rentValues[p5Index] || minRent, p95: rentValues[p95Index] || maxRent };
+}
+
+/**
+ * Color of a single listing in the current price display mode
+ */
+function listingColor(listing, stats) {
+    if (priceDisplayMode.value === 'raw') {
+        return getColorByRawPrice(listing.rent_per_person, stats.minRent, stats.maxRent, stats.p5, stats.p95);
+    }
+    return getColor(listing.rent_per_person, listing.predictedrent);
+}
+
+/**
+ * Center color and ring segments for a building marker in the current price display mode
+ */
+function complexPaint(complex, stats) {
+    if (priceDisplayMode.value === 'raw') {
+        const priced = complex.units.filter(unit => unit.rent_per_person > 0);
+        return {
+            center: getColorByRawPrice(complex.medianRent, stats.minRent, stats.maxRent, stats.p5, stats.p95),
+            // Same order of checks as getColorByRawPrice, so each unit lands in exactly one segment
+            segments: [
+                { color: '#10b981', count: priced.filter(unit => unit.rent_per_person <= stats.p5).length },
+                { color: '#3b82f6', count: priced.filter(unit => unit.rent_per_person > stats.p5 && unit.rent_per_person < stats.p95).length },
+                { color: '#ef4444', count: priced.filter(unit => unit.rent_per_person > stats.p5 && unit.rent_per_person >= stats.p95).length },
+            ],
+        };
+    }
+    return {
+        center: colorForScore(complex.medianScore),
+        segments: ['under', 'fair', 'over'].map(bucket => ({ color: BUCKET_COLORS[bucket], count: complex.buckets[bucket] })),
+    };
+}
+
+/**
+ * Leaflet icon for a building: count badge when zoomed in, small dot when zoomed out
+ */
+function complexIcon(entry) {
+    const { complex, paint } = entry;
+    const art = isCompactZoom
+        ? compactMarkerSvg(complex.count, paint.center, complex.address)
+        : complexMarkerSvg(complex.count, paint, complex.address);
+    return L.divIcon({
+        html: art.html,
+        className: entry === selectedEntry ? 'complex-icon complex-selected' : 'complex-icon',
+        iconSize: [art.size, art.size],
+        popupAnchor: [0, -art.size / 2 + 4],
+    });
+}
+
+const formatRent = (rent) => (rent > 0 ? `$${Math.round(rent).toLocaleString('en-US')}` : '—');
+
+/**
+ * Popup list for a building: one row per unit, best value first
+ * @param entry - Marker entry for the building
+ * @param stats - Raw price statistics for the listings on the map
+ * @param totalUnits - Units at this building when nothing is filtered out
+ */
+function buildComplexPopup(entry, stats, totalUnits) {
+    const { complex } = entry;
+    const rows = sortByValue(complex.units).map(unit => {
+        const score = valueScore(unit);
+        return {
+            id: unit.listingid,
+            beds: unit.available_bedrooms == null ? 'N/A' : unit.available_bedrooms > 0 ? `${Number(unit.available_bedrooms)} bd` : 'Studio',
+            rent: formatRent(unit.rent_per_person),
+            color: listingColor(unit, stats),
+            badge: score === null ? 'n/a' : `${(Math.abs(score) * 100).toFixed(1)}%`,
+            badgeClass: score === null ? 'none' : bucketForScore(score),
+        };
+    });
+    const range = complex.minRent === null ? '' : ` · ${formatRent(complex.minRent)}–${formatRent(complex.maxRent)}`;
+    return complexPopupHtml({
+        address: complex.address,
+        summary: `${complex.count} units${range}`,
+        note: totalUnits > complex.count ? `Showing ${complex.count} of ${totalUnits} units here` : undefined,
+        rows,
+    });
+}
+
+/**
+ * Opens the sidebar for a listing and highlights its marker
+ */
+async function openListing(listing) {
+    // Load full listing data when clicked
+    const fullListing = await fetchListing(listing.listingid);
+    if (fullListing) {
+        selectedListing.value = fullListing;
+        highlightSelectedMarker(listing);
+        currentRoute.value = plotRoute(fullListing).addTo(map.value);
+        // displayIsochronicMap(fullListing); // Display isochronic map
+        isSidebarVisible.value = true;
     }
 }
 
 /**
- * Group listings by exact coordinates and apply dispersion offset
+ * Switches listing markers between their zoomed-in and zoomed-out forms
  */
-function groupListingsByLocation(listings) {
-    const locationGroups = {};
-    
-    listings.forEach(listing => {
-        const key = `${listing.latitude},${listing.longitude}`;
-        if (!locationGroups[key]) {
-            locationGroups[key] = [];
+function applyZoomMode() {
+    const compact = map.value.getZoom() < COMPLEX_FULL_ZOOM;
+    if (compact === isCompactZoom) return;
+    isCompactZoom = compact;
+
+    markerEntries.forEach(entry => {
+        if (entry.complex.count > 1) {
+            entry.marker.setIcon(complexIcon(entry));
+            return;
         }
-        locationGroups[key].push(listing);
+        const radius = isCompactZoom ? 6 : 10;
+        if (entry.marker.options.originalRadius) entry.marker.options.originalRadius = radius;
+        entry.marker.setRadius(entry === selectedEntry ? radius + 5 : radius);
     });
-    
-    // Apply offset to listings at the same location
-    const dispersedListings = [];
-    Object.values(locationGroups).forEach(group => {
-        if (group.length === 1) {
-            // Single listing, no offset needed
-            dispersedListings.push({
-                ...group[0],
-                displayLat: group[0].latitude,
-                displayLng: group[0].longitude
-            });
-        } else {
-            // Multiple listings at same location - create circular dispersion
-            const radius = 0.00005; // ~11 meters offset
-            group.forEach((listing, index) => {
-                const angle = (2 * Math.PI * index) / group.length;
-                const offsetLat = Math.cos(angle) * radius;
-                const offsetLng = Math.sin(angle) * radius;
-                
-                dispersedListings.push({
-                    ...listing,
-                    displayLat: listing.latitude + offsetLat,
-                    displayLng: listing.longitude + offsetLng,
-                    isGrouped: true,
-                    groupSize: group.length
-                });
-            });
-        }
-    });
-    
-    return dispersedListings;
 }
 
 /**
@@ -662,82 +704,91 @@ function addQuadIcons() {
 }
 
 /**
- * Add markers to the map
- * Only filters markers CURRENTLY on map using .some 
+ * Forgets the listing markers. Call whenever they are taken off the map.
+ */
+function resetMarkerEntries() {
+    markerEntries = [];
+    entryByListingId = new Map();
+    selectedEntry = null;
+}
+
+/**
+ * Add markers to the map: one per building.
+ * A building with a single listing keeps the plain dot; a building with several gets a
+ * count marker whose popup lists the units.
  */
 function addMarkers(listings, filtered) {
-    markers.value.forEach(marker => map.value.removeLayer(marker)); 
+    // Leaflet must work with the real map and markers, not Vue's reactive proxies: a popup opened
+    // through a proxy is never fully removed and its zoom handler later throws.
+    const rawMap = toRaw(map.value);
+    markers.value.forEach(marker => rawMap.removeLayer(toRaw(marker))); 
     markers.value = []; 
+    resetMarkerEntries();
 
     if (heatmapLayer.value) {
       map.value.removeLayer(heatmapLayer.value); 
     }
 
-    // Apply dispersion to overlapping listings
-    const dispersed = groupListingsByLocation(listings);
-    dispersedListings.value = dispersed; // Store for search matching
+    const grouped = groupIntoComplexes(listings);
+    complexes.value = grouped; // Store for search matching
+    isCompactZoom = map.value.getZoom() < COMPLEX_FULL_ZOOM;
 
-    // Calculate rent statistics for raw price mode (for outlier detection)
-    let rentValues = [];
-    let minRent = Infinity;
-    let maxRent = -Infinity;
-    let p5 = 0;
-    let p95 = 0;
-    if (priceDisplayMode.value === 'raw') {
-        rentValues = dispersed
-            .map(listing => listing.rent_per_person)
-            .filter(rent => rent && !isNaN(rent))
-            .sort((a, b) => a - b);
-        
-        if (rentValues.length > 0) {
-            minRent = rentValues[0];
-            maxRent = rentValues[rentValues.length - 1];
-            // Calculate 5th and 95th percentiles for outlier detection
-            const p5Index = Math.floor(rentValues.length * 0.05);
-            const p95Index = Math.ceil(rentValues.length * 0.95) - 1;
-            p5 = rentValues[p5Index] || minRent;
-            p95 = rentValues[p95Index] || maxRent;
-        } else {
-            // Fallback if no valid rents found
-            minRent = 0;
-            maxRent = 1000;
-            p5 = 0;
-            p95 = 1000;
-        }
+    const stats = getRawPriceStats(listings);
+
+    // Units per building when nothing is filtered out, so a popup can say "Showing 8 of 22 units here".
+    // Keyed by listing, because a building's id can change with which of its units are present.
+    const totalUnitsByListingId = new Map();
+    if (listings.length < allListings.value.length) {
+        groupIntoComplexes(toRaw(allListings.value)).forEach(complex => {
+            complex.units.forEach(unit => totalUnitsByListingId.set(String(unit.listingid), complex.count));
+        });
     }
 
-    dispersed.forEach(listing => {
-        let color;
-        if (priceDisplayMode.value === 'raw') {
-            color = getColorByRawPrice(listing.rent_per_person, minRent, maxRent, p5, p95);
+    grouped.forEach(complex => {
+        const entry = { complex, marker: null, paint: null };
+
+        if (complex.count === 1) {
+            const listing = complex.units[0];
+            const color = listingColor(listing, stats);
+            entry.marker = L.circleMarker([complex.lat, complex.lng], {
+              color,
+              fillColor: color,                // dynamic fill based on pricing
+              fillOpacity: 0.85,               // more saturated look
+              radius: isCompactZoom ? 6 : 10,
+              weight: 2,                       // thin border
+              opacity: 1,                      // full circle border visibility
+              className: 'modern-dot'          // for custom CSS glow
+            }).addTo(rawMap);
+            entry.marker.on("click", () => openListing(listing));
         } else {
-            color = getColor(listing.rent_per_person, listing.predictedrent);
+            entry.paint = complexPaint(complex, stats);
+            entry.marker = L.marker([complex.lat, complex.lng], {
+                icon: complexIcon(entry),
+                riseOnHover: true,
+            }).addTo(rawMap);
+
+            entry.marker.bindPopup(() => buildComplexPopup(entry, stats, totalUnitsByListingId.get(String(complex.units[0].listingid)) ?? complex.count), {
+                className: 'complex-popup-wrap',
+                maxWidth: 300,
+                autoPanPaddingTopLeft: [20, 130], // keep clear of the navbar and search bar
+            });
+            entry.marker.on('popupopen', (event) => {
+                // Assigned (not added) so reopening the popup never stacks handlers
+                event.popup.getElement().onclick = (click) => {
+                    const row = click.target.closest('[data-listing-id]');
+                    const listing = row && complex.units.find(unit => String(unit.listingid) === row.dataset.listingId);
+                    if (!listing) return;
+                    row.parentElement.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+                    row.classList.add('active');
+                    if (isMobile.value) entry.marker.closePopup(); // the sidebar covers the map on mobile
+                    openListing(listing);
+                };
+            });
         }
 
-        const marker = L.circleMarker([listing.displayLat, listing.displayLng], {
-          color,
-          fillColor: color,                // dynamic fill based on pricing
-          fillOpacity: 0.85,               // more saturated look
-          radius: listing.isGrouped ? 8 : 10, // Slightly smaller for grouped
-          weight: 2,                       // thin border
-          opacity: 1,                      // full circle border visibility
-          className: 'modern-dot'          // for custom CSS glow
-        }).addTo(map.value);
-
-
-        marker.on("click", async () => {
-            // Load full listing data when clicked
-            const fullListing = await fetchListing(listing.listingid);
-            if (fullListing) {
-                selectedListing.value = fullListing;
-                highlightSelectedMarker(listing);
-                currentRoute.value = plotRoute(fullListing).addTo(map.value);
-                // displayIsochronicMap(fullListing); // Display isochronic map
-                isSidebarVisible.value = true;
-            }
-        });
-
-        markers.value.push(marker); 
+        complex.units.forEach(unit => entryByListingId.set(String(unit.listingid), entry));
+        markerEntries.push(entry);
+        markers.value.push(markRaw(entry.marker)); 
     });
 }
 
@@ -837,24 +888,35 @@ const handleSearchInput = () => {
   }
   
   const query = searchQuery.value.toLowerCase();
-  const suggestions = dispersedListings.value
-    .map(listing => ({
-      ...listing,
-      score: Math.max(
-        fuzzyMatch(query, listing.listingaddress || ''),
-        fuzzyMatch(query, listing.listingcity || ''),
-        fuzzyMatch(query, `${listing.listingaddress} ${listing.listingcity}` || '')
-      )
-    }))
-    .filter(listing => listing.score > 0.3)
+  const suggestions = complexes.value
+    .map(complex => {
+      const listing = complex.units[0];
+      return {
+        complex,
+        score: Math.max(
+          fuzzyMatch(query, listing.listingaddress || ''),
+          fuzzyMatch(query, listing.listingcity || ''),
+          fuzzyMatch(query, `${listing.listingaddress} ${listing.listingcity}` || '')
+        )
+      };
+    })
+    .filter(match => match.score > 0.3)
     .sort((a, b) => b.score - a.score)
     .slice(0, 5)
-    .map(listing => ({
-      address: `${listing.listingaddress}, ${listing.listingcity}`,
-      bedrooms: listing.available_bedrooms || 'N/A',
-      rent: listing.rent_per_person || listing.rentamount || 'N/A',
-      listing: listing
-    }));
+    .map(({ complex }) => {
+      const listing = complex.units[0];
+      const range = complex.minRent === null
+        ? 'N/A'
+        : complex.minRent === complex.maxRent ? formatRent(complex.minRent) : `${formatRent(complex.minRent)}–${formatRent(complex.maxRent)}`;
+      return {
+        address: `${listing.listingaddress}, ${listing.listingcity}`,
+        details: complex.count > 1
+          ? `${complex.count} units • ${range}`
+          : `${listing.available_bedrooms || 'N/A'} bed • ${range}`,
+        complex,
+        listing
+      };
+    });
   
   searchSuggestions.value = suggestions;
   highlightedIndex.value = -1;
@@ -865,16 +927,16 @@ const selectSuggestion = async (suggestion) => {
   
   // Center map on the selected listing (without zooming)
   if (suggestion.listing && suggestion.listing.latitude && suggestion.listing.longitude) {
-    map.value.setView([suggestion.listing.latitude, suggestion.listing.longitude], map.value.getZoom());
+    map.value.setView([suggestion.complex.lat, suggestion.complex.lng], map.value.getZoom());
     
-    // Load full listing data when selected from search
-    const fullListing = await fetchListing(suggestion.listing.listingid);
-    if (fullListing) {
-      selectedListing.value = fullListing;
-      highlightSelectedMarker(suggestion.listing);
-      currentRoute.value = plotRoute(fullListing).addTo(map.value);
-      // displayIsochronicMap(fullListing); // Display isochronic map
-      isSidebarVisible.value = true;
+    const entry = entryByListingId.get(String(suggestion.listing.listingid));
+    if (suggestion.complex.count > 1 && entry) {
+      // A building with several units: show its unit list
+      entry.marker.openPopup();
+    } else {
+      // A single listing, or the listing markers are hidden (cluster / heatmap view)
+      // Load full listing data when selected from search
+      await openListing(suggestion.listing);
     }
 
     // clear Text
@@ -929,6 +991,7 @@ window.addEventListener('resize', checkMobile);
       zoom: 14,
       maxZoom: 20,
     });
+    map.value.on('zoomend', applyZoomMode);
     console.log(`🗺️ Map created: ${(performance.now() - mapInitStart).toFixed(2)}ms`);
 
     const tileStart = performance.now();
@@ -1609,6 +1672,7 @@ function mergeFilters() {
  */
  const switchFilter = (newFilter, newListings = null) => {
     markers.value.forEach(marker => map.value.removeLayer(marker)); 
+    resetMarkerEntries();
 
     if (heatmapLayer.value) {
       map.value.removeLayer(heatmapLayer.value); 
@@ -1629,6 +1693,7 @@ function mergeFilters() {
  const plotClustersOnMap = () => {
   if (!map.value) return;
   markers.value.forEach(marker => map.value.removeLayer(marker));
+  resetMarkerEntries();
 
   const clusterColors = [
     "#D73027", // Deep Red (Expensive Urban Core)
@@ -1676,6 +1741,7 @@ const closePopup = () => {
     
     // Clear all marker highlights
     clearAllHighlights();
+    document.querySelectorAll('.complex-popup-row.active').forEach(row => row.classList.remove('active'));
 };
 
 /**
@@ -1693,15 +1759,7 @@ const zoomToListing = (coords) => {
  * @param listing - The listing to select
  */
 const selectListingFromSidebar = async (listing) => {
-    // Load full listing data
-    const fullListing = await fetchListing(listing.listingid);
-    if (fullListing) {
-        selectedListing.value = fullListing;
-        highlightSelectedMarker(listing);
-        currentRoute.value = plotRoute(fullListing).addTo(map.value);
-        // displayIsochronicMap(fullListing); // Display isochronic map
-        isSidebarVisible.value = true;
-    }
+    await openListing(listing);
 };
 
 /**
