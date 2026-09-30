@@ -56,7 +56,7 @@ export const listings = snapshot as SnapshotListing[];
 /** The student whose search the walkthrough follows. */
 export const persona = {
     name: 'Retep',
-    query: "I'm Retep Griffin, a beer student at Cornell. I'm moving in with my 5 family members, we can do about $1,000 each, and I want to walk to class.",
+    query: "I'm Retep, a beer student at Cornell. I'm moving in with my 5 family members, we can do about $1,000 each, and I want to walk to class.",
     criteria: { beds: 6, budget: 1000, quad: 'agriculturequad', maxWalk: 25 } as Criteria,
 };
 

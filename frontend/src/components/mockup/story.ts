@@ -14,7 +14,7 @@ export const frames: Frame[] = [
     {
         id: 'start',
         title: 'Meet Retep',
-        caption: 'Retep Griffin is a beer student at Cornell, and he is bringing all five members of his family. ' +
+        caption: 'Retep is a beer student at Cornell, and he is bringing all five members of his family. ' +
             'Everything a student needs is already on the map: listings, campus quads and TCAT stops. ' +
             'There are no "points of interest" to toggle on.',
     },
