@@ -1916,11 +1916,11 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .card-title {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   color: #000000;
   margin: 0;
