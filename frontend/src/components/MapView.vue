@@ -2462,9 +2462,9 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 
 /* Commute Section */
 .commute-section {
-  margin: 20px 0;
-  border-top: 2px solid #f3f4f6;
-  padding-top: 20px;
+  margin: 12px 0;
+  border-top: 1px solid #f3f4f6;
+  padding-top: 12px;
 }
 
 .commute-header {
