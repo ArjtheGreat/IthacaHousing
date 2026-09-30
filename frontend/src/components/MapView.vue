@@ -101,11 +101,7 @@
                 <label for="commute-time-filter" class="filter-label">Max time</label>
                 <select id="commute-time-filter" v-model="selectedCommuteTime" @change="autoApplyCommuteFilter" class="filter-select">
                   <option value="">Any</option>
-                  <!-- <option value="10">10 min</option> -->
-                  <option value="15">15 min</option>
-                  <option value="20">20 min</option>
-                  <option value="25">25 min</option>
-                  <option value="30">30 min</option>
+                  <option v-for="t in commuteTimeOptions" :key="t" :value="String(t)">{{ t }} min</option>
                 </select>
               </div>
 
@@ -301,6 +297,7 @@ const bathOptions = [1, 1.5, 2, 2.5, 3]; // Adjust based on available data
 const selectedLocation = ref(''); // Selected Location
 const selectedDestination = ref(''); // Selected Destination for commute filter
 const selectedCommuteTime = ref(''); // Selected Max Commute Time
+const commuteTimeOptions = [15, 20, 25, 30]; // Max commute minutes in the dropdown; also the notches the no-results alert tries
 const selectedTransitMode = ref(''); // Selected Transit Mode (walk/bike/drive)
 const showCommuteDrawer = ref(false); // Controls visibility of commute filter drawer (legacy)
 const showCommutePanel = ref(false); // Controls visibility of new commute panel
@@ -1316,21 +1313,24 @@ const applyCommuteFilter = () => {
     return;
   }
 
-  // Build the column name based on transit mode and destination
-  const columnName = `${selectedTransitMode.value}_time_${selectedDestination.value}`;
-  const maxTime = parseFloat(selectedCommuteTime.value);
-
-  // Filter listings based on the selected criteria
-  const filtered = allListings.value.filter(listing => {
-    const travelTime = listing[columnName];
-    return travelTime !== null && travelTime !== undefined && travelTime < maxTime;
-  });
-
-  console.log(`Commute filter applied: ${columnName} < ${maxTime} minutes`);
+  const filtered = commuteMatches(parseFloat(selectedCommuteTime.value));
   console.log(`Found ${filtered.length} listings matching criteria`);
 
   activeFilters.value.commute = filtered;
   mergeFilters();
+};
+
+/**
+ * Listings within maxTime minutes of the selected destination by the selected mode
+ */
+const commuteMatches = (maxTime) => {
+  // Build the column name based on transit mode and destination
+  const columnName = `${selectedTransitMode.value}_time_${selectedDestination.value}`;
+
+  return allListings.value.filter(listing => {
+    const travelTime = listing[columnName];
+    return travelTime !== null && travelTime !== undefined && travelTime < maxTime;
+  });
 };
 
 /**
