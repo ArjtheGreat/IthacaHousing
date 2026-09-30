@@ -66,6 +66,17 @@
             </div>
           </div>
 
+          <!-- Budget Row -->
+          <div class="filter-row">
+            <div class="filter-group">
+              <label for="budget-filter" class="filter-label">💵 Budget</label>
+              <select id="budget-filter" v-model="selectedBudget" @change="updateBudgetFilter" class="filter-select">
+                <option :value="0">Any</option>
+                <option v-for="n in BUDGET_OPTIONS" :key="n" :value="n">{{ budgetLabel(n) }}</option>
+              </select>
+            </div>
+          </div>
+
           <!-- Location Row -->
           <!-- <div class="filter-row">
             <div class="filter-group">
