@@ -98,7 +98,7 @@ const teamMembers = [
   },
   {
     name: 'Ethan Yang',
-    role: 'Head of Marketing',
+    role: 'Product Engineer',
     avatar: ethanImg
   },
   {

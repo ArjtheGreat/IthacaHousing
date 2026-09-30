@@ -182,7 +182,7 @@ const teamMembers = [
   },
   {
     name: 'Ethan Yang',
-    role: 'Head of Marketing',
+    role: 'Product Engineer',
     email: 'ey283@cornell.edu',
     linkedin: 'https://www.linkedin.com/in/eycyang/',
     avatar: ethanImg
