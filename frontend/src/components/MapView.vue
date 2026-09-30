@@ -2509,7 +2509,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 .poi-buttons {
   display: flex;
   flex-direction: row;
-  gap: 12px;
+  gap: 8px;
 }
 
 .poi-btn {
@@ -2517,13 +2517,13 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   flex: 1;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: 6px;
+  padding: 6px 10px;
   background: white;
   color: #4b5563;
-  border: 2px solid #e5e7eb;
-  border-radius: 10px;
-  font-size: 0.8rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -2531,7 +2531,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 .poi-btn i {
-  font-size: 1.1rem;
+  font-size: 0.85rem;
 }
 
 .poi-btn:hover {
