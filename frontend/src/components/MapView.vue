@@ -494,10 +494,11 @@ function complexPaint(complex, stats) {
         const priced = complex.units.filter(unit => unit.rent_per_person > 0);
         return {
             center: getColorByRawPrice(complex.medianRent, stats.minRent, stats.maxRent, stats.p5, stats.p95),
+            // Same order of checks as getColorByRawPrice, so each unit lands in exactly one segment
             segments: [
                 { color: '#10b981', count: priced.filter(unit => unit.rent_per_person <= stats.p5).length },
                 { color: '#3b82f6', count: priced.filter(unit => unit.rent_per_person > stats.p5 && unit.rent_per_person < stats.p95).length },
-                { color: '#ef4444', count: priced.filter(unit => unit.rent_per_person >= stats.p95).length },
+                { color: '#ef4444', count: priced.filter(unit => unit.rent_per_person > stats.p5 && unit.rent_per_person >= stats.p95).length },
             ],
         };
     }
@@ -529,7 +530,7 @@ const formatRent = (rent) => (rent > 0 ? `$${Math.round(rent).toLocaleString('en
  * Popup list for a building: one row per unit, best value first
  * @param entry - Marker entry for the building
  * @param stats - Raw price statistics for the listings on the map
- * @param totalUnits - Units at this building before filters
+ * @param totalUnits - Units at this building when nothing is filtered out
  */
 function buildComplexPopup(entry, stats, totalUnits) {
     const { complex } = entry;
@@ -537,7 +538,7 @@ function buildComplexPopup(entry, stats, totalUnits) {
         const score = valueScore(unit);
         return {
             id: unit.listingid,
-            beds: unit.available_bedrooms ? `${Number(unit.available_bedrooms)} bd` : 'Studio',
+            beds: unit.available_bedrooms == null ? 'N/A' : unit.available_bedrooms > 0 ? `${Number(unit.available_bedrooms)} bd` : 'Studio',
             rent: formatRent(unit.rent_per_person),
             color: listingColor(unit, stats),
             badge: score === null ? 'n/a' : `${(Math.abs(score) * 100).toFixed(1)}%`,
@@ -548,7 +549,7 @@ function buildComplexPopup(entry, stats, totalUnits) {
     return complexPopupHtml({
         address: complex.address,
         summary: `${complex.count} units${range}`,
-        note: totalUnits > complex.count ? `${complex.count} of ${totalUnits} units match your filters` : undefined,
+        note: totalUnits > complex.count ? `Showing ${complex.count} of ${totalUnits} units here` : undefined,
         rows,
     });
 }
@@ -703,6 +704,15 @@ function addQuadIcons() {
 }
 
 /**
+ * Forgets the listing markers. Call whenever they are taken off the map.
+ */
+function resetMarkerEntries() {
+    markerEntries = [];
+    entryByListingId = new Map();
+    selectedEntry = null;
+}
+
+/**
  * Add markers to the map: one per building.
  * A building with a single listing keeps the plain dot; a building with several gets a
  * count marker whose popup lists the units.
@@ -713,9 +723,7 @@ function addMarkers(listings, filtered) {
     const rawMap = toRaw(map.value);
     markers.value.forEach(marker => rawMap.removeLayer(toRaw(marker))); 
     markers.value = []; 
-    markerEntries = [];
-    entryByListingId = new Map();
-    selectedEntry = null;
+    resetMarkerEntries();
 
     if (heatmapLayer.value) {
       map.value.removeLayer(heatmapLayer.value); 
@@ -727,10 +735,13 @@ function addMarkers(listings, filtered) {
 
     const stats = getRawPriceStats(listings);
 
-    // Units per building before filters, so a popup can say "8 of 22 units match"
-    const totalUnitsById = new Map();
-    if (listings !== allListings.value) {
-        groupIntoComplexes(allListings.value).forEach(complex => totalUnitsById.set(complex.id, complex.count));
+    // Units per building when nothing is filtered out, so a popup can say "Showing 8 of 22 units here".
+    // Keyed by listing, because a building's id can change with which of its units are present.
+    const totalUnitsByListingId = new Map();
+    if (listings.length < allListings.value.length) {
+        groupIntoComplexes(toRaw(allListings.value)).forEach(complex => {
+            complex.units.forEach(unit => totalUnitsByListingId.set(String(unit.listingid), complex.count));
+        });
     }
 
     grouped.forEach(complex => {
@@ -756,7 +767,7 @@ function addMarkers(listings, filtered) {
                 riseOnHover: true,
             }).addTo(rawMap);
 
-            entry.marker.bindPopup(() => buildComplexPopup(entry, stats, totalUnitsById.get(complex.id) ?? complex.count), {
+            entry.marker.bindPopup(() => buildComplexPopup(entry, stats, totalUnitsByListingId.get(String(complex.units[0].listingid)) ?? complex.count), {
                 className: 'complex-popup-wrap',
                 maxWidth: 300,
                 autoPanPaddingTopLeft: [20, 130], // keep clear of the navbar and search bar
@@ -918,10 +929,12 @@ const selectSuggestion = async (suggestion) => {
   if (suggestion.listing && suggestion.listing.latitude && suggestion.listing.longitude) {
     map.value.setView([suggestion.complex.lat, suggestion.complex.lng], map.value.getZoom());
     
-    if (suggestion.complex.count > 1) {
+    const entry = entryByListingId.get(String(suggestion.listing.listingid));
+    if (suggestion.complex.count > 1 && entry) {
       // A building with several units: show its unit list
-      entryByListingId.get(String(suggestion.listing.listingid))?.marker.openPopup();
+      entry.marker.openPopup();
     } else {
+      // A single listing, or the listing markers are hidden (cluster / heatmap view)
       // Load full listing data when selected from search
       await openListing(suggestion.listing);
     }
@@ -1659,6 +1672,7 @@ function mergeFilters() {
  */
  const switchFilter = (newFilter, newListings = null) => {
     markers.value.forEach(marker => map.value.removeLayer(marker)); 
+    resetMarkerEntries();
 
     if (heatmapLayer.value) {
       map.value.removeLayer(heatmapLayer.value); 
@@ -1679,9 +1693,7 @@ function mergeFilters() {
  const plotClustersOnMap = () => {
   if (!map.value) return;
   markers.value.forEach(marker => map.value.removeLayer(marker));
-  markerEntries = [];
-  entryByListingId = new Map();
-  selectedEntry = null;
+  resetMarkerEntries();
 
   const clusterColors = [
     "#D73027", // Deep Red (Expensive Urban Core)
@@ -1729,6 +1741,7 @@ const closePopup = () => {
     
     // Clear all marker highlights
     clearAllHighlights();
+    document.querySelectorAll('.complex-popup-row.active').forEach(row => row.classList.remove('active'));
 };
 
 /**

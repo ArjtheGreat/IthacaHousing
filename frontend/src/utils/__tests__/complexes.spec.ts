@@ -172,6 +172,52 @@ describe('groupIntoComplexes', () => {
     expect(filtered.id).toBe(all.id)
   })
 
+  it('keeps its id when filters change a building geocoded to one point, and still groups a two-point building', () => {
+    const units = [
+      listing({ listingaddress: '815 S AURORA', latitude: 42.43, longitude: -76.49 }),
+      listing({ listingaddress: '815 AURORA ST S', latitude: 42.43005, longitude: -76.49003 }),
+      listing({ listingaddress: '815 AURORA ST S', latitude: 42.43005, longitude: -76.49003 }),
+    ]
+    const filtered = groupIntoComplexes(units.slice(1))
+    expect(filtered).toHaveLength(1)
+    expect(filtered[0].count).toBe(2)
+  })
+
+  it('skips listings without usable coordinates instead of throwing', () => {
+    const broken = [
+      listing({ latitude: null as unknown as number }),
+      listing({ longitude: NaN }),
+      listing({ latitude: undefined as unknown as number }),
+    ]
+    const complexes = groupIntoComplexes([...broken, listing()])
+    expect(complexes).toHaveLength(1)
+    expect(complexes[0].count).toBe(1)
+  })
+
+  it('never merges blank addresses across coordinates', () => {
+    const complexes = groupIntoComplexes([
+      listing({ listingaddress: '', latitude: 42.44, longitude: -76.48 }),
+      listing({ listingaddress: null as unknown as string, latitude: 42.44005, longitude: -76.48003 }),
+    ])
+    expect(complexes).toHaveLength(2)
+  })
+
+  it('does not merge the same number and name on different street types', () => {
+    const complexes = groupIntoComplexes([
+      listing({ listingaddress: '100 MAIN ST', latitude: 42.44, longitude: -76.48 }),
+      listing({ listingaddress: '100 MAIN AVE', latitude: 42.44005, longitude: -76.48003 }),
+    ])
+    expect(complexes).toHaveLength(2)
+  })
+
+  it('groups 5,000 distinct addresses quickly', () => {
+    const many = Array.from({ length: 5000 }, (_, i) =>
+      listing({ listingaddress: `${i} TEST ST`, latitude: 42 + i * 0.001, longitude: -76 - i * 0.001 }))
+    const start = performance.now()
+    expect(groupIntoComplexes(many)).toHaveLength(5000)
+    expect(performance.now() - start).toBeLessThan(1000)
+  })
+
   it('returns nothing for no listings', () => {
     expect(groupIntoComplexes([])).toEqual([])
   })

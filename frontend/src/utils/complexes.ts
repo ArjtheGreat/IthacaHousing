@@ -113,13 +113,35 @@ const DIRECTION_TOKENS = new Set(Object.values(DIRECTIONS));
  * Unit markers ("#3", "Apt. C", "(BLDG. B)") are dropped.
  */
 export function normalizeAddress(raw: string | null | undefined): string {
-    const base = String(raw ?? '').toLowerCase().split(/\s*(?:,|#|\bapt\b|\bunit\b|\bsuite\b|\()/)[0];
+    return parseAddress(raw).key;
+}
+
+interface ParsedAddress {
+    /** House number + street name + direction, e.g. "815 aurora s". */
+    key: string;
+    /** Street type if the address has one ("st", "ave"), otherwise ''. */
+    suffix: string;
+}
+
+const parsedAddressCache = new Map<string, ParsedAddress>();
+
+function parseAddress(raw: string | null | undefined): ParsedAddress {
+    const text = String(raw ?? '');
+    const cached = parsedAddressCache.get(text);
+    if (cached) return cached;
+
+    const base = text.toLowerCase().split(/\s*(?:,|#|\bapt\b|\bunit\b|\bsuite\b|\()/)[0];
     const tokens = base.replace(/\./g, '').split(/\s+/).filter(Boolean)
         .map(t => SUFFIXES[t] || DIRECTIONS[t] || t);
     const houseNumber = tokens.shift() ?? '';
     const directions = tokens.filter(t => DIRECTION_TOKENS.has(t));
     const words = tokens.filter(t => !DIRECTION_TOKENS.has(t) && !SUFFIX_TOKENS.has(t));
-    return [houseNumber, ...words, ...directions].join(' ');
+    const parsed = {
+        key: [houseNumber, ...words, ...directions].join(' '),
+        suffix: tokens.find(t => SUFFIX_TOKENS.has(t)) ?? '',
+    };
+    parsedAddressCache.set(text, parsed);
+    return parsed;
 }
 
 export function median(values: number[]): number | null {
@@ -161,23 +183,38 @@ function buildComplex<T extends MapListing>(units: T[]): Complex<T> {
 /**
  * One complex per building. Listings are grouped by exact coordinate, then:
  *  - a coordinate holding two different addresses (a geocoder collision) is split, and
- *  - nearby groups with the same normalized address (one building, two spellings) are merged.
+ *  - nearby groups with the same address (one building, two spellings) are merged.
  * A listing on its own comes back as a complex with count 1.
+ * Listings without usable coordinates are left out: they cannot be placed on the map.
  */
 export function groupIntoComplexes<T extends MapListing>(listings: T[]): Complex<T>[] {
     const byCoordAndAddress = new Map<string, T[]>();
     listings.forEach(listing => {
+        if (!Number.isFinite(listing.latitude) || !Number.isFinite(listing.longitude)) return;
         const key = `${listing.latitude},${listing.longitude}|${normalizeAddress(listing.listingaddress)}`;
         const group = byCoordAndAddress.get(key);
         if (group) group.push(listing); else byCoordAndAddress.set(key, [listing]);
     });
 
+    // Merge candidates are looked up by address, so this stays fast for thousands of listings.
     const merged: T[][] = [];
+    const mergedByAddress = new Map<string, T[][]>();
     byCoordAndAddress.forEach(group => {
-        const address = normalizeAddress(group[0].listingaddress);
-        const match = merged.find(m =>
-            normalizeAddress(m[0].listingaddress) === address && metersBetween(m[0], group[0]) < SAME_BUILDING_METERS);
-        if (match) match.push(...group); else merged.push([...group]);
+        const address = parseAddress(group[0].listingaddress);
+        const candidates = mergedByAddress.get(address.key) ?? [];
+        // A blank address says nothing about which building this is, so it never merges.
+        const match = address.key === '' ? undefined : candidates.find(candidate => {
+            const other = parseAddress(candidate[0].listingaddress);
+            const suffixesAgree = !address.suffix || !other.suffix || address.suffix === other.suffix;
+            return suffixesAgree && metersBetween(candidate[0], group[0]) < SAME_BUILDING_METERS;
+        });
+        if (match) {
+            match.push(...group);
+        } else {
+            const fresh = [...group];
+            merged.push(fresh);
+            mergedByAddress.set(address.key, [...candidates, fresh]);
+        }
     });
 
     return spreadCollisions(merged.map(buildComplex));
