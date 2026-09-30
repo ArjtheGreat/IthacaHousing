@@ -72,7 +72,7 @@ const frame = computed(() => frames[step.value]);
 const typedQuery = ref('');
 const searchState = ref<SearchState>('idle');
 const selected = ref<RankedListing | null>(null);
-/** Set when Peter accepts the alert's suggestion in the no-results frame. */
+/** Set when Retep accepts the alert's suggestion in the no-results frame. */
 const relaxed = ref(false);
 
 const criteria = computed<Criteria>(() => {

@@ -55,12 +55,12 @@ export const listings = snapshot as SnapshotListing[];
 
 /** The student whose search the walkthrough follows. */
 export const persona = {
-    name: 'Peter',
-    query: "I'm Peter Griffin, a beer student at Cornell. I'm moving in with my 5 family members, we can do about $1,000 each, and I want to walk to class.",
+    name: 'Retep',
+    query: "I'm Retep Griffin, a beer student at Cornell. I'm moving in with my 5 family members, we can do about $1,000 each, and I want to walk to class.",
     criteria: { beds: 6, budget: 1000, quad: 'agriculturequad', maxWalk: 25 } as Criteria,
 };
 
-/** The stricter version Peter tries later, which matches nothing. */
+/** The stricter version Retep tries later, which matches nothing. */
 export const tooStrictCriteria: Criteria = { ...persona.criteria, maxWalk: 10 };
 
 /** Rents below this are treated as bad data (a room listed at $230 is not a real per-person price). */
@@ -119,7 +119,7 @@ export interface RelaxSuggestion {
     count: number;
 }
 
-/** The smallest walk limit (in 5-minute steps) that would give Peter at least one result. */
+/** The smallest walk limit (in 5-minute steps) that would give Retep at least one result. */
 export function relaxSuggestion(criteria: Criteria): RelaxSuggestion | null {
     for (let maxWalk = criteria.maxWalk + 5; maxWalk <= 45; maxWalk += 5) {
         const count = matchListings({ ...criteria, maxWalk }).length;

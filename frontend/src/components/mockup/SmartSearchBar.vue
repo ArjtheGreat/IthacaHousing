@@ -32,7 +32,7 @@ defineProps<{
   query: string;
   state: SearchState;
   chips: Chip[];
-  /** Label of the chip Peter just edited, drawn with emphasis. */
+  /** Label of the chip Retep just edited, drawn with emphasis. */
   changedChip?: string;
   /** Slide left to make room for the listing detail card. */
   shifted?: boolean;

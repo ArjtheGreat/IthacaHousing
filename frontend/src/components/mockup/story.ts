@@ -13,8 +13,8 @@ export interface Frame {
 export const frames: Frame[] = [
     {
         id: 'start',
-        title: 'Meet Peter',
-        caption: 'Peter Griffin is a beer student at Cornell, and he is bringing all five members of his family. ' +
+        title: 'Meet Retep',
+        caption: 'Retep Griffin is a beer student at Cornell, and he is bringing all five members of his family. ' +
             'Everything a student needs is already on the map: listings, campus quads and TCAT stops. ' +
             'There are no "points of interest" to toggle on.',
     },
@@ -22,13 +22,13 @@ export const frames: Frame[] = [
         id: 'search',
         title: 'Describe it, don\'t filter it',
         caption: 'The search bar takes a sentence, not just an address. ' +
-            'An LLM turns it into concrete criteria and shows them back as chips, so Peter can see and correct what it understood. ' +
+            'An LLM turns it into concrete criteria and shows them back as chips, so Retep can see and correct what it understood. ' +
             '"Beer student" becomes "walk to the Ag Quad", where food science lives, and "5 family members" becomes six bedrooms.',
     },
     {
         id: 'results',
         title: 'Top options, not just dots',
-        caption: 'Once Peter has said what he wants, the map gets a ranked list beside it. ' +
+        caption: 'Once Retep has said what he wants, the map gets a ranked list beside it. ' +
             'Rank blends walk time and fair-rent value, and every row says why it is there. ' +
             'The Featured slot is where landlords pay for placement.',
     },
@@ -41,7 +41,7 @@ export const frames: Frame[] = [
     {
         id: 'no-results',
         title: 'Filters never fail silently',
-        caption: 'Peter tightens the walk to 10 minutes and nothing matches. ' +
+        caption: 'Retep tightens the walk to 10 minutes and nothing matches. ' +
             'Today the map just goes blank. Here he gets told, sees the closest relaxation that would work, and can apply it in one click.',
     },
     {
