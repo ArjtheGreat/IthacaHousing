@@ -293,6 +293,7 @@ let activeFilter = ref(null); // Tracks which filter is selected
 
 const activeFilters = ref({ beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null }); // Holds Bath and Bed Data for Dynamic Filtering
 const filteredListings = ref([]); // Keeps track of the filtered listings
+const filterError = ref(null); // Key of the filter whose data failed to load, shown as an alert
 const selectedBeds = ref(0); // Number of Selected Beds
 const bedOptions = [1, 2, 3, 4, 5]; // Adjust based on available data
 const selectedBaths = ref(0); // Number of Selected Baths
@@ -1166,24 +1167,56 @@ const plotHeatmap = () => {
 };
 
 /**
- * Updates the Bed Filter based on the number of beds
+ * Resets the dropdown behind a filter so the controls match activeFilters.
+ * Filters without an entry here (toggles, new filters) have no control state to reset.
  */
-const updateBedFilter = async () => {
-  const bedData = await fetchBedFilter(selectedBeds.value);
-  console.log(bedData)
-  activeFilters.value.beds = bedData; 
-  mergeFilters();
+const filterControlResets = {
+  beds: () => { selectedBeds.value = 0; },
+  baths: () => { selectedBaths.value = 0; },
+  location: () => { selectedLocation.value = ''; },
+  commute: () => { selectedCommuteTime.value = ''; },
 };
 
+/**
+ * Stores fetched filter data, or, if the fetch failed (null), leaves the filter off and says so
+ */
+const applyFetchedFilter = (key, data) => {
+  if (data === null) {
+    activeFilters.value[key] = null;
+    filterControlResets[key]?.();
+    filterError.value = key;
+  } else {
+    activeFilters.value[key] = data;
+    if (filterError.value === key) filterError.value = null;
+  }
+  mergeFilters();
+};
 
 /**
  * Updates the Bed Filter based on the number of beds
  */
+const updateBedFilter = async () => {
+  if (!selectedBeds.value) {
+    // "Any" is no filter at all; no need to ask the API
+    activeFilters.value.beds = null;
+    mergeFilters();
+    return;
+  }
+  applyFetchedFilter('beds', await fetchBedFilter(selectedBeds.value));
+};
+
+
+/**
+ * Updates the Bath Filter based on the number of baths
+ */
 const updateBathFilter = async () => {
+  if (!selectedBaths.value) {
+    activeFilters.value.baths = null;
+    mergeFilters();
+    return;
+  }
   const bathFilterInput = selectedBaths.value*2
-  const bathData = await fetchBathFilter(bathFilterInput);
-  activeFilters.value.baths = bathData; 
-  mergeFilters(bathData, true);
+  applyFetchedFilter('baths', await fetchBathFilter(bathFilterInput));
 };
 
 const updateLocationFilter = async () => {
