@@ -1,0 +1,25 @@
+/* Building ("complex") markers and their popup list. Leaflet owns this DOM, so these rules are global. */
+.complex-icon { background: none; border: none; }
+.complex-icon svg { display: block; overflow: visible; font-family: inherit; }
+.complex-icon:focus-visible { outline: 3px solid #124a10; outline-offset: 2px; border-radius: 50%; }
+.complex-selected::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 3px solid #124a10; pointer-events: none; }
+
+.complex-popup-wrap .leaflet-popup-content-wrapper { border-radius: 10px; padding: 0; overflow: hidden; }
+.complex-popup-wrap .leaflet-popup-content { margin: 0; width: min(290px, calc(100vw - 48px)) !important; }
+.complex-popup-head { padding: 10px 34px 10px 14px; border-bottom: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 1px; }
+.complex-popup-head strong { font-size: 0.95rem; color: #111; }
+.complex-popup-head span { font-size: 0.78rem; color: #6b7280; }
+.complex-popup-head .complex-popup-note { color: #1e3a8a; font-weight: 600; }
+.complex-popup-list { max-height: 230px; overflow-y: auto; padding: 4px 0; }
+.complex-popup-row { display: grid; grid-template-columns: 14px 52px 1fr auto; align-items: center; gap: 8px; width: 100%; padding: 7px 14px;
+  font: inherit; font-size: 0.82rem; color: #1f2937; text-align: left; background: none; border: none; cursor: pointer; }
+.complex-popup-row:hover, .complex-popup-row.active { background: #eff6ff; }
+.complex-popup-row:focus-visible { outline: 2px solid #3b82f6; outline-offset: -2px; }
+.complex-popup-dot { width: 10px; height: 10px; border-radius: 50%; }
+.complex-popup-rent { font-weight: 700; }
+.complex-popup-rent small { font-weight: 400; color: #6b7280; margin-left: 2px; }
+.complex-popup-badge { font-size: 0.7rem; font-weight: 600; padding: 2px 7px; border-radius: 999px; }
+.complex-popup-under { background: #dcfce7; color: #16a34a; }
+.complex-popup-over { background: #fee2e2; color: #dc2626; }
+.complex-popup-fair { background: #f1f5f9; color: #111; }
+.complex-popup-none { background: #f1f5f9; color: #6b7280; }
