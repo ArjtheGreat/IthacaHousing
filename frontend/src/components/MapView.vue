@@ -1242,9 +1242,7 @@ const updateLocationFilter = async () => {
  * */
 const toggleWalk = async () => {
   if(!activeFilters.value.walk) {
-    const walkData = await fetchWalkFilter();
-    activeFilters.value.walk = walkData; 
-    mergeFilters(walkData, true);
+    applyFetchedFilter('walk', await fetchWalkFilter());
   }
   else {
     activeFilters.value.walk = null; 
@@ -1257,9 +1255,7 @@ const toggleWalk = async () => {
  * */
  const toggleTransit = async () => {
   if(!activeFilters.value.transit) {
-    const transit = await fetchTransitFilter();
-    activeFilters.value.transit = transit; 
-    mergeFilters(transit, true);
+    applyFetchedFilter('transit', await fetchTransitFilter());
   }
   else {
     activeFilters.value.transit = null; 
@@ -1272,9 +1268,7 @@ const toggleWalk = async () => {
  * */
  const togglePets = async () => {
   if(!activeFilters.value.pets) {
-    const petsData = await fetchPetsFilter();
-    activeFilters.value.pets = petsData; 
-    mergeFilters(petsData, true);
+    applyFetchedFilter('pets', await fetchPetsFilter());
   }
   else {
     activeFilters.value.pets = null; 
@@ -1600,9 +1594,7 @@ const resetAllFilters = () => {
  */
  const toggleRoomToRent = async () => {
   if (!activeFilters.value.roomtorent) {
-    const roomData = await fetchRoomToRentListings();
-    activeFilters.value.roomtorent = roomData;
-    mergeFilters(roomData, true);
+    applyFetchedFilter('roomtorent', await fetchRoomToRentListings());
   } else {
     activeFilters.value.roomtorent = null;
     mergeFilters();
@@ -1615,9 +1607,7 @@ const resetAllFilters = () => {
  */
  const toggleRent = async () => {
   if (!activeFilters.value.rent) {
-    const rentData = await fetchRentListings();
-    activeFilters.value.rent = rentData;
-    mergeFilters(rentData, true);
+    applyFetchedFilter('rent', await fetchRentListings());
   } else {
     activeFilters.value.rent = null;
     mergeFilters();
@@ -1629,9 +1619,7 @@ const resetAllFilters = () => {
  */
  const toggleShared = async () => {
   if (!activeFilters.value.shared) {
-    const sharedData = await fetchSharedListings();
-    activeFilters.value.shared = sharedData;
-    mergeFilters(sharedData, true);
+    applyFetchedFilter('shared', await fetchSharedListings());
   } else {
     activeFilters.value.shared = null;
     mergeFilters();
