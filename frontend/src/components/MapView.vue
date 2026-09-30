@@ -2126,12 +2126,12 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 
 .filter-select {
   width: 100%;
-  padding: 10px;
+  padding: 6px 10px;
   border-radius: 8px;
   border: 1px solid #ccc;
   background: #f8f8f8;
   color: #333;
-  font-size: 1rem;
+  font-size: 0.85rem;
   appearance: none;
   cursor: pointer;
   outline: none;
