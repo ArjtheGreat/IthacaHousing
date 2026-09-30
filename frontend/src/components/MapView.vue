@@ -2117,10 +2117,11 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 .filter-label {
-  font-size: 1rem;
+  font-size: 0.8rem;
   color: #444;
   font-weight: 500;
   text-align: left;
+  margin-bottom: 4px;
 }
 
 .filter-select {
