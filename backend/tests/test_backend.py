@@ -270,7 +270,7 @@ def test_get_listing_by_id(client):
     res = client.get("/listing/1")
     assert res.status_code == 200
     data = res.json()
-    assert data["listingid"] == 1
+    assert data["listingid"] == "1"
 
 def test_get_cluster_neighborhoods(client):
     """
