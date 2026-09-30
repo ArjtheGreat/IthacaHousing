@@ -50,7 +50,7 @@
           <!-- Beds and Baths Row -->
           <div class="filter-row">
             <div class="filter-group">
-              <label for="bed-filter" class="filter-label">🛏️ Beds</label>
+              <label for="bed-filter" class="filter-label">Beds</label>
               <select id="bed-filter" v-model="selectedBeds" @change="updateBedFilter" class="filter-select">
                 <option :value="0">Any</option>
                 <option v-for="n in bedOptions" :key="n" :value="n">{{ n }}</option>
@@ -58,7 +58,7 @@
             </div>
 
             <div class="filter-group">
-              <label for="bath-filter" class="filter-label">🛁 Baths</label>
+              <label for="bath-filter" class="filter-label">Baths</label>
               <select id="bath-filter" v-model="selectedBaths" @change="updateBathFilter" class="filter-select">
                 <option :value="0">Any</option>
                 <option v-for="n in bathOptions" :key="n" :value="n">{{ n }}</option>
@@ -69,7 +69,7 @@
           <!-- Budget Row -->
           <div class="filter-row">
             <div class="filter-group">
-              <label for="budget-filter" class="filter-label">💵 Budget</label>
+              <label for="budget-filter" class="filter-label">Budget</label>
               <select id="budget-filter" v-model="selectedBudget" @change="updateBudgetFilter" class="filter-select">
                 <option :value="0">Any</option>
                 <option v-for="n in BUDGET_OPTIONS" :key="n" :value="n">{{ budgetLabel(n) }}</option>
@@ -93,7 +93,7 @@
           <!-- Commute Section -->
           <div class="commute-section">
             <div class="commute-header">
-              <h4 class="commute-title">🚶 Commute</h4>
+              <h4 class="commute-title">Commute</h4>
             </div>
 
             <div class="filter-row-commute">
@@ -135,7 +135,7 @@
 
           <!-- Points of Interest Section -->
           <div class="filter-section">
-            <label for="bed-filter" class="filter-label">📍 Points of Interest</label>
+            <label for="bed-filter" class="filter-label">Points of Interest</label>
             <div class="poi-buttons">
               <button 
                 @click="togglePOI('groceries')" 
