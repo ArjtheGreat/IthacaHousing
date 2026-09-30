@@ -2475,7 +2475,8 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 .commute-title {
-  font-size: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: #374151;
   margin: 0;
   display: flex;
