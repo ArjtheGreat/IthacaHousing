@@ -1187,6 +1187,17 @@ const updateBathFilter = async () => {
   mergeFilters(bathData, true);
 };
 
+/**
+ * Updates the Budget Filter (max rent per person). Filters allListings on the
+ * client, so it works without a per-filter API endpoint.
+ */
+const updateBudgetFilter = () => {
+  activeFilters.value.budget = selectedBudget.value
+    ? filterByBudget(allListings.value, selectedBudget.value)
+    : null;
+  mergeFilters();
+};
+
 const updateLocationFilter = async () => {
   if (!selectedLocation.value || selectedLocation.value === '') {
     // Clear location filter
