@@ -213,6 +213,12 @@
         </div>
       </div>
 
+      <!-- Filter alerts: a filter failed to load, or nothing matches the active filters -->
+      <div v-if="filterError || showNoResults" class="filter-alerts">
+        <FilterAlert v-if="filterError" kind="error" :filter-key="filterError" @dismiss="filterError = null" />
+        <FilterAlert v-if="showNoResults" kind="empty" :suggestion="relaxHint" @relax="applyRelax" @reset="resetAllFilters" />
+      </div>
+
       <div id="map"></div>
 
       <!-- Legend -->
@@ -257,11 +263,12 @@ import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { fetchListings, fetchListing, fetchListingsMinimal, fetchTopTenListings, fetchBottomTenListings, fetchClusters, fetchHeatMap, fetchBedFilter, fetchBathFilter, fetchWalkFilter, fetchTransitFilter, fetchPetsFilter, fetchRentListings, fetchRoomToRentListings, fetchSharedListings } from "@/services/fetch";
 import NavBar from "@/components/NavBar.vue";
 import RentalSidebar from "@/components/RentalSidebar.vue";
+import FilterAlert from "@/components/FilterAlert.vue";
 import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
 import "leaflet.heat";
 import { groupIntoComplexes, getColor, interpolateColor, valueScore, colorForScore, bucketForScore, sortByValue, BUCKET_COLORS } from "@/utils/complexes";
 import { complexMarkerSvg, compactMarkerSvg, complexPopupHtml } from "@/utils/complexMarker";
-import { mergeActiveFilters } from "@/utils/filters";
+import { mergeActiveFilters, relaxSuggestion } from "@/utils/filters";
 import "@/assets/complexes.css";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 
@@ -328,6 +335,23 @@ const isLoading = ref(true); // Add loading state
 // Computed property to check if any filters are active
 const hasAnyActiveFilters = computed(() => {
   return Object.values(activeFilters.value).some(filter => filter !== null);
+});
+
+// Filters are on but no listing passes all of them
+const showNoResults = computed(() => {
+  return !isLoading.value && hasAnyActiveFilters.value && filteredListings.value.length === 0;
+});
+
+// Smallest change that brings listings back, offered in the no-results alert
+const relaxHint = computed(() => {
+  if (!showNoResults.value) return null;
+  const currentMax = parseFloat(selectedCommuteTime.value);
+  const commuteStep = {
+    key: 'commute',
+    options: commuteTimeOptions.filter(t => t > currentMax),
+    listingsAt: commuteMatches,
+  };
+  return relaxSuggestion(allListings.value, activeFilters.value, [commuteStep]);
 });
 
 // Computed property to get unique neighborhoods from listings
@@ -1190,6 +1214,24 @@ const applyFetchedFilter = (key, data) => {
 };
 
 /**
+ * Applies the no-results alert's suggestion, updating the dropdowns so the controls stay in sync
+ */
+const applyRelax = () => {
+  const suggestion = relaxHint.value;
+  if (!suggestion) return;
+
+  if (suggestion.kind === 'step') {
+    // The only step filter is the commute max time
+    selectedCommuteTime.value = String(suggestion.value);
+    applyCommuteFilter();
+  } else {
+    filterControlResets[suggestion.key]?.();
+    activeFilters.value[suggestion.key] = null;
+    mergeFilters();
+  }
+};
+
+/**
  * Updates the Bed Filter based on the number of beds
  */
 const updateBedFilter = async () => {
@@ -1585,6 +1627,7 @@ const resetAllFilters = () => {
   // Close panels
   showCommuteDrawer.value = false;
   showCommutePanel.value = false;
+  filterError.value = null;
   
   mergeFilters();
 };
