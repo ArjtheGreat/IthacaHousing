@@ -1242,7 +1242,10 @@ const updateBedFilter = async () => {
     mergeFilters();
     return;
   }
-  applyFetchedFilter('beds', await fetchBedFilter(selectedBeds.value));
+  const beds = selectedBeds.value;
+  const bedData = await fetchBedFilter(beds);
+  if (beds !== selectedBeds.value) return; // A newer choice replaced this one while it loaded
+  applyFetchedFilter('beds', bedData);
 };
 
 
@@ -1255,8 +1258,10 @@ const updateBathFilter = async () => {
     mergeFilters();
     return;
   }
-  const bathFilterInput = selectedBaths.value*2
-  applyFetchedFilter('baths', await fetchBathFilter(bathFilterInput));
+  const baths = selectedBaths.value;
+  const bathData = await fetchBathFilter(baths*2);
+  if (baths !== selectedBaths.value) return; // A newer choice replaced this one while it loaded
+  applyFetchedFilter('baths', bathData);
 };
 
 const updateLocationFilter = async () => {
