@@ -265,6 +265,7 @@ import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
 import "leaflet.heat";
 import { groupIntoComplexes, getColor, interpolateColor, valueScore, colorForScore, bucketForScore, sortByValue, BUCKET_COLORS } from "@/utils/complexes";
 import { complexMarkerSvg, compactMarkerSvg, complexPopupHtml } from "@/utils/complexMarker";
+import { filterByBudget, budgetLabel, BUDGET_OPTIONS } from "@/utils/budget";
 import "@/assets/complexes.css";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 
@@ -290,12 +291,13 @@ const isochronicLayer = ref(null); // Stores the isochronic map layer
 // Tab functionality moved to InsideIthacaView
 let activeFilter = ref(null); // Tracks which filter is selected
 
-const activeFilters = ref({ beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null }); // Holds Bath and Bed Data for Dynamic Filtering
+const activeFilters = ref({ beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null, budget: null }); // Holds Bath and Bed Data for Dynamic Filtering
 const filteredListings = ref([]); // Keeps track of the filtered listings
 const selectedBeds = ref(0); // Number of Selected Beds
 const bedOptions = [1, 2, 3, 4, 5]; // Adjust based on available data
 const selectedBaths = ref(0); // Number of Selected Baths
 const bathOptions = [1, 1.5, 2, 2.5, 3]; // Adjust based on available data
+const selectedBudget = ref(0); // Max rent per person per month (0 = Any)
 const selectedLocation = ref(''); // Selected Location
 const selectedDestination = ref(''); // Selected Destination for commute filter
 const selectedCommuteTime = ref(''); // Selected Max Commute Time
