@@ -1951,8 +1951,8 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 
 .filter-row {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .filter-group {
@@ -2499,7 +2499,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 .filter-row-commute {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
+  gap: 8px;
 }
 
 /* Reset Section */
