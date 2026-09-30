@@ -1,6 +1,6 @@
 # Ithaca Insights
 
-Ithaca Insights shows whether a rental listing in Ithaca, NY is priced fairly. Every day we pull the current listings, predict what each one should rent for per person, and put the asking rent and our prediction side by side on a map.
+Ithaca Insights, built by [Maitrix Labs](https://maitrixlabs.com/), shows whether a rental listing in Ithaca, NY is priced fairly. Every day we pull the current listings, predict what each one should rent for per person, and put the asking rent and our prediction side by side on a map.
 
 Live site: [ithacainsights.com](https://ithacainsights.com)
 
@@ -105,4 +105,4 @@ GitHub Actions runs the frontend tests and a TypeScript type check on changes to
 
 Questions about the data or the model go through the [contact page](https://ithacainsights.com/contact). Bugs and feature ideas can go in GitHub issues.
 
-Ithaca Insights is built by Maitrix Labs.
+Ithaca Insights is built by [Maitrix Labs](https://maitrixlabs.com/).
