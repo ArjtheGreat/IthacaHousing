@@ -2957,6 +2957,16 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
     padding: 12px;
     font-size: 0.8rem;
   }
+
+  /* Filter alerts: full width under the search bar, fixed so they stay above the open filter panel */
+  .filter-alerts {
+    position: fixed;
+    top: 124px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    transform: none;
+  }
 }
 
 </style>

@@ -114,4 +114,20 @@ const actionText = computed(() => {
   cursor: pointer;
   padding: 0 4px;
 }
+
+/* Phones: the relax button gets its own full-width row under the message */
+@media (max-width: 768px) {
+  .filter-alert {
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    padding: 12px 14px;
+    font-size: 0.85rem;
+  }
+
+  .filter-alert-btn {
+    flex: 1 0 100%;
+    padding: 10px 14px;
+    white-space: normal;
+  }
+}
 </style>
