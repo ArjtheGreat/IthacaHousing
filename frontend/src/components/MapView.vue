@@ -1554,6 +1554,7 @@ const clearNeighborhoodsLayer = () => {
 const resetAllFilters = () => {
   selectedBeds.value = 0;
   selectedBaths.value = 0;
+  selectedBudget.value = 0;
   selectedLocation.value = '';
   selectedDestination.value = '';
   selectedCommuteTime.value = '';
@@ -1565,7 +1566,7 @@ const resetAllFilters = () => {
   activePOI.value = null;
   
   // Clear all active filters
-  activeFilters.value = { beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null };
+  activeFilters.value = { beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null, budget: null };
   
   // Close panels
   showCommuteDrawer.value = false;
