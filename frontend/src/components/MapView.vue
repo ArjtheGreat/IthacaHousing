@@ -1907,7 +1907,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   border-radius: 12px;
   background: #ffffff;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 20px;
+  padding: 16px;
   border: 1px solid #e2e8f0;
   color: black;
 }
