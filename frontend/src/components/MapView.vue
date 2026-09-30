@@ -182,6 +182,13 @@
         </div>
     </div>
 
+    <!-- Filter alerts: a filter failed to load, or nothing matches the active filters.
+         Outside the map container so they stack above the filter panel. -->
+    <div v-if="filterError || showNoResults" class="filter-alerts">
+      <FilterAlert v-if="filterError" kind="error" :filter-key="filterError" @dismiss="filterError = null" />
+      <FilterAlert v-if="showNoResults" kind="empty" :suggestion="relaxHint" @relax="applyRelax" @reset="resetAllFilters" />
+    </div>
+
     <!-- Map Container -->
     <div class="relative flex z-[0] border-b-2 border-black overflow-hidden">
       <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" @select-listing="selectListingFromSidebar" :listing="selectedListing" v-if="isSidebarVisible" />
@@ -211,12 +218,6 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- Filter alerts: a filter failed to load, or nothing matches the active filters -->
-      <div v-if="filterError || showNoResults" class="filter-alerts">
-        <FilterAlert v-if="filterError" kind="error" :filter-key="filterError" @dismiss="filterError = null" />
-        <FilterAlert v-if="showNoResults" kind="empty" :suggestion="relaxHint" @relax="applyRelax" @reset="resetAllFilters" />
       </div>
 
       <div id="map"></div>
@@ -1876,6 +1877,31 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   box-shadow: -3px 0 15px rgba(0, 0, 0, 0.2);
   z-index: 999; 
   border-left: 1px solid #ddd;
+}
+
+/* FILTER ALERTS */
+.filter-alerts {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 760px)); /* Between the filter panel and the search bar */
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none; /* Only the alerts themselves take clicks, not the gap around them */
+}
+
+/* Not enough room beside the search bar: drop below it, right of the filter panel */
+@media (min-width: 769px) and (max-width: 1280px) {
+  .filter-alerts {
+    top: 130px;
+    left: 360px;
+    right: 20px;
+    width: auto;
+    transform: none;
+  }
 }
 
 /* FILTER BUTTON */
