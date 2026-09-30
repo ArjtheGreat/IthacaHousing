@@ -50,7 +50,7 @@
           <!-- Beds and Baths Row -->
           <div class="filter-row">
             <div class="filter-group">
-              <label for="bed-filter" class="filter-label">🛏️ Beds</label>
+              <label for="bed-filter" class="filter-label">Beds</label>
               <select id="bed-filter" v-model="selectedBeds" @change="updateBedFilter" class="filter-select">
                 <option :value="0">Any</option>
                 <option v-for="n in bedOptions" :key="n" :value="n">{{ n }}</option>
@@ -58,10 +58,21 @@
             </div>
 
             <div class="filter-group">
-              <label for="bath-filter" class="filter-label">🛁 Baths</label>
+              <label for="bath-filter" class="filter-label">Baths</label>
               <select id="bath-filter" v-model="selectedBaths" @change="updateBathFilter" class="filter-select">
                 <option :value="0">Any</option>
                 <option v-for="n in bathOptions" :key="n" :value="n">{{ n }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Budget Row -->
+          <div class="filter-row">
+            <div class="filter-group">
+              <label for="budget-filter" class="filter-label">Budget</label>
+              <select id="budget-filter" v-model="selectedBudget" @change="updateBudgetFilter" class="filter-select">
+                <option :value="0">Any</option>
+                <option v-for="n in BUDGET_OPTIONS" :key="n" :value="n">{{ budgetLabel(n) }}</option>
               </select>
             </div>
           </div>
@@ -82,7 +93,7 @@
           <!-- Commute Section -->
           <div class="commute-section">
             <div class="commute-header">
-              <h4 class="commute-title">🚶 Commute</h4>
+              <h4 class="commute-title">Commute</h4>
             </div>
 
             <div class="filter-row-commute">
@@ -124,7 +135,7 @@
 
           <!-- Points of Interest Section -->
           <div class="filter-section">
-            <label for="bed-filter" class="filter-label">📍 Points of Interest</label>
+            <label for="bed-filter" class="filter-label">Points of Interest</label>
             <div class="poi-buttons">
               <button 
                 @click="togglePOI('groceries')" 
@@ -265,6 +276,7 @@ import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
 import "leaflet.heat";
 import { groupIntoComplexes, getColor, interpolateColor, valueScore, colorForScore, bucketForScore, sortByValue, BUCKET_COLORS } from "@/utils/complexes";
 import { complexMarkerSvg, compactMarkerSvg, complexPopupHtml } from "@/utils/complexMarker";
+import { filterByBudget, budgetLabel, BUDGET_OPTIONS } from "@/utils/budget";
 import "@/assets/complexes.css";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 
@@ -290,12 +302,13 @@ const isochronicLayer = ref(null); // Stores the isochronic map layer
 // Tab functionality moved to InsideIthacaView
 let activeFilter = ref(null); // Tracks which filter is selected
 
-const activeFilters = ref({ beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null }); // Holds Bath and Bed Data for Dynamic Filtering
+const activeFilters = ref({ beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null, budget: null }); // Holds Bath and Bed Data for Dynamic Filtering
 const filteredListings = ref([]); // Keeps track of the filtered listings
 const selectedBeds = ref(0); // Number of Selected Beds
 const bedOptions = [1, 2, 3, 4, 5]; // Adjust based on available data
 const selectedBaths = ref(0); // Number of Selected Baths
 const bathOptions = [1, 1.5, 2, 2.5, 3]; // Adjust based on available data
+const selectedBudget = ref(0); // Max rent per person per month (0 = Any)
 const selectedLocation = ref(''); // Selected Location
 const selectedDestination = ref(''); // Selected Destination for commute filter
 const selectedCommuteTime = ref(''); // Selected Max Commute Time
@@ -1185,6 +1198,17 @@ const updateBathFilter = async () => {
   mergeFilters(bathData, true);
 };
 
+/**
+ * Updates the Budget Filter (max rent per person). Filters allListings on the
+ * client, so it works without a per-filter API endpoint.
+ */
+const updateBudgetFilter = () => {
+  activeFilters.value.budget = selectedBudget.value
+    ? filterByBudget(allListings.value, selectedBudget.value)
+    : null;
+  mergeFilters();
+};
+
 const updateLocationFilter = async () => {
   if (!selectedLocation.value || selectedLocation.value === '') {
     // Clear location filter
@@ -1541,6 +1565,7 @@ const clearNeighborhoodsLayer = () => {
 const resetAllFilters = () => {
   selectedBeds.value = 0;
   selectedBaths.value = 0;
+  selectedBudget.value = 0;
   selectedLocation.value = '';
   selectedDestination.value = '';
   selectedCommuteTime.value = '';
@@ -1552,7 +1577,7 @@ const resetAllFilters = () => {
   activePOI.value = null;
   
   // Clear all active filters
-  activeFilters.value = { beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null };
+  activeFilters.value = { beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null, budget: null };
   
   // Close panels
   showCommuteDrawer.value = false;
@@ -1656,6 +1681,14 @@ function mergeFilters() {
     const sharedListingIds = new Set(activeFilters.value.shared.map(l => l.listingid));
     mergedListings = mergedListings.filter(listing =>
       sharedListingIds.has(listing.listingid)
+    );
+  }
+
+  // Merge Budget
+  if (activeFilters.value.budget) {
+    const budgetListingIds = new Set(activeFilters.value.budget.map(l => l.listingid));
+    mergedListings = mergedListings.filter(listing =>
+      budgetListingIds.has(listing.listingid)
     );
   }
 
@@ -1874,7 +1907,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   border-radius: 12px;
   background: #ffffff;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 20px;
+  padding: 16px;
   border: 1px solid #e2e8f0;
   color: black;
 }
@@ -1883,11 +1916,11 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .card-title {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   color: #000000;
   margin: 0;
@@ -1918,8 +1951,8 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 
 .filter-row {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .filter-group {
@@ -2084,20 +2117,21 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 .filter-label {
-  font-size: 1rem;
+  font-size: 0.8rem;
   color: #444;
   font-weight: 500;
   text-align: left;
+  margin-bottom: 4px;
 }
 
 .filter-select {
   width: 100%;
-  padding: 10px;
+  padding: 6px 10px;
   border-radius: 8px;
   border: 1px solid #ccc;
   background: #f8f8f8;
   color: #333;
-  font-size: 1rem;
+  font-size: 0.85rem;
   appearance: none;
   cursor: pointer;
   outline: none;
@@ -2428,9 +2462,9 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 
 /* Commute Section */
 .commute-section {
-  margin: 20px 0;
-  border-top: 2px solid #f3f4f6;
-  padding-top: 20px;
+  margin: 12px 0;
+  border-top: 1px solid #f3f4f6;
+  padding-top: 12px;
 }
 
 .commute-header {
@@ -2441,7 +2475,8 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 .commute-title {
-  font-size: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: #374151;
   margin: 0;
   display: flex;
@@ -2464,7 +2499,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 .filter-row-commute {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
+  gap: 8px;
 }
 
 /* Reset Section */
@@ -2474,7 +2509,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 .poi-buttons {
   display: flex;
   flex-direction: row;
-  gap: 12px;
+  gap: 8px;
 }
 
 .poi-btn {
@@ -2482,13 +2517,13 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   flex: 1;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: 6px;
+  padding: 6px 10px;
   background: white;
   color: #4b5563;
-  border: 2px solid #e5e7eb;
-  border-radius: 10px;
-  font-size: 0.8rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -2496,7 +2531,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 .poi-btn i {
-  font-size: 1.1rem;
+  font-size: 0.85rem;
 }
 
 .poi-btn:hover {
@@ -2538,20 +2573,20 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 .reset-section {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 2px solid #f3f4f6;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
   display: flex;
   justify-content: center;
 }
 
 .reset-btn {
-  padding: 12px 24px;
+  padding: 6px 16px;
   background: #f8fafc;
   color: #64748b;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  font-size: 0.875rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
