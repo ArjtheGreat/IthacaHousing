@@ -112,11 +112,7 @@
                 <label for="commute-time-filter" class="filter-label">Max time</label>
                 <select id="commute-time-filter" v-model="selectedCommuteTime" @change="autoApplyCommuteFilter" class="filter-select">
                   <option value="">Any</option>
-                  <!-- <option value="10">10 min</option> -->
-                  <option value="15">15 min</option>
-                  <option value="20">20 min</option>
-                  <option value="25">25 min</option>
-                  <option value="30">30 min</option>
+                  <option v-for="t in commuteTimeOptions" :key="t" :value="String(t)">{{ t }} min</option>
                 </select>
               </div>
 
@@ -197,6 +193,13 @@
         </div>
     </div>
 
+    <!-- Filter alerts: a filter failed to load, or nothing matches the active filters.
+         Outside the map container so they stack above the filter panel. -->
+    <div v-if="filterError || showNoResults" class="filter-alerts">
+      <FilterAlert v-if="filterError" kind="error" :filter-key="filterError" @dismiss="filterError = null" />
+      <FilterAlert v-if="showNoResults" kind="empty" :suggestion="relaxHint" @relax="applyRelax" @reset="resetAllFilters" />
+    </div>
+
     <!-- Map Container -->
     <div class="relative flex z-[0] border-b-2 border-black overflow-hidden">
       <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" @select-listing="selectListingFromSidebar" :listing="selectedListing" v-if="isSidebarVisible" />
@@ -272,10 +275,12 @@ import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { fetchListings, fetchListing, fetchListingsMinimal, fetchTopTenListings, fetchBottomTenListings, fetchClusters, fetchHeatMap, fetchBedFilter, fetchBathFilter, fetchWalkFilter, fetchTransitFilter, fetchPetsFilter, fetchRentListings, fetchRoomToRentListings, fetchSharedListings } from "@/services/fetch";
 import NavBar from "@/components/NavBar.vue";
 import RentalSidebar from "@/components/RentalSidebar.vue";
+import FilterAlert from "@/components/FilterAlert.vue";
 import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
 import "leaflet.heat";
 import { groupIntoComplexes, getColor, interpolateColor, valueScore, colorForScore, bucketForScore, sortByValue, BUCKET_COLORS } from "@/utils/complexes";
 import { complexMarkerSvg, compactMarkerSvg, complexPopupHtml } from "@/utils/complexMarker";
+import { mergeActiveFilters, relaxSuggestion } from "@/utils/filters";
 import { filterByBudget, budgetLabel, BUDGET_OPTIONS } from "@/utils/budget";
 import "@/assets/complexes.css";
 import "@fortawesome/fontawesome-svg-core/styles.css";
@@ -304,6 +309,7 @@ let activeFilter = ref(null); // Tracks which filter is selected
 
 const activeFilters = ref({ beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null, budget: null }); // Holds Bath and Bed Data for Dynamic Filtering
 const filteredListings = ref([]); // Keeps track of the filtered listings
+const filterError = ref(null); // Key of the filter whose data failed to load, shown as an alert
 const selectedBeds = ref(0); // Number of Selected Beds
 const bedOptions = [1, 2, 3, 4, 5]; // Adjust based on available data
 const selectedBaths = ref(0); // Number of Selected Baths
@@ -312,6 +318,7 @@ const selectedBudget = ref(0); // Max rent per person per month (0 = Any)
 const selectedLocation = ref(''); // Selected Location
 const selectedDestination = ref(''); // Selected Destination for commute filter
 const selectedCommuteTime = ref(''); // Selected Max Commute Time
+const commuteTimeOptions = [15, 20, 25, 30]; // Max commute minutes in the dropdown; also the notches the no-results alert tries
 const selectedTransitMode = ref(''); // Selected Transit Mode (walk/bike/drive)
 const showCommuteDrawer = ref(false); // Controls visibility of commute filter drawer (legacy)
 const showCommutePanel = ref(false); // Controls visibility of new commute panel
@@ -342,6 +349,23 @@ const isLoading = ref(true); // Add loading state
 // Computed property to check if any filters are active
 const hasAnyActiveFilters = computed(() => {
   return Object.values(activeFilters.value).some(filter => filter !== null);
+});
+
+// Filters are on but no listing passes all of them
+const showNoResults = computed(() => {
+  return !isLoading.value && hasAnyActiveFilters.value && filteredListings.value.length === 0;
+});
+
+// Smallest change that brings listings back, offered in the no-results alert
+const relaxHint = computed(() => {
+  if (!showNoResults.value) return null;
+  const currentMax = parseFloat(selectedCommuteTime.value);
+  const commuteStep = {
+    key: 'commute',
+    options: commuteTimeOptions.filter(t => t > currentMax),
+    listingsAt: commuteMatches,
+  };
+  return relaxSuggestion(allListings.value, activeFilters.value, [commuteStep]);
 });
 
 // Computed property to get unique neighborhoods from listings
@@ -1178,24 +1202,80 @@ const plotHeatmap = () => {
 };
 
 /**
- * Updates the Bed Filter based on the number of beds
+ * Resets the dropdown behind a filter so the controls match activeFilters.
+ * Filters without an entry here (toggles, new filters) have no control state to reset.
  */
-const updateBedFilter = async () => {
-  const bedData = await fetchBedFilter(selectedBeds.value);
-  console.log(bedData)
-  activeFilters.value.beds = bedData; 
+const filterControlResets = {
+  beds: () => { selectedBeds.value = 0; },
+  baths: () => { selectedBaths.value = 0; },
+  location: () => { selectedLocation.value = ''; },
+  commute: () => { selectedCommuteTime.value = ''; },
+  budget: () => { selectedBudget.value = 0; },
+};
+
+/**
+ * Stores fetched filter data, or, if the fetch failed (null), leaves the filter off and says so
+ */
+const applyFetchedFilter = (key, data) => {
+  if (data === null) {
+    activeFilters.value[key] = null;
+    filterControlResets[key]?.();
+    filterError.value = key;
+  } else {
+    activeFilters.value[key] = data;
+    if (filterError.value === key) filterError.value = null;
+  }
   mergeFilters();
 };
 
+/**
+ * Applies the no-results alert's suggestion, updating the dropdowns so the controls stay in sync
+ */
+const applyRelax = () => {
+  const suggestion = relaxHint.value;
+  if (!suggestion) return;
+
+  if (suggestion.kind === 'step') {
+    // The only step filter is the commute max time
+    selectedCommuteTime.value = String(suggestion.value);
+    applyCommuteFilter();
+  } else {
+    filterControlResets[suggestion.key]?.();
+    activeFilters.value[suggestion.key] = null;
+    mergeFilters();
+  }
+};
 
 /**
  * Updates the Bed Filter based on the number of beds
  */
+const updateBedFilter = async () => {
+  if (!selectedBeds.value) {
+    // "Any" is no filter at all; no need to ask the API
+    activeFilters.value.beds = null;
+    mergeFilters();
+    return;
+  }
+  const beds = selectedBeds.value;
+  const bedData = await fetchBedFilter(beds);
+  if (beds !== selectedBeds.value) return; // A newer choice replaced this one while it loaded
+  applyFetchedFilter('beds', bedData);
+};
+
+
+/**
+ * Updates the Bath Filter based on the number of baths
+ */
 const updateBathFilter = async () => {
-  const bathFilterInput = selectedBaths.value*2
-  const bathData = await fetchBathFilter(bathFilterInput);
-  activeFilters.value.baths = bathData; 
-  mergeFilters(bathData, true);
+  if (!selectedBaths.value) {
+    activeFilters.value.baths = null;
+    mergeFilters();
+    return;
+  }
+  const baths = selectedBaths.value;
+  const bathData = await fetchBathFilter(baths*2);
+  if (baths !== selectedBaths.value) return; // A newer choice replaced this one while it loaded
+  applyFetchedFilter('baths', bathData);
 };
 
 /**
@@ -1232,9 +1312,7 @@ const updateLocationFilter = async () => {
  * */
 const toggleWalk = async () => {
   if(!activeFilters.value.walk) {
-    const walkData = await fetchWalkFilter();
-    activeFilters.value.walk = walkData; 
-    mergeFilters(walkData, true);
+    applyFetchedFilter('walk', await fetchWalkFilter());
   }
   else {
     activeFilters.value.walk = null; 
@@ -1247,9 +1325,7 @@ const toggleWalk = async () => {
  * */
  const toggleTransit = async () => {
   if(!activeFilters.value.transit) {
-    const transit = await fetchTransitFilter();
-    activeFilters.value.transit = transit; 
-    mergeFilters(transit, true);
+    applyFetchedFilter('transit', await fetchTransitFilter());
   }
   else {
     activeFilters.value.transit = null; 
@@ -1262,9 +1338,7 @@ const toggleWalk = async () => {
  * */
  const togglePets = async () => {
   if(!activeFilters.value.pets) {
-    const petsData = await fetchPetsFilter();
-    activeFilters.value.pets = petsData; 
-    mergeFilters(petsData, true);
+    applyFetchedFilter('pets', await fetchPetsFilter());
   }
   else {
     activeFilters.value.pets = null; 
@@ -1312,21 +1386,24 @@ const applyCommuteFilter = () => {
     return;
   }
 
-  // Build the column name based on transit mode and destination
-  const columnName = `${selectedTransitMode.value}_time_${selectedDestination.value}`;
-  const maxTime = parseFloat(selectedCommuteTime.value);
-
-  // Filter listings based on the selected criteria
-  const filtered = allListings.value.filter(listing => {
-    const travelTime = listing[columnName];
-    return travelTime !== null && travelTime !== undefined && travelTime < maxTime;
-  });
-
-  console.log(`Commute filter applied: ${columnName} < ${maxTime} minutes`);
+  const filtered = commuteMatches(parseFloat(selectedCommuteTime.value));
   console.log(`Found ${filtered.length} listings matching criteria`);
 
   activeFilters.value.commute = filtered;
   mergeFilters();
+};
+
+/**
+ * Listings within maxTime minutes of the selected destination by the selected mode
+ */
+const commuteMatches = (maxTime) => {
+  // Build the column name based on transit mode and destination
+  const columnName = `${selectedTransitMode.value}_time_${selectedDestination.value}`;
+
+  return allListings.value.filter(listing => {
+    const travelTime = listing[columnName];
+    return travelTime !== null && travelTime !== undefined && travelTime < maxTime;
+  });
 };
 
 /**
@@ -1582,6 +1659,7 @@ const resetAllFilters = () => {
   // Close panels
   showCommuteDrawer.value = false;
   showCommutePanel.value = false;
+  filterError.value = null;
   
   mergeFilters();
 };
@@ -1591,9 +1669,7 @@ const resetAllFilters = () => {
  */
  const toggleRoomToRent = async () => {
   if (!activeFilters.value.roomtorent) {
-    const roomData = await fetchRoomToRentListings();
-    activeFilters.value.roomtorent = roomData;
-    mergeFilters(roomData, true);
+    applyFetchedFilter('roomtorent', await fetchRoomToRentListings());
   } else {
     activeFilters.value.roomtorent = null;
     mergeFilters();
@@ -1606,9 +1682,7 @@ const resetAllFilters = () => {
  */
  const toggleRent = async () => {
   if (!activeFilters.value.rent) {
-    const rentData = await fetchRentListings();
-    activeFilters.value.rent = rentData;
-    mergeFilters(rentData, true);
+    applyFetchedFilter('rent', await fetchRentListings());
   } else {
     activeFilters.value.rent = null;
     mergeFilters();
@@ -1620,9 +1694,7 @@ const resetAllFilters = () => {
  */
  const toggleShared = async () => {
   if (!activeFilters.value.shared) {
-    const sharedData = await fetchSharedListings();
-    activeFilters.value.shared = sharedData;
-    mergeFilters(sharedData, true);
+    applyFetchedFilter('shared', await fetchSharedListings());
   } else {
     activeFilters.value.shared = null;
     mergeFilters();
@@ -1631,69 +1703,10 @@ const resetAllFilters = () => {
 
 
 /**
- * Merges Bed and Bath Filters
+ * Merges every active filter (whatever keys activeFilters has) and redraws the map
  */
 function mergeFilters() {
-  let mergedListings = allListings.value; 
-
-  // Merge Beds
-  if (activeFilters.value.beds) {
-    const bedListingIds = new Set(activeFilters.value.beds.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      bedListingIds.has(listing.listingid)
-    );
-  }
-
-  // Merge Baths
-  if (activeFilters.value.baths) {
-    const bathListingIds = new Set(activeFilters.value.baths.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      bathListingIds.has(listing.listingid)
-    );
-  }
-
-  // Merge Location
-  if (activeFilters.value.location) {
-    const locationListingIds = new Set(activeFilters.value.location.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      locationListingIds.has(listing.listingid)
-    );
-  }
-
-  // Merge Commute Filter
-  if (activeFilters.value.commute) {
-    const commuteListingIds = new Set(activeFilters.value.commute.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      commuteListingIds.has(listing.listingid)
-    );
-  }
-  
-  // Merge Rooms to Rent
-  if (activeFilters.value.roomtorent) {
-    const roomtorentListingIds = new Set(activeFilters.value.roomtorent.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      roomtorentListingIds.has(listing.listingid)
-    );
-  }
-
-  // Merge Shared
-  if (activeFilters.value.shared) {
-    const sharedListingIds = new Set(activeFilters.value.shared.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      sharedListingIds.has(listing.listingid)
-    );
-  }
-
-  // Merge Budget
-  if (activeFilters.value.budget) {
-    const budgetListingIds = new Set(activeFilters.value.budget.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      budgetListingIds.has(listing.listingid)
-    );
-  }
-
-  // Add to map
-  filteredListings.value = mergedListings;
+  filteredListings.value = mergeActiveFilters(allListings.value, activeFilters.value);
   addMarkers(filteredListings.value);
 }
 
@@ -1895,6 +1908,31 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   box-shadow: -3px 0 15px rgba(0, 0, 0, 0.2);
   z-index: 999; 
   border-left: 1px solid #ddd;
+}
+
+/* FILTER ALERTS */
+.filter-alerts {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 760px)); /* Between the filter panel and the search bar */
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none; /* Only the alerts themselves take clicks, not the gap around them */
+}
+
+/* Not enough room beside the search bar: drop below it, right of the filter panel */
+@media (min-width: 769px) and (max-width: 1280px) {
+  .filter-alerts {
+    top: 130px;
+    left: 360px;
+    right: 20px;
+    width: auto;
+    transform: none;
+  }
 }
 
 /* FILTER BUTTON */
@@ -2951,6 +2989,16 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
     width: auto;
     padding: 12px;
     font-size: 0.8rem;
+  }
+
+  /* Filter alerts: full width under the search bar, fixed so they stay above the open filter panel */
+  .filter-alerts {
+    position: fixed;
+    top: 124px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    transform: none;
   }
 }
 
