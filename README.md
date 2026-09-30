@@ -1,113 +1,108 @@
-# IthacaInsights.com 🏠  
-[Visit Here](https://ithacainsights.com/)
+# Ithaca Insights
 
-Ithaca Insights is a real-time dashboard for housing data in Ithaca, NY. It helps users explore rental trends, compare listings, and understand the local housing market through advanced spatial analytics and machine learning.
+Ithaca Insights shows whether a rental listing in Ithaca, NY is priced fairly. Every day we pull the current listings, predict what each one should rent for per person, and put the asking rent and our prediction side by side on a map.
 
----
+Live site: [ithacainsights.com](https://ithacainsights.com)
 
-## 🎯 Features
+## Why we built it
 
-- **Interactive Maps**: Visualize available housing listings with fair value indicators
-- **ML-Powered Predictions**: Compares predicted vs. listed rents using spatial regression models
-- **Smart Clustering**: Automatically groups neighborhoods by price and location
-- **Comparative Market Analysis**: KNN-based rental price analysis
-- **Model Evaluation**: Automatic selection of best-performing ML model (Linear, Spatial Durbin, Random Forest, XGBoost)
-- **Interactive Zoning Data**: Intelligent parcel site-selection (WIP)
+Most off-campus rentals in Ithaca are posted on Cornell's off-campus housing site, and a lot of the people reading them are students signing their first lease. A listing tells you the price. It doesn't tell you whether that price is normal for the number of bedrooms, the walk to campus, and what's included. We wanted a number to compare against.
 
-Ithaca Insights is designed to serve students and renters looking for a fair deal, as well as researchers and anyone looking to understand Ithaca's housing landscape without guesswork.
+## What's on the site
 
----
+The Fair Rent Map at [/rent](https://ithacainsights.com/rent) is the main tool. Each listing is colored by how its asking rent compares to our predicted fair rent, and clicking one shows the two numbers together. You can filter by bedrooms, bathrooms, pets, walkability and transit, pull up the ten listings priced furthest below their prediction, or switch to a neighborhood heatmap.
 
-## 🏗️ Architecture
+Inside Ithaca is a dashboard of spatial rent trends, income data and model performance. The History and Urban Growth pages are data stories about how the city grew, built partly on 1920 to 1940 census records.
+
+## How it works
 
 ```
-IthacaHousing/
-├── frontend/          # Vue.js + TypeScript SPA
-├── backend/           # FastAPI REST API
-└── backend/airflow/   # Apache Airflow ML pipeline
+offcampus.housing.cornell.edu
+        │
+        ▼
+airflow/     scrape, geocode, add features, train, predict    (daily at 12:00 UTC)
+        │
+        ▼
+Postgres     hosted on Supabase
+        │
+        ▼
+backend/     FastAPI, deployed on Fly.io
+        │
+        ▼
+frontend/    Vue 3 + TypeScript + Leaflet
 ```
 
-### 📁 Project Structure
+Listings don't follow a consistent format, so we use an OpenAI model (`gpt-4.1-mini`) to read rent and bedroom counts out of the listing text. We then add features for each listing: walking time to Uris Hall, TCAT transit access, nearby restaurants and grocery stores, utilities and amenities included, year built, county assessed value per square foot, and location.
 
-- **[Frontend README](./frontend/README.md)** - Vue.js application architecture
-- **[Backend README](./backend/README.md)** - FastAPI service and database
-- **[Airflow README](./backend/airflow/README.md)** - ML pipeline and data processing
+The model is XGBoost trained on log rent per person. We validate it with spatial block cross-validation, which holds out whole areas of the map at a time so a listing's next-door neighbors can't leak into its own test fold. After predicting, we find each listing's four most similar listings to compare against. Smaller Airflow jobs refresh travel times, transit scores and neighborhood data on daily or weekly schedules.
 
----
+The code for all of this is in [`airflow/model/`](airflow/model/README.md).
 
-## 💡 Why It Exists
+## Running it locally
 
-Finding housing in Ithaca is challenging. Listings are scattered across multiple platforms, and prices vary significantly. IthacaInsights aggregates data, applies spatial machine learning models, and provides actionable insights to help renters make informed decisions.
+You'll need Python 3.12, Node 22, and a Postgres database.
 
----
+### Backend
 
-## 🛠️ Tech Stack
+Create `backend/.env` with `DB_URI=postgresql://user:password@host:5432/dbname`, then:
 
-- **Frontend**: Vue.js 3, TypeScript, Leaflet Maps, deployed via Fly.io  
-- **Backend**: Python, FastAPI, PostgreSQL (Supabase), SQLAlchemy
-- **ML Pipeline**: Apache Airflow, scikit-learn, XGBoost, PySAL (Spatial Analysis)
-- **Data**: Real-time parsing from Ithaca rental feeds
-- **Models**: Spatial Durbin, Random Forest, XGBoost with automatic model selection
-- **Infrastructure**: Docker, CI/CD via GitHub Actions  
-- **Monitoring**: Prometheus + Grafana metrics at `/metrics`
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.12+
-- Node.js 18+
-- PostgreSQL
-- Docker (optional)
-
-### Backend Setup
 ```bash
 cd backend
-python -m venv myenv
-source myenv/bin/activate
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-### Frontend Setup
+The API runs at http://localhost:8000, with interactive docs at `/docs`.
+
+### Frontend
+
+Create `frontend/.env.local`:
+
+```
+VITE_API_URL=http://localhost:8000
+VITE_JAWG_API_KEY=<your key from jawg.io, used for map tiles>
+```
+
+Then:
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-### Airflow Setup
+### Pipeline
+
+The Airflow project uses the [Astro CLI](https://www.astronomer.io/docs/astro/cli/overview) and Docker. Put `DB_URI`, `OPENAI_API_KEY` and `GOOGLE_PLACES_API_KEY` (used for geocoding) in `airflow/.env`, then:
+
 ```bash
-cd backend/airflow
-docker-compose up -d
+cd airflow
+astro dev start
 ```
 
----
+The Airflow UI runs at http://localhost:8080. The backend reads the tables this pipeline writes, so a fresh database has nothing to show until the training DAG (`housing_data_training`) has run once.
 
-## 📊 Data Pipeline
+## Tests
 
-1. **Data Collection**: Scrapes rental listings from Ithaca housing sources
-2. **Feature Engineering**: Calculates transit scores, amenity scores, safety ratings
-3. **Spatial Analysis**: Computes travel times, distances, spatial lags
-4. **Model Training**: Trains and evaluates 4+ ML models, selects best performer
-5. **CMA Analysis**: Performs comparative market analysis using KNN
-6. **Database Update**: Stores predictions and analysis results
+```bash
+pytest backend/tests
+cd frontend && npm run test:unit
+```
 
----
+GitHub Actions runs the frontend tests and a TypeScript type check on changes to `frontend/`, and the backend tests on pushes to `main` that change `backend/`.
 
-## 🤝 Contributing
+## Data sources
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+- Rental listings: [Cornell University Off-Campus Housing](https://offcampus.housing.cornell.edu)
+- Bus routes and stops: TCAT's public GTFS feed
+- Parcels, assessments and ownership: Tompkins County
+- Neighborhood geography: [CUGIR](https://cugir.library.cornell.edu), Cornell's geospatial data repository
+- Map tiles: [Jawg](https://www.jawg.io), with map data © OpenStreetMap contributors
 
----
+## Contact
 
-## 📝 License
+Questions about the data or the model go through the [contact page](https://ithacainsights.com/contact). Bugs and feature ideas can go in GitHub issues.
 
-This project is open source and available under the MIT License.
-
----
-
-## 👥 Team
-
-Built by the Maitrix Labs team.
+Ithaca Insights is built by Maitrix Labs.
