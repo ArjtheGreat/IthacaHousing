@@ -7,6 +7,7 @@ import ContactsView from "@/components/ContactsView.vue"
 import UrbanGrowthView from "@/components/UrbanGrowthView.vue"
 import InsideIthacaView from "@/components/InsideIthacaView.vue"
 import AnalyticsView from "@/components/AnalyticsView.vue"
+import RentPreview from "@/components/mockup/RentPreview.vue"
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -50,6 +51,12 @@ const router = createRouter({
       path: '/analytics',
       name: 'analytics',
       component: AnalyticsView,
+    },
+    {
+      // Story-driven walkthrough of the Fair Rent Map redesign (docs/review.md). Not linked from the nav.
+      path: '/rent-preview',
+      name: 'rent-preview',
+      component: RentPreview,
     },
   ],
 })
