@@ -43,3 +43,75 @@ const actionText = computed(() => {
   return s.kind === 'step' ? `Allow up to ${s.value} min` : `Remove ${filterLabel(s.key)} filter`;
 });
 </script>
+
+<style scoped>
+.filter-alert {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  font-size: 0.9rem;
+  pointer-events: auto;
+}
+
+/* Nothing matches: orange, it's the filters */
+.filter-alert-empty {
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-left: 5px solid #ea580c;
+  color: #7c2d12;
+}
+
+/* A filter failed to load: red, it's us */
+.filter-alert-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-left: 5px solid #dc2626;
+  color: #7f1d1d;
+}
+
+.filter-alert-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.filter-alert-empty .filter-alert-icon { color: #ea580c; }
+.filter-alert-error .filter-alert-icon { color: #dc2626; }
+
+.filter-alert-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.4;
+}
+
+.filter-alert-btn {
+  padding: 8px 14px;
+  background: #ea580c;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.filter-alert-btn:hover {
+  background: #c2410c;
+}
+
+.filter-alert-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 4px;
+}
+</style>
