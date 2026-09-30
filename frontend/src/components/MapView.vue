@@ -2573,20 +2573,20 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 .reset-section {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 2px solid #f3f4f6;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
   display: flex;
   justify-content: center;
 }
 
 .reset-btn {
-  padding: 12px 24px;
+  padding: 6px 16px;
   background: #f8fafc;
   color: #64748b;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  font-size: 0.875rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
