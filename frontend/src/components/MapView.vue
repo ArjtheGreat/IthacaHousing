@@ -265,6 +265,7 @@ import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
 import "leaflet.heat";
 import { groupIntoComplexes, getColor, interpolateColor, valueScore, colorForScore, bucketForScore, sortByValue, BUCKET_COLORS } from "@/utils/complexes";
 import { complexMarkerSvg, compactMarkerSvg, complexPopupHtml } from "@/utils/complexMarker";
+import { mergeActiveFilters } from "@/utils/filters";
 import "@/assets/complexes.css";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 
@@ -1606,61 +1607,10 @@ const resetAllFilters = () => {
 
 
 /**
- * Merges Bed and Bath Filters
+ * Merges every active filter (whatever keys activeFilters has) and redraws the map
  */
 function mergeFilters() {
-  let mergedListings = allListings.value; 
-
-  // Merge Beds
-  if (activeFilters.value.beds) {
-    const bedListingIds = new Set(activeFilters.value.beds.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      bedListingIds.has(listing.listingid)
-    );
-  }
-
-  // Merge Baths
-  if (activeFilters.value.baths) {
-    const bathListingIds = new Set(activeFilters.value.baths.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      bathListingIds.has(listing.listingid)
-    );
-  }
-
-  // Merge Location
-  if (activeFilters.value.location) {
-    const locationListingIds = new Set(activeFilters.value.location.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      locationListingIds.has(listing.listingid)
-    );
-  }
-
-  // Merge Commute Filter
-  if (activeFilters.value.commute) {
-    const commuteListingIds = new Set(activeFilters.value.commute.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      commuteListingIds.has(listing.listingid)
-    );
-  }
-  
-  // Merge Rooms to Rent
-  if (activeFilters.value.roomtorent) {
-    const roomtorentListingIds = new Set(activeFilters.value.roomtorent.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      roomtorentListingIds.has(listing.listingid)
-    );
-  }
-
-  // Merge Shared
-  if (activeFilters.value.shared) {
-    const sharedListingIds = new Set(activeFilters.value.shared.map(l => l.listingid));
-    mergedListings = mergedListings.filter(listing =>
-      sharedListingIds.has(listing.listingid)
-    );
-  }
-
-  // Add to map
-  filteredListings.value = mergedListings;
+  filteredListings.value = mergeActiveFilters(allListings.value, activeFilters.value);
   addMarkers(filteredListings.value);
 }
 
