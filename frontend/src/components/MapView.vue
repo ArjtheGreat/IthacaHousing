@@ -1672,6 +1672,14 @@ function mergeFilters() {
     );
   }
 
+  // Merge Budget
+  if (activeFilters.value.budget) {
+    const budgetListingIds = new Set(activeFilters.value.budget.map(l => l.listingid));
+    mergedListings = mergedListings.filter(listing =>
+      budgetListingIds.has(listing.listingid)
+    );
+  }
+
   // Add to map
   filteredListings.value = mergedListings;
   addMarkers(filteredListings.value);
