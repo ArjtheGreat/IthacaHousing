@@ -4,6 +4,18 @@ import { type Listing, type HeatmapData } from "@/services/interface"
 const baseURL = import.meta.env.VITE_API_URL;
 
 /**
+ * What a filter fetch returns when it fails.
+ * The API answers 404 when nothing matches, which is a real (empty) result;
+ * anything else means we don't know, so return null and let the caller keep the filter off.
+ */
+const filterFailure = (error: unknown): Listing[] | null => {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return [];
+    }
+    return null;
+};
+
+/**
  * Fetches listings from PostgreSQL Database
  * @returns Listing[] with all the listings
  */
@@ -158,7 +170,7 @@ export const fetchVoronoiPolygons = async (): Promise<Number[][]> => {
  * @param n_beds - The number of beds to filter
  * @returns Bed data
  */
-export const fetchBedFilter = async (n_beds: Number): Promise<Listing[]> => {
+export const fetchBedFilter = async (n_beds: Number): Promise<Listing[] | null> => {
     try {
         const response: AxiosResponse<Listing[]> = await axios.get(`${baseURL}/listing/beds/${n_beds}`);
         if (response.status === 200) {
@@ -168,7 +180,7 @@ export const fetchBedFilter = async (n_beds: Number): Promise<Listing[]> => {
         }
     } catch (error) {
         console.error("Error fetching listings:", error);
-        return []; 
+        return filterFailure(error); 
     }
 };
 
@@ -177,7 +189,7 @@ export const fetchBedFilter = async (n_beds: Number): Promise<Listing[]> => {
  * @param n_baths - The number of baths to filter
  * @returns bath data
  */
-export const fetchBathFilter = async (n_baths: Number): Promise<Listing[]> => {
+export const fetchBathFilter = async (n_baths: Number): Promise<Listing[] | null> => {
     try {
         const response: AxiosResponse<Listing[]> = await axios.get(`${baseURL}/listing/baths/${n_baths}`);
         if (response.status === 200) {
@@ -187,7 +199,7 @@ export const fetchBathFilter = async (n_baths: Number): Promise<Listing[]> => {
         }
     } catch (error) {
         console.error("Error fetching listings:", error);
-        return []; 
+        return filterFailure(error); 
     }
 };
 
@@ -196,7 +208,7 @@ export const fetchBathFilter = async (n_baths: Number): Promise<Listing[]> => {
  * Fetches walk Filter
  * @returns walking data
  */
-export const fetchWalkFilter = async (): Promise<Listing[]> => {
+export const fetchWalkFilter = async (): Promise<Listing[] | null> => {
     try {
         const response: AxiosResponse<Listing[]> = await axios.get(`${baseURL}/listing/walks`);
         if (response.status === 200) {
@@ -206,7 +218,7 @@ export const fetchWalkFilter = async (): Promise<Listing[]> => {
         }
     } catch (error) {
         console.error("Error fetching listings:", error);
-        return []; 
+        return filterFailure(error); 
     }
 };
 
@@ -215,7 +227,7 @@ export const fetchWalkFilter = async (): Promise<Listing[]> => {
  * Fetches transit Filter
  * @returns transit data
  */
-export const fetchTransitFilter = async (): Promise<Listing[]> => {
+export const fetchTransitFilter = async (): Promise<Listing[] | null> => {
     try {
         const response: AxiosResponse<Listing[]> = await axios.get(`${baseURL}/listing/transit`);
         if (response.status === 200) {
@@ -225,7 +237,7 @@ export const fetchTransitFilter = async (): Promise<Listing[]> => {
         }
     } catch (error) {
         console.error("Error fetching listings:", error);
-        return []; 
+        return filterFailure(error); 
     }
 };
 
@@ -233,7 +245,7 @@ export const fetchTransitFilter = async (): Promise<Listing[]> => {
  * Fetches pets Filter
  * @returns pets data
  */
-export const fetchPetsFilter = async (): Promise<Listing[]> => {
+export const fetchPetsFilter = async (): Promise<Listing[] | null> => {
     try {
         const response: AxiosResponse<Listing[]> = await axios.get(`${baseURL}/listing/pets`);
         if (response.status === 200) {
@@ -243,7 +255,7 @@ export const fetchPetsFilter = async (): Promise<Listing[]> => {
         }
     } catch (error) {
         console.error("Error fetching listings:", error);
-        return []; 
+        return filterFailure(error); 
     }
 };
 
@@ -252,7 +264,7 @@ export const fetchPetsFilter = async (): Promise<Listing[]> => {
  * Fetches Room to Rent Listings
  * @returns room-to-rent listing data
  */
-export const fetchRoomToRentListings = async (): Promise<Listing[]> => {
+export const fetchRoomToRentListings = async (): Promise<Listing[] | null> => {
     try {
         const response: AxiosResponse<Listing[]> = await axios.get(`${baseURL}/room-to-rent-listings/`);
         if (response.status === 200) {
@@ -262,7 +274,7 @@ export const fetchRoomToRentListings = async (): Promise<Listing[]> => {
         }
     } catch (error) {
         console.error("Error fetching room-to-rent listings:", error);
-        return [];
+        return filterFailure(error);
     }
 };
 
@@ -270,7 +282,7 @@ export const fetchRoomToRentListings = async (): Promise<Listing[]> => {
  * Fetches Rent Listings
  * @returns rent listing data
  */
-export const fetchRentListings = async (): Promise<Listing[]> => {
+export const fetchRentListings = async (): Promise<Listing[] | null> => {
     try {
         const response: AxiosResponse<Listing[]> = await axios.get(`${baseURL}/rent-listings/`);
         if (response.status === 200) {
@@ -280,7 +292,7 @@ export const fetchRentListings = async (): Promise<Listing[]> => {
         }
     } catch (error) {
         console.error("Error fetching rent listings:", error);
-        return [];
+        return filterFailure(error);
     }
 };
 
@@ -288,7 +300,7 @@ export const fetchRentListings = async (): Promise<Listing[]> => {
  * Fetches Shared Listings
  * @returns shared listing data
  */
-export const fetchSharedListings = async (): Promise<Listing[]> => {
+export const fetchSharedListings = async (): Promise<Listing[] | null> => {
     try {
         const response: AxiosResponse<Listing[]> = await axios.get(`${baseURL}/shared-listings/`);
         if (response.status === 200) {
@@ -298,7 +310,7 @@ export const fetchSharedListings = async (): Promise<Listing[]> => {
         }
     } catch (error) {
         console.error("Error fetching shared listings:", error);
-        return [];
+        return filterFailure(error);
     }
 };
 
