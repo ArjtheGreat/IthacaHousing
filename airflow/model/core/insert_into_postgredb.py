@@ -245,8 +245,6 @@ def psql_insert_copy(df):
                 END IF;
             END $$;
         """))
-        conn.execute(text("TRUNCATE TABLE housing_listings RESTART IDENTITY CASCADE;"))
-        print("🧹 Table truncated successfully")
 
     print(f"📋 Columns being inserted: {list(df.columns)}")
 
@@ -275,7 +273,11 @@ def psql_insert_copy(df):
         record = convert_property_fields(record)
         record = convert_date_fields(record)
 
+    # Truncate and insert in one transaction so a failed insert rolls back
+    # the truncate instead of leaving the table empty.
     with engine.begin() as conn:
+        conn.execute(text("TRUNCATE TABLE housing_listings RESTART IDENTITY CASCADE;"))
+        print("🧹 Table truncated successfully")
         conn.execute(insert_query, records)
         print(f"✅ Inserted {len(records)} rows into housing_listings")
 
