@@ -1210,6 +1210,7 @@ const filterControlResets = {
   baths: () => { selectedBaths.value = 0; },
   location: () => { selectedLocation.value = ''; },
   commute: () => { selectedCommuteTime.value = ''; },
+  budget: () => { selectedBudget.value = 0; },
 };
 
 /**
