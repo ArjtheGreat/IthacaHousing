@@ -66,11 +66,11 @@
                         <span class="column-label">Actual Rent</span>
                     </div>
                     <div class="rent-total-section">
-                        <div class="rent-amount-large">${{ listing?.rent_per_person?.toFixed(2) || 'N/A' }}</div>
+                        <div class="rent-amount-large">{{ formatMoney(listing?.rent_per_person) }}</div>
                         <div class="rent-label-small">per person</div>
                     </div>
                     <div class="rent-per-person-section">
-                        <div class="per-person-amount">${{ listing?.total_rent_amount ? listing.total_rent_amount.toFixed(2) : 'N/A' }}</div>
+                        <div class="per-person-amount">{{ formatMoney(listing?.total_rent_amount) }}</div>
                         <div class="per-person-label">Total Rent (<span class="people-count">{{ listing?.num_people || 'N/A' }} {{ (listing?.num_people === 1) ? 'person' : 'people' }} </span>)</div>
                     </div>
                 </div>
@@ -81,7 +81,7 @@
                         <span class="column-label">Fair Rent Estimation</span>
                     </div>
                     <div class="rent-total-section">
-                        <div class="rent-amount-large predicted-amount">${{ listing?.predictedrent ? listing.predictedrent.toFixed(2) : 'N/A' }}</div>
+                        <div class="rent-amount-large predicted-amount">{{ formatMoney(listing?.predictedrent) }}</div>
                         <div class="rent-label-small">per person</div>
                     </div>
                     <div class="prediction-difference">
@@ -468,11 +468,11 @@
                         <span class="column-label">ACTUAL RENT</span>
                     </div>
                     <div class="rent-total-section">
-                        <div class="rent-amount-large">${{ listing?.rent_per_person?.toFixed(2) || 'N/A' }}</div>
+                        <div class="rent-amount-large">{{ formatMoney(listing?.rent_per_person) }}</div>
                         <div class="rent-label-small">per person</div>
                     </div>
                     <div class="rent-per-person-section">
-                        <div class="per-person-amount">${{ listing?.total_rent_amount ? listing.total_rent_amount.toFixed(2) : 'N/A' }}</div>
+                        <div class="per-person-amount">{{ formatMoney(listing?.total_rent_amount) }}</div>
                         <div class="per-person-label">Total Rent (<span class="people-count">{{ listing?.num_people || 'N/A' }} {{ (listing?.num_people === 1) ? 'person' : 'people' }}</span>)</div>
                     </div>
                 </div>
@@ -483,7 +483,7 @@
                         <span class="column-label">MARKET AVERAGE RENT</span>
                     </div>
                     <div class="rent-total-section">
-                        <div class="rent-amount-large predicted-amount">${{ listing?.predicted_rent_cma ? listing.predicted_rent_cma.toFixed(2) : 'N/A' }}</div>
+                        <div class="rent-amount-large predicted-amount">{{ formatMoney(listing?.predicted_rent_cma) }}</div>
                         <div class="rent-label-small">per person</div>
                     </div>
                     <div class="prediction-difference">
@@ -526,7 +526,7 @@
                 </div>
                 <div class="card-right">
                     <div class="listing-rent">
-                        ${{ similarListing?.rent_per_person ? similarListing.rent_per_person.toFixed(2) : 'N/A' }}
+                        {{ formatMoney(similarListing?.rent_per_person) }}
                         <div class="per-person-text">per person</div>
                     </div>
                     <button class="view-more-btn" @click="selectListing(similarListing)">
@@ -568,6 +568,12 @@ const listingTitle = computed(() => {
     const zip = props.listing?.listingzip ? String(props.listing.listingzip).replace(/\.0$/, '') : '';
     return [titleCase(props.listing?.listingaddress), titleCase(props.listing?.listingcity), zip].filter(Boolean).join(', ');
 });
+
+/**
+ * Dollar amount for display, e.g. "$1,990". Missing or zero amounts read "N/A" (not "$N/A").
+ */
+const formatMoney = (amount: number | null | undefined): string =>
+    amount && amount > 0 ? `$${Math.round(amount).toLocaleString('en-US')}` : 'N/A';
 
 const closePopup = () => {
     emit('close');
