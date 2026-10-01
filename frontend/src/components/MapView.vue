@@ -1069,42 +1069,14 @@ window.addEventListener('resize', checkMobile);
 
     const fetchStart = performance.now();
     console.log('📡 Starting API calls...');
-    
-    // Individual timing for each API call
-    const listingsStart = performance.now();
+
+    // Only the listings are needed to draw the map. The top ten, bottom ten, cluster and
+    // heatmap views have no controls on this page, so their data is not fetched here.
     const listings = await fetchListingsMinimal();
-    console.log(`📊 fetchListingsMinimal: ${(performance.now() - listingsStart).toFixed(2)}ms`);
-    
-    const topStart = performance.now();
-    const top = await fetchTopTenListings();
-    console.log(`📊 fetchTopTenListings: ${(performance.now() - topStart).toFixed(2)}ms`);
-    
-    const bottomStart = performance.now();
-    const bottom = await fetchBottomTenListings();
-    console.log(`📊 fetchBottomTenListings: ${(performance.now() - bottomStart).toFixed(2)}ms`);
-    
-    const clustersStart = performance.now();
-    const clusters = await fetchClusters();
-    console.log(`📊 fetchClusters: ${(performance.now() - clustersStart).toFixed(2)}ms`);
-    
-    const heatStart = performance.now();
-    const heat = await fetchHeatMap();
-    console.log(`📊 fetchHeatMap: ${(performance.now() - heatStart).toFixed(2)}ms`);
-    
-    console.log(`📡 All API calls completed: ${(performance.now() - fetchStart).toFixed(2)}ms`);
-    console.log(`📊 Data received:`, {
-      listings: listings?.length || 0,
-      top: top?.length || 0,
-      bottom: bottom?.length || 0,
-      clusters: clusters?.length || 0,
-      heat: heat?.length || 0
-    });
+    console.log(`📊 fetchListingsMinimal: ${(performance.now() - fetchStart).toFixed(2)}ms`);
+    console.log(`📊 Data received:`, { listings: listings?.length || 0 });
 
     allListings.value = listings;
-    topTenListings.value = top;
-    bottomTenListings.value = bottom;
-    clusteredListings.value = clusters;
-    heatmapData.value = heat;
 
     const markersStart = performance.now();
     addMarkers(listings, false);
