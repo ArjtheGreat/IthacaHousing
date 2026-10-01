@@ -567,6 +567,13 @@ function complexIcon(entry) {
 const formatRent = (rent) => (rent > 0 ? `$${Math.round(rent).toLocaleString('en-US')}` : '—');
 
 /**
+ * A building's rent range, e.g. "$1,200–$1,800"; a single price when every unit costs the same
+ */
+const formatRentRange = (complex) => (complex.minRent === complex.maxRent
+    ? formatRent(complex.minRent)
+    : `${formatRent(complex.minRent)}–${formatRent(complex.maxRent)}`);
+
+/**
  * Popup list for a building: one row per unit, best value first
  * @param entry - Marker entry for the building
  * @param stats - Raw price statistics for the listings on the map
@@ -585,7 +592,7 @@ function buildComplexPopup(entry, stats, totalUnits) {
             badgeClass: score === null ? 'none' : bucketForScore(score),
         };
     });
-    const range = complex.minRent === null ? '' : ` · ${formatRent(complex.minRent)}–${formatRent(complex.maxRent)}`;
+    const range = complex.minRent === null ? '' : ` · ${formatRentRange(complex)}`;
     return complexPopupHtml({
         address: complex.address,
         summary: `${complex.count} units${range}`,
@@ -945,9 +952,7 @@ const handleSearchInput = () => {
     .slice(0, 5)
     .map(({ complex }) => {
       const listing = complex.units[0];
-      const range = complex.minRent === null
-        ? 'N/A'
-        : complex.minRent === complex.maxRent ? formatRent(complex.minRent) : `${formatRent(complex.minRent)}–${formatRent(complex.maxRent)}`;
+      const range = complex.minRent === null ? 'N/A' : formatRentRange(complex);
       return {
         address: `${listing.listingaddress}, ${listing.listingcity}`,
         details: complex.count > 1
