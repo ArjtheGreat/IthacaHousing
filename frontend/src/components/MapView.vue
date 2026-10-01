@@ -132,7 +132,7 @@
 
           <!-- Points of Interest Section -->
           <div class="filter-section">
-            <label for="bed-filter" class="filter-label">Points of Interest</label>
+            <span class="filter-label">Points of Interest</span>
             <div class="poi-buttons">
               <button 
                 @click="togglePOI('groceries')" 
