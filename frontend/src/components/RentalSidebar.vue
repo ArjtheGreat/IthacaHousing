@@ -227,7 +227,7 @@
                 <div class="quad-times">
                     <div class="time-item">
                         <i class="fa-solid fa-bus" style="color: #3b82f6;"></i>
-                        <span>{{ listing?.transit_time_to_arts_quad ? listing.transit_time_to_arts_quad.toFixed(1) : "N/A" }} min</span>
+                        <span>{{ listing?.transit_time_to_arts_quad ? listing.transit_time_to_arts_quad.toFixed(0) : "N/A" }} min</span>
                     </div>
                     <div class="time-item">
                         <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
@@ -248,7 +248,7 @@
                 <div class="quad-times">
                     <div class="time-item">
                         <i class="fa-solid fa-bus" style="color: #3b82f6;"></i>
-                        <span>{{ listing?.transit_time_to_ag_quad ? listing.transit_time_to_ag_quad.toFixed(1) : "N/A" }} min</span>
+                        <span>{{ listing?.transit_time_to_ag_quad ? listing.transit_time_to_ag_quad.toFixed(0) : "N/A" }} min</span>
                     </div>
                     <div class="time-item">
                         <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
@@ -269,7 +269,7 @@
                 <div class="quad-times">
                     <div class="time-item">
                         <i class="fa-solid fa-bus" style="color: #3b82f6;"></i>
-                        <span>{{ listing?.transit_time_to_eng_quad ? listing.transit_time_to_eng_quad.toFixed(1) : "N/A" }} min</span>
+                        <span>{{ listing?.transit_time_to_eng_quad ? listing.transit_time_to_eng_quad.toFixed(0) : "N/A" }} min</span>
                     </div>
                     <div class="time-item">
                         <i class="fa-solid fa-person-walking" style="color: #10b981;"></i>
