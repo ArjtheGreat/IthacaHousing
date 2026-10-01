@@ -6,7 +6,7 @@ useHead({
   title: 'Ithaca Insights | Maitrix Labs',
   meta: [
     { property: 'og:title', content: 'Ithaca Insights | Maitrix Labs' },
-    { property: 'og:description', content: 'All the key info and history you need tok now about Ithaca and Cornell.' },
+    { property: 'og:description', content: 'All the key info and history you need to know about Ithaca and Cornell.' },
     { property: 'og:image', content: 'https://ithacainsights.com/MaitrixLabsLogoNew.png' },
     { property: 'og:url', content: 'https://ithacainsights.com/' },
     { property: 'og:type', content: 'website' }
