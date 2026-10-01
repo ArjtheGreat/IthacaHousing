@@ -128,6 +128,8 @@
                 </select>
               </div>
             </div>
+            <!-- The filter only applies once all three are chosen; say what is still missing -->
+            <p v-if="commuteHint" class="commute-hint">{{ commuteHint }}</p>
           </div>
 
           <!-- Points of Interest Section -->
@@ -365,6 +367,17 @@ const hasAnyActiveFilters = computed(() => {
 // Filters are on but no listing passes all of them
 const showNoResults = computed(() => {
   return !isLoading.value && hasAnyActiveFilters.value && filteredListings.value.length === 0;
+});
+
+// What the commute filter still needs before it does anything; empty when untouched or complete
+const commuteHint = computed(() => {
+  const missing = [
+    !selectedDestination.value && 'a destination',
+    !selectedCommuteTime.value && 'a max time',
+    !selectedTransitMode.value && 'a mode',
+  ].filter(Boolean);
+  if (missing.length === 0 || missing.length === 3) return '';
+  return `Pick ${missing.join(' and ')} to filter by commute.`;
 });
 
 // Smallest change that brings listings back, offered in the no-results alert
@@ -2558,6 +2571,12 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
+}
+
+.commute-hint {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: #6b7280;
 }
 
 /* Reset Section */
