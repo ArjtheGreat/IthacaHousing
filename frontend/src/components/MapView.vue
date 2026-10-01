@@ -233,6 +233,10 @@
               <div class="suggestion-details">{{ suggestion.details }}</div>
             </div>
           </div>
+          <!-- Typed enough to search, but no building matches -->
+          <div v-else-if="showSuggestions && searchQuery.trim().length >= 2" class="suggestions-dropdown">
+            <div class="suggestion-empty">No listings at that address</div>
+          </div>
         </div>
       </div>
 
@@ -933,7 +937,7 @@ function fuzzyMatch(query, text) {
 
 
 const handleSearchInput = () => {
-  if (searchQuery.value.length < 2) {
+  if (searchQuery.value.trim().length < 2) {
     searchSuggestions.value = [];
     return;
   }
@@ -1903,6 +1907,12 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 }
 
 .suggestion-details {
+  font-size: 14px;
+  color: #666;
+}
+
+.suggestion-empty {
+  padding: 12px 16px;
   font-size: 14px;
   color: #666;
 }
