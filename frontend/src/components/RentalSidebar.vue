@@ -118,7 +118,9 @@
                 </div>
                 <div class="detail-content">
                     <div class="detail-number">
-                        {{ listing?.available_bedrooms || 'N/A' }} {{ (listing?.available_bedrooms === 1) ? 'Bedroom' : 'Bedrooms' }}
+                        <!-- 0 bedrooms is a studio, not missing data -->
+                        <template v-if="listing?.available_bedrooms === 0">Studio</template>
+                        <template v-else>{{ listing?.available_bedrooms || 'N/A' }} {{ (listing?.available_bedrooms === 1) ? 'Bedroom' : 'Bedrooms' }}</template>
                     </div>
                 </div>
             </div>
