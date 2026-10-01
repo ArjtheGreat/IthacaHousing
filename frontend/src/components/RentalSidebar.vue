@@ -1210,9 +1210,9 @@ const getLandlordHeader = (): string => {
 const getLandlordNames = (): string => {
     const ownerName = props.listing?.owner_name;
     
-    // Handle empty values
-    if (!ownerName || 
-        (typeof ownerName === 'string' && (ownerName.trim() === '' || ownerName === 'undefined' || ownerName === 'null' || ownerName === '{}'))) {
+    // Handle empty values ("Not Found" is what the pipeline stores when it has no owner record)
+    if (!ownerName ||
+        (typeof ownerName === 'string' && (ownerName.trim() === '' || ownerName === 'undefined' || ownerName === 'null' || ownerName === '{}' || ownerName === 'Not Found'))) {
         return 'Unknown';
     }
     
