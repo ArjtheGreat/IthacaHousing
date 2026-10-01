@@ -1029,7 +1029,10 @@ window.addEventListener('resize', checkMobile);
       center: [42.455, -76.48],
       zoom: 14,
       maxZoom: 20,
+      zoomControl: false,
     });
+    // Leaflet's default top-left spot sits underneath the navbar and the filter panel
+    L.control.zoom({ position: 'bottomright' }).addTo(map.value);
     map.value.on('zoomend', applyZoomMode);
     console.log(`🗺️ Map created: ${(performance.now() - mapInitStart).toFixed(2)}ms`);
 
@@ -2953,6 +2956,11 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   /* Ensure map takes full space on mobile */
   #map {
     height: 100vh !important;
+  }
+
+  /* Phones zoom by pinching; the buttons would sit under the Filters button */
+  #map :deep(.leaflet-control-zoom) {
+    display: none;
   }
   
   /* Adjust legend position on mobile */
