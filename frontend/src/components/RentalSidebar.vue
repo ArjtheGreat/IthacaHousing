@@ -518,7 +518,7 @@
                         <div v-else class="cma-photo-placeholder">📷</div>
                     </div>
                     <div class="listing-info">
-                        <div class="listing-address">{{ titleCase(similarListing?.listingaddress) }}</div>
+                        <div class="listing-address">{{ titleCase(String(similarListing?.listingaddress ?? '')) }}</div>
                         <div class="listing-details">{{ similarListing?.available_bedrooms }} bed, {{ similarListing?.available_bathrooms }} bath</div>
                         <div class="listing-amenities" v-if="similarListing?.amenities_score">
                             Amenities: {{ similarListing?.amenities_score.toFixed(1) }}/100
