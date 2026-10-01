@@ -279,7 +279,7 @@ import RentalSidebar from "@/components/RentalSidebar.vue";
 import FilterAlert from "@/components/FilterAlert.vue";
 import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
 import "leaflet.heat";
-import { groupIntoComplexes, getColor, interpolateColor, valueScore, colorForScore, bucketForScore, sortByValue, BUCKET_COLORS } from "@/utils/complexes";
+import { groupIntoComplexes, getColor, interpolateColor, valueScore, colorForScore, bucketForScore, sortByValue, titleCase, BUCKET_COLORS } from "@/utils/complexes";
 import { complexMarkerSvg, compactMarkerSvg, complexPopupHtml } from "@/utils/complexMarker";
 import { mergeActiveFilters, relaxSuggestion } from "@/utils/filters";
 import { filterByBudget, budgetLabel, BUDGET_OPTIONS } from "@/utils/budget";
@@ -948,11 +948,13 @@ const handleSearchInput = () => {
     .map(({ complex }) => {
       const listing = complex.units[0];
       const range = complex.minRent === null ? 'N/A' : formatRentRange(complex);
+      const beds = listing.available_bedrooms == null ? 'N/A bed' : listing.available_bedrooms > 0 ? `${listing.available_bedrooms} bed` : 'Studio';
       return {
-        address: `${listing.listingaddress}, ${listing.listingcity}`,
+        // Some listings have no city; leave it off rather than print "null"
+        address: [titleCase(listing.listingaddress), titleCase(listing.listingcity)].filter(Boolean).join(', '),
         details: complex.count > 1
           ? `${complex.count} units • ${range}`
-          : `${listing.available_bedrooms || 'N/A'} bed • ${range}`,
+          : `${beds} • ${range}`,
         complex,
         listing
       };
