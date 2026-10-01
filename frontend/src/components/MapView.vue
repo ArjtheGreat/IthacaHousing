@@ -283,6 +283,8 @@ import { complexMarkerSvg, compactMarkerSvg, complexPopupHtml } from "@/utils/co
 import { mergeActiveFilters, relaxSuggestion } from "@/utils/filters";
 import { filterByBudget, budgetLabel, BUDGET_OPTIONS } from "@/utils/budget";
 import "@/assets/complexes.css";
+// "?url" makes the build ship the file; a raw /src/... path only exists on the dev server
+import cornellBoundaryUrl from "@/assets/cornell_main_boundary.geojson?url";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 
 const map = ref(null); // Holds the ref for the map
@@ -1045,7 +1047,7 @@ window.addEventListener('resize', checkMobile);
     // Add Cornell boundary layer
     const boundaryStart = performance.now();
     try {
-      const response = await fetch('/src/assets/cornell_main_boundary.geojson');
+      const response = await fetch(cornellBoundaryUrl);
       const cornellBoundary = await response.json();
       
       cornellBoundaryLayer.value = L.geoJSON(cornellBoundary, {
