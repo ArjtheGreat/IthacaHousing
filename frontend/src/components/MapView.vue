@@ -2957,7 +2957,19 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   gap: 8px;
   font-weight: 500;
   transition: all 0.3s ease;
-  animation: slideUp 0.4s ease-out;
+  animation: toggleRise 0.4s ease-out;
+}
+
+/* slideUp also shifts left by half the width (for centered panels), which made this button jump sideways */
+@keyframes toggleRise {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .mobile-filter-toggle:hover {
