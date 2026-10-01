@@ -934,18 +934,13 @@ const handleSearchInput = () => {
     return;
   }
   
-  const query = searchQuery.value.toLowerCase();
+  const query = searchQuery.value.trim().toLowerCase();
   const suggestions = complexes.value
     .map(complex => {
       const listing = complex.units[0];
-      return {
-        complex,
-        score: Math.max(
-          fuzzyMatch(query, listing.listingaddress || ''),
-          fuzzyMatch(query, listing.listingcity || ''),
-          fuzzyMatch(query, `${listing.listingaddress} ${listing.listingcity}` || '')
-        )
-      };
+      // Street address only: every listing is in Ithaca, so matching the city made
+      // any query like "ith" return five arbitrary buildings
+      return { complex, score: fuzzyMatch(query, listing.listingaddress || '') };
     })
     .filter(match => match.score > 0.3)
     .sort((a, b) => b.score - a.score)
