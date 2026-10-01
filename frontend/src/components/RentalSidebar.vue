@@ -3,11 +3,7 @@
     <!-- Header -->
     <div class="popup-header">
         <div class="popup-title-row">
-            <h3 class="popup-title">
-                {{ listing?.listingaddress }}, 
-                <span v-if="listing?.listingcity">{{ listing?.listingcity }},</span> 
-                {{ listing?.listingzip }}
-            </h3>
+            <h3 class="popup-title">{{ listingTitle }}</h3>
             <button class="close-btn" @click="closePopup">✖</button>
         </div>
         <!-- Landlord Section -->
@@ -554,6 +550,7 @@
 import { defineProps, defineEmits, ref, computed, onMounted, watch } from 'vue';
 import { fetchListing }  from "@/services/fetch"; 
 import type { Listing } from "@/services/interface"
+import { titleCase } from "@/utils/complexes";
 
 const props = defineProps({
     listing: Object,
@@ -562,6 +559,15 @@ const props = defineProps({
 const emit = defineEmits(['close', 'zoom', 'select-listing']);
 
 const showTooltip = ref(false);
+
+/**
+ * "205 Dryden Rd, Ithaca, 14850": title-cased, missing parts skipped,
+ * and the zip without the ".0" the API sends ("14850.0")
+ */
+const listingTitle = computed(() => {
+    const zip = props.listing?.listingzip ? String(props.listing.listingzip).replace(/\.0$/, '') : '';
+    return [titleCase(props.listing?.listingaddress), titleCase(props.listing?.listingcity), zip].filter(Boolean).join(', ');
+});
 
 const closePopup = () => {
     emit('close');
