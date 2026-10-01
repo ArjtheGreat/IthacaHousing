@@ -3295,6 +3295,7 @@ watch<Listing | undefined>(
 
     .popup-title-row {
         gap: 8px;
+        width: 100%; /* so the close button sits at the right edge, not right after the address */
     }
 
     .description-header {
