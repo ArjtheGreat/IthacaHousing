@@ -51,7 +51,7 @@
                                 <strong>Actual Rent</strong> is what the landlord is asking for.<br><br>
                                 <strong>Predicted Rent</strong> is what our proprietary machine learning model considers fair based on the listing's attributes (location, amenities, size, etc.).<br><br>
                                 <strong>If predicted rent > actual rent:</strong> The listing is <span class="tooltip-green">underpriced</span> because you are paying less than what the model considers fair - AKA, you're getting a good deal!<br><br>
-                                <strong>If predicted < actual:</strong> The listing is <span class="tooltip-red">overpriced</span> because you are paying less than what the model considers fair - AKA, you might be paying too much.
+                                <strong>If predicted < actual:</strong> The listing is <span class="tooltip-red">overpriced</span> because you are paying more than what the model considers fair - AKA, you might be paying too much.
                             </div>
                         </div>
                     </div>
