@@ -348,8 +348,8 @@
             </div>
         </div>
 
-        <!-- Lease Information -->
-        <div class="property-section">
+        <!-- Lease Information: hidden when the listing has none, instead of a heading over nothing -->
+        <div class="property-section" v-if="hasLeaseInfo">
             <h4 class="section-title">Lease Information</h4>
             <div class="info-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
                
@@ -661,6 +661,16 @@ const hasPropertyAssessmentData = computed(() => {
            props.listing?.property_frontage || 
            props.listing?.property_depth || 
            props.listing?.neighborhood_assessment;
+});
+
+/**
+ * Check if the listing has any of the lease fields the Lease Information cards show
+ */
+const hasLeaseInfo = computed(() => {
+    return Boolean(props.listing?.dateavailable ||
+           props.listing?.lengthavailable ||
+           props.listing?.listingtypes ||
+           props.listing?.listingexpirationdate);
 });
 
 /**
