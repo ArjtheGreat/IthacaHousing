@@ -1079,6 +1079,10 @@ function parsePostgresArray(pgArrayString: String) {
         }
     }
 
+    // A listing's nearest-neighbor list often starts with the listing itself; that is not a comparison
+    const ownId = String(props.listing?.listingid ?? '');
+    ids = ids.filter(id => id !== ownId);
+
     const fetched = await Promise.all(
         ids.map((id: string) => fetchListing(id))
     );
