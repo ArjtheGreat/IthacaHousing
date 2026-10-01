@@ -329,7 +329,8 @@
                 <!-- Certificate of Compliance -->
                 <div class="info-card assessment-card" ref="tooltipElement" @mouseenter="showComplianceTooltip = true" @mouseleave="showComplianceTooltip = false">
                     <div class="info-icon">
-                        <i class="fa-solid fa-shield-check"></i>
+                        <!-- fa-shield-check is not in the free icon set and rendered as a "missing icon" placeholder -->
+                        <i class="fa-solid fa-shield-halved"></i>
                     </div>
                     <div class="info-content">
                         <div class="info-label safety-report-label">Safety Certificate</div>
