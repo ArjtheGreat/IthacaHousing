@@ -121,7 +121,7 @@
                 <select id="transit-mode-filter" v-model="selectedTransitMode" @change="autoApplyCommuteFilter" class="filter-select">
                   <option value="">Any</option>
                   <option value="walk">Walking</option>
-                  <option value="walk">TCAT</option>
+                  <!-- No TCAT option: /listings-minimal has no transit times, so it could only repeat the walking results -->
                   <option value="drive">Drive</option>
                   <option value="bike">Bike</option>
                 </select>
