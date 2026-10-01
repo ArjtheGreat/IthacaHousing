@@ -84,7 +84,8 @@
                         <div class="rent-amount-large predicted-amount">{{ formatMoney(listing?.predictedrent) }}</div>
                         <div class="rent-label-small">per person</div>
                     </div>
-                    <div class="prediction-difference">
+                    <!-- No badge without both numbers: it used to claim "0.0% Fair Price" for listings with no rent -->
+                    <div class="prediction-difference" v-if="listing?.rent_per_person && listing?.predictedrent">
                         <div class="difference-badge" :class="{
                             'badge-overpriced': percentChange < 0,
                             'badge-underpriced': percentChange > 0,
@@ -486,7 +487,7 @@
                         <div class="rent-amount-large predicted-amount">{{ formatMoney(listing?.predicted_rent_cma) }}</div>
                         <div class="rent-label-small">per person</div>
                     </div>
-                    <div class="prediction-difference">
+                    <div class="prediction-difference" v-if="listing?.rent_per_person && listing?.predicted_rent_cma">
                         <div class="difference-badge" :class="{
                             'badge-overpriced': listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) > 0,
                             'badge-underpriced': listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) < 0,
