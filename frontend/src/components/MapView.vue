@@ -213,6 +213,10 @@
             @input="handleSearchInput"
             @focus="showSuggestions = true"
             @blur="hideSuggestions"
+            @keydown.down.prevent="moveHighlight(1)"
+            @keydown.up.prevent="moveHighlight(-1)"
+            @keydown.enter.prevent="selectHighlighted"
+            @keydown.esc="showSuggestions = false"
             type="text"
             placeholder="Search addresses..."
             class="search-input"
@@ -962,6 +966,30 @@ const handleSearchInput = () => {
   
   searchSuggestions.value = suggestions;
   highlightedIndex.value = -1;
+  showSuggestions.value = true; // typing reopens the list after Escape closed it
+};
+
+/**
+ * Moves the keyboard highlight through the suggestions, wrapping at either end
+ */
+const moveHighlight = (step) => {
+  const count = searchSuggestions.value.length;
+  if (count === 0) return;
+  showSuggestions.value = true;
+  if (highlightedIndex.value === -1) {
+    highlightedIndex.value = step > 0 ? 0 : count - 1;
+  } else {
+    highlightedIndex.value = (highlightedIndex.value + step + count) % count;
+  }
+};
+
+/**
+ * Enter picks the highlighted suggestion, or the best match when none is highlighted
+ */
+const selectHighlighted = () => {
+  if (!showSuggestions.value) return;
+  const suggestion = searchSuggestions.value[Math.max(highlightedIndex.value, 0)];
+  if (suggestion) selectSuggestion(suggestion);
 };
 
 const selectSuggestion = async (suggestion) => {
@@ -983,6 +1011,8 @@ const selectSuggestion = async (suggestion) => {
 
     // clear Text
     searchQuery.value = ""
+    searchSuggestions.value = [];
+    highlightedIndex.value = -1;
   }
 };
 
