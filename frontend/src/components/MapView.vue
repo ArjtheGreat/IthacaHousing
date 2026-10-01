@@ -53,7 +53,8 @@
               <label for="bed-filter" class="filter-label">Beds</label>
               <select id="bed-filter" v-model="selectedBeds" @change="updateBedFilter" class="filter-select">
                 <option :value="0">Any</option>
-                <option v-for="n in bedOptions" :key="n" :value="n">{{ n }}</option>
+                <!-- The API treats the largest option as "that many or more" -->
+                <option v-for="n in bedOptions" :key="n" :value="n">{{ n === bedOptions[bedOptions.length - 1] ? `${n}+` : n }}</option>
               </select>
             </div>
 
@@ -61,7 +62,7 @@
               <label for="bath-filter" class="filter-label">Baths</label>
               <select id="bath-filter" v-model="selectedBaths" @change="updateBathFilter" class="filter-select">
                 <option :value="0">Any</option>
-                <option v-for="n in bathOptions" :key="n" :value="n">{{ n }}</option>
+                <option v-for="n in bathOptions" :key="n" :value="n">{{ n === bathOptions[bathOptions.length - 1] ? `${n}+` : n }}</option>
               </select>
             </div>
           </div>
