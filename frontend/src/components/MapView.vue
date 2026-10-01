@@ -1143,7 +1143,7 @@ const togglePriceDisplayMode = () => {
     priceDisplayMode.value = priceDisplayMode.value === 'differential' ? 'raw' : 'differential';
     // Refresh markers with new color scheme
     if (activeFilter.value === "" || activeFilter.value === null) {
-        addMarkers(allListings.value, false);
+        mergeFilters(); // keeps the beds / budget / commute filters applied
     } else if (activeFilter.value === "topTen") {
         addMarkers(topTenListings.value, false);
     } else if (activeFilter.value === "bottomTen") {
