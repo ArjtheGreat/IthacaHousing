@@ -2999,6 +2999,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 @media (max-width: 768px) {
   .personal-filters-container:not(.mobile-hidden) {
     position: fixed;
+    top: auto; /* Drop the desktop top offset, which stretched the panel to fill the screen */
     bottom: 80px; /* Above the toggle button */
     left: 50%;
     transform: translateX(-50%);
