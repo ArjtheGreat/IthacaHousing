@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import re
 from urllib.request import Request, urlopen
+from urllib.parse import quote, unquote, urljoin, urlsplit
 
 URL = "https://offcampus.housing.cornell.edu/listing"
 ASSIGNMENT = re.compile(r"\b(?:var|let|const)\s+listingData\s*=\s*JSON\.parse\(JSON\.stringify\(")
@@ -28,7 +29,7 @@ COLUMNS = [
     "RentAmount", "RentMin", "RentMax",
     "Bedrooms", "Bathrooms", "SqFt",
     "AvailableFrom", "AvailableDate", "LengthAvailable",
-    "latitude", "longitude", "RentRaw",
+    "latitude", "longitude", "RentRaw", "ListingPhotos",
 ]
 
 
@@ -88,6 +89,54 @@ def unique_strings(value):
     if isinstance(value, dict):
         value = [item for group in value.values() for item in (group if isinstance(group, list) else [group])]
     return list(dict.fromkeys(str(item).strip() for item in (value or []) if isinstance(item, str) and item.strip()))
+
+
+def listing_photos(prop, listing_id):
+    """Export the site's property gallery in the existing sidebar PhotoUrl schema.
+
+    Property photos are shared by all floor-plan rows; these are not necessarily
+    photographs of a particular physical unit. Use the site's original-image
+    fallback path, so the sidebar does not depend on a webp derivative existing.
+    """
+    root = "https://rcp-prod-uploads.s3.amazonaws.com/property_images/"
+    metadata = {
+        str(item.get("image")): item
+        for item in (prop.get("image_floorplan") or [])
+        if isinstance(item, dict) and item.get("image")
+    }
+    names = []
+    featured = prop.get("featured_image")
+    if isinstance(featured, str) and featured.strip():
+        names.append(featured)
+    names.extend(name for name in (prop.get("images") or []) if isinstance(name, str))
+    if not names:
+        names.extend(metadata)
+    photos, seen = [], set()
+    for name in names:
+        item = metadata.get(name, {})
+        if item.get("is_removed") in (True, 1, "1"):
+            continue
+        name = name.strip()
+        if not name:
+            continue
+        url = urljoin(root, name)
+        if urlsplit(url).scheme not in {"http", "https"}:
+            continue
+        # Encode spaces/non-ASCII without double-encoding existing escapes.
+        url = quote(unquote(url), safe=":/?=&#+%")
+        if url in seen:
+            continue
+        seen.add(url)
+        photos.append({
+            "PhotoId": item.get("id"),
+            "PhotoName": item.get("original_name") or name.rsplit("/", 1)[-1],
+            "IsDefault": not photos,
+            "AddedDateTime": item.get("created_at"),
+            "listingId": listing_id,
+            "PhotoUrl": url,
+            "SortOrder": len(photos) + 1,
+        })
+    return photos
 
 
 def rows_from_data(data):
@@ -168,6 +217,10 @@ def rows_from_data(data):
                 # Compat stub only; listing page has no lease-term field.
                 "LengthAvailable": None,
                 "RentRaw": plan.get("rent"),
+                "ListingPhotos": json.dumps(
+                    listing_photos(prop, f"{pid}-{plan['id']}" if plan.get("id") is not None else f"{pid}-property"),
+                    ensure_ascii=False,
+                ),
             })
     return rows
 
@@ -343,4 +396,3 @@ def housing_data_preprocessing(existing_coordinates=None):
     result["Bathrooms"] = pd.to_numeric(result["Bathrooms"], errors="coerce").fillna(1)
     result["RentAmount"] = pd.to_numeric(result["RentAmount"], errors="coerce")
     return result.reset_index(drop=True)
-
