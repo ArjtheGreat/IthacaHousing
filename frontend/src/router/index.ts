@@ -7,6 +7,7 @@ import ContactsView from "@/components/ContactsView.vue"
 import UrbanGrowthView from "@/components/UrbanGrowthView.vue"
 import InsideIthacaView from "@/components/InsideIthacaView.vue"
 import AnalyticsView from "@/components/AnalyticsView.vue"
+import ListingsView from "@/components/ListingsView.vue"
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,6 +21,11 @@ const router = createRouter({
       path: '/rent',
       name: 'rent',
       component: MapView,
+    },
+    {
+      path: '/listings',
+      name: 'listings',
+      component: ListingsView,
     },
     {
       path: '/about',

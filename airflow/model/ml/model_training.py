@@ -245,11 +245,9 @@ def spatial_block_cv_xgb(
         
         baseline.fit(X_train_baseline, y_train)
 
+        # Train residuals only — used to build neighbor residual lags.
+        # Never put own residual on X_test (that embeds y_test = target leakage).
         train_residuals = y_train - baseline.predict(X_train_baseline)
-        test_residuals  = y_test  - baseline.predict(X_test_baseline)
-
-        X_train["residual"] = train_residuals
-        X_test["residual"]  = test_residuals
 
         rent_train = y_train.copy()
         rent_lag_tr, rent_lag_te = knn_distance_weighted_lag_train_test(
@@ -274,8 +272,12 @@ def spatial_block_cv_xgb(
         X_train[f"knn_yearbuilt_dw_{k_knn}"] = year_lag_tr
         X_test[f"knn_yearbuilt_dw_{k_knn}"]  = year_lag_te
 
-        X_train_model = X_train.drop(columns=['latitude', 'longitude'], errors='ignore')
-        X_test_model = X_test.drop(columns=['latitude', 'longitude'], errors='ignore')
+        X_train_model = X_train.drop(
+            columns=["latitude", "longitude", "residual"], errors="ignore"
+        )
+        X_test_model = X_test.drop(
+            columns=["latitude", "longitude", "residual"], errors="ignore"
+        )
 
         for frame in (X_train_model, X_test_model):
             for col in frame.columns:
@@ -331,11 +333,22 @@ def spatial_block_cv_xgb(
 
     return metrics_df, avg
 
-from sklearn.model_selection import KFold
+from sklearn.model_selection import GroupKFold
 from sklearn.metrics import mean_squared_error
 import numpy as np
 import pandas as pd
 import xgboost as xgb
+
+def group_by_property_df(df):
+    """One group id per building so all units stay in the same fold."""
+    if "PropertyId" in df.columns:
+        return df["PropertyId"].astype(str)
+    if "ListingId" in df.columns:
+        return df["ListingId"].astype(str).str.rsplit("-", n=1).str[0]
+    raise ValueError(
+        "compute_fair_rent_oof needs PropertyId or ListingId to group folds by property"
+    )
+
 
 def compute_fair_rent_oof(
     apartments_for_rent,
@@ -348,17 +361,20 @@ def compute_fair_rent_oof(
     max_depth=6
 ):
     """
-    FULL TRUE OOF FAIR RENT PREDICTION (random K-fold)
-    --------------------------------------------------
+    TRUE OOF FAIR RENT PREDICTION (GroupKFold by PropertyId)
+    --------------------------------------------------------
+    Buildings are assigned to folds; every unit/listing from a building
+    stays in the same fold.
+
+    For a held-out property:
+      - Train only on other properties
+      - Fit H3 target encoding + KNN lags on train properties only
+      - Predict every listing in the held-out property
+
     This produces:
       - fair_rent (OOF predictions)
       - mispricing (actual - fair)
       - pct_mispricing
-
-    Critically:
-      - No leakage from KNN lags
-      - H3 target encoding uses train only
-      - Every prediction comes from a model that never saw the point
     """
 
     if isinstance(y, pd.Series):
@@ -370,12 +386,33 @@ def compute_fair_rent_oof(
 
     fair_pred = pd.Series(index=apartments_for_rent.index, dtype=float)
 
-    kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+    groups = group_by_property_df(apartments_for_rent)
+    n_properties = int(groups.nunique())
+    n_splits_eff = min(n_splits, n_properties)
+    if n_splits_eff < 2:
+        raise ValueError(
+            f"Need at least 2 properties for grouped OOF, found {n_properties}"
+        )
+
+    gkf = GroupKFold(n_splits=n_splits_eff)
+    print(
+        f"🏢 Fair-rent OOF: GroupKFold by PropertyId "
+        f"({n_properties} properties, {n_splits_eff} folds, "
+        f"{len(apartments_for_rent)} unit rows)"
+    )
 
     cols_with_coords = x_cols + ["latitude", "longitude"]
 
-    for fold_id, (train_pos, test_pos) in enumerate(kf.split(apartments_for_rent)):
-        print(f"Processing fold {fold_id}...")
+    for fold_id, (train_pos, test_pos) in enumerate(
+        gkf.split(apartments_for_rent, y_array, groups)
+    ):
+        n_train_props = groups.iloc[train_pos].nunique()
+        n_test_props = groups.iloc[test_pos].nunique()
+        print(
+            f"Processing fold {fold_id}... "
+            f"(train {n_train_props} props / {len(train_pos)} units, "
+            f"test {n_test_props} props / {len(test_pos)} units)"
+        )
 
         train_idx = apartments_for_rent.index[train_pos]
         test_idx  = apartments_for_rent.index[test_pos]
@@ -449,8 +486,12 @@ def compute_fair_rent_oof(
         X_train[f"knn_yearbuilt_dw_{k_knn}"] = year_lag_tr
         X_test[f"knn_yearbuilt_dw_{k_knn}"]  = year_lag_te
 
-        X_train_model = X_train.drop(columns=["latitude", "longitude"], errors="ignore")
-        X_test_model = X_test.drop(columns=["latitude", "longitude"], errors="ignore")
+        X_train_model = X_train.drop(
+            columns=["latitude", "longitude", "residual"], errors="ignore"
+        )
+        X_test_model = X_test.drop(
+            columns=["latitude", "longitude", "residual"], errors="ignore"
+        )
         for frame in (X_train_model, X_test_model):
             for col in frame.columns:
                 frame[col] = pd.to_numeric(frame[col], errors="coerce")

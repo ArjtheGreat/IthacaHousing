@@ -36,8 +36,8 @@
             <!-- Header -->
             <div class="rent-card-header">
                 <h4 class="rent-comparison-title">
-                    Fair Rent Comparison
-                    <div class="tooltip-container">
+                    {{ fairRent ? 'Fair Rent Comparison' : 'Rent' }}
+                    <div v-if="fairRent" class="tooltip-container">
                         <span class="tooltip-icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info">
                                 <circle cx="12" cy="12" r="10"/>
@@ -59,11 +59,11 @@
             </div>
             
             <!-- Main Rent Display -->
-            <div class="rent-comparison-grid">
+            <div class="rent-comparison-grid" :class="{ 'rent-single': !fairRent }">
                 <!-- Actual Rent Column -->
                 <div class="rent-column actual-rent">
                     <div class="rent-column-header">
-                        <span class="column-label">Actual Rent</span>
+                        <span class="column-label">{{ fairRent ? 'Actual Rent' : 'Rent' }}</span>
                     </div>
                     <div class="rent-total-section">
                         <div class="rent-amount-large">{{ formatMoney(listing?.rent_per_person) }}</div>
@@ -76,7 +76,7 @@
                 </div>
 
                 <!-- Predicted Rent Column -->
-                <div class="rent-column predicted-rent">
+                <div v-if="fairRent" class="rent-column predicted-rent">
                     <div class="rent-column-header">
                         <span class="column-label">Fair Rent Estimation</span>
                     </div>
@@ -100,7 +100,7 @@
             </div>
             
             <!-- Disclaimer -->
-            <div class="rent-disclaimer">
+            <div v-if="fairRent" class="rent-disclaimer">
                 <i class="fa-solid fa-info-circle"></i>
                 <span>Fair rent estimates are based on a proprietary machine learning model for investigative purposes only. Results should not be considered as official market valuations. Please dig further if you are interested in a listing.</span>
             </div>
@@ -445,8 +445,8 @@
     <div class="cma-section">
         <div class="cma-header">
             <h4 class="cma-title">
-                Comparative Market Analysis
-                <div class="tooltip-container">
+                {{ fairRent ? 'Comparative Market Analysis' : 'Similar properties' }}
+                <div v-if="fairRent" class="tooltip-container">
                     <span class="tooltip-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info">
                             <circle cx="12" cy="12" r="10"/>
@@ -465,7 +465,7 @@
                 </div>
             </h4>
             <!-- Main Rent Display -->
-            <div class="rent-comparison-grid">
+            <div v-if="fairRent" class="rent-comparison-grid">
                 <!-- Actual Rent Column -->
                 <div class="rent-column actual-rent">
                     <div class="rent-column-header">
@@ -541,7 +541,7 @@
         </div>
         
         <!-- CMA Disclaimer -->
-        <div class="cma-disclaimer">
+        <div v-if="fairRent" class="cma-disclaimer">
             <i class="fa-solid fa-info-circle"></i>
             <span>Comparative market analysis estimates are based on a proprietary machine learning model for investigative purposes only. Results should not be considered as official market valuations. Please dig further if you are interested in a listing.</span>
         </div>
@@ -558,6 +558,7 @@ import { titleCase } from "@/utils/complexes";
 
 const props = defineProps({
     listing: Object,
+    fairRent: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(['close', 'zoom', 'select-listing']);
@@ -1884,6 +1885,10 @@ watch<Listing | undefined>(
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     align-items: stretch;
+}
+
+.rent-comparison-grid.rent-single {
+    grid-template-columns: 1fr;
 }
 
 .rent-column {

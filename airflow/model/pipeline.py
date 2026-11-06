@@ -12,6 +12,7 @@ if MODEL_PATH not in sys.path:
 import core.fetch_housing_data as fetch_housing_data
 import core.insert_into_postgredb as insert_into_postgredb
 import core.pipeline_metrics as pipeline_metrics
+import core.property_level as property_level
 
 import calculators.calculate_amenity_score as calculate_amenity_score
 import calculators.calculate_travel_times_distance as calculate_travel_times_distance
@@ -127,6 +128,8 @@ def get_existing_calculated_data():
             ]
             
             columns_to_select = [col for col in base_columns + new_travel_columns + transit_columns if col in existing_columns]
+            if "iso15" in existing_columns and "iso15" not in columns_to_select:
+                columns_to_select.append("iso15")
             
             if not columns_to_select:
                 print("⚠️ No calculated columns found in database")
@@ -276,15 +279,25 @@ def housing_data_pipeline():
 
     print(apartments_for_rent["latitude"].head())
 
-    print("🛡️ Adding safety features...")
-    apartments_for_rent = extract_safety_features.calculate_safety_score(apartments_for_rent)
+    apartments_for_rent = property_level.ensure_property_id(apartments_for_rent)
+
+    print("🛡️ Adding safety features (once per PropertyId)...")
+    apartments_for_rent = property_level.apply_per_property(
+        apartments_for_rent,
+        extract_safety_features.calculate_safety_score,
+        label="safety",
+    )
 
     print("👤 Extracting landlord + property info...")
     apartments_for_rent = landlord_extraction.extract_landlord_names(apartments_for_rent)
     apartments_for_rent = landlord_extraction.add_property_details(apartments_for_rent)
 
-    print("📍 Extracting neighborhoods...")
-    apartments_for_rent = extract_rental_data.extract_neighborhood(apartments_for_rent)
+    print("📍 Extracting neighborhoods (once per PropertyId)...")
+    apartments_for_rent = property_level.apply_per_property(
+        apartments_for_rent,
+        extract_rental_data.extract_neighborhood,
+        label="neighborhood",
+    )
 
     print("🏗️ Adding property/structural features...")
     apartments_for_rent = data_preprocessing.add_property_features(apartments_for_rent)
@@ -292,18 +305,21 @@ def housing_data_pipeline():
     print("🏛️ Extracting land assessment features...")
     apartments_for_rent = extract_land_assessment_features.extract_land_assessment_features(apartments_for_rent)
 
-    print("📍 Extracting Point of Interest (POI) features...")
-    apartments_for_rent = extract_poi_features.extract_poi_features(apartments_for_rent)
+    print("📍 Extracting POI features (once per PropertyId)...")
+    apartments_for_rent = property_level.apply_per_property(
+        apartments_for_rent,
+        extract_poi_features.extract_poi_features,
+        label="poi",
+    )
 
     # ============================================================
     # 3) FETCH EXISTING DATA FROM DB
     # ============================================================
-    existing_ids           = get_existing_listing_ids()
     existing_listings_df   = get_existing_listings_dataframe()
     existing_calculated    = get_existing_calculated_data()
 
     # ============================================================
-    # 4) TRACK REMOVED LISTINGS
+    # 4) TRACK REMOVED LISTINGS (still by ListingId / unit)
     # ============================================================
     try:
         new_ids = set(apartments_for_rent["ListingId"].dropna().astype(str))
@@ -318,71 +334,88 @@ def housing_data_pipeline():
         traceback.print_exc()
 
     # ============================================================
-    # 5) SPLIT NEW VS EXISTING LISTINGS
+    # 5) TRAVEL / TRANSIT / ISO — once per PropertyId
     # ============================================================
-    new_listings      = apartments_for_rent[~apartments_for_rent["ListingId"].isin(existing_ids)]
-    existing_listings = apartments_for_rent[apartments_for_rent["ListingId"].isin(existing_ids)]
+    calc_fields = [
+        "transit_score", "amenities_score", "valid_certificate_of_compliance",
+        "nearest_neighbor_listingids",
+        "walk_time_urishall", "walk_time_agriculturequad", "walk_time_artsquad", "walk_time_engineeringquad",
+        "bike_time_urishall", "bike_time_agriculturequad", "bike_time_artsquad", "bike_time_engineeringquad",
+        "drive_time_urishall", "drive_time_agriculturequad", "drive_time_artsquad", "drive_time_engineeringquad",
+        "nearest_stop_name", "walk_time_to_nearest_stop",
+        "transit_time_to_ag_quad", "transit_time_to_arts_quad", "transit_time_to_eng_quad",
+        "iso15",
+    ]
 
-    print(f"🆕 New listings: {len(new_listings)}")
-    print(f"♻️ Existing listings: {len(existing_listings)}")
+    existing_by_prop = pd.DataFrame()
+    if isinstance(existing_calculated, pd.DataFrame) and not existing_calculated.empty:
+        existing_by_prop = existing_calculated.copy()
+        existing_by_prop["PropertyId"] = property_level.property_id_from_listing_id(
+            existing_by_prop["listingid"]
+        )
+        score_col = "transit_score" if "transit_score" in existing_by_prop.columns else None
+        if score_col:
+            existing_by_prop["_filled"] = existing_by_prop[score_col].notna().astype(int)
+            existing_by_prop = existing_by_prop.sort_values("_filled", ascending=False)
+        existing_by_prop = existing_by_prop.drop_duplicates(subset=["PropertyId"], keep="first")
+        if "_filled" in existing_by_prop.columns:
+            existing_by_prop = existing_by_prop.drop(columns=["_filled"])
 
-    # ============================================================
-    # 6) PROCESS NEW LISTINGS (expensive ops once)
-    # ============================================================
-    if len(new_listings) > 0:
-        print("🗺️ Calculating travel times (new only)...")
+    known_props = set(existing_by_prop["PropertyId"].astype(str)) if not existing_by_prop.empty else set()
+    apartments_for_rent = property_level.ensure_property_id(apartments_for_rent)
+    all_props = set(apartments_for_rent["PropertyId"].astype(str))
+    props_needing = all_props - known_props
+
+    print(
+        f"🗺️ Spatial calc: {len(props_needing)} new properties, "
+        f"{len(known_props & all_props)} reused from DB "
+        f"(of {len(all_props)} total)"
+    )
+
+    need_mask = apartments_for_rent["PropertyId"].isin(props_needing)
+    need_df = apartments_for_rent.loc[need_mask].copy()
+    have_df = apartments_for_rent.loc[~need_mask].copy()
+
+    if len(need_df) > 0:
+        print("🗺️ Calculating travel/transit/iso (new properties only)...")
         graphs = calculate_travel_times_distance.build_graphs()
-        new_listings = calculate_travel_times_distance.compute_all_travel_times(new_listings, graphs)
 
-        print("🗺️ Generating isochronic maps...")
-        new_listings = calculate_travel_times_distance.make_isochronic_map(new_listings)
+        def _travel_transit_iso(reps):
+            reps = calculate_travel_times_distance.compute_all_travel_times(reps, graphs)
+            reps = calculate_travel_times_distance.make_isochronic_map(reps)
+            reps = calculate_transit_score.calculate_transit_score(reps)
+            return reps
 
-        print("🚌 Calculating transit scores...")
-        new_listings = calculate_transit_score.calculate_transit_score(new_listings)
-
-    # ============================================================
-    # 7) MERGE PRESERVED CALCULATIONS FOR EXISTING LISTINGS
-    # ============================================================
-    if len(existing_listings) > 0 and len(existing_calculated) > 0:
-        print("🔄 Merging preserved calculations...")
-
-        existing_listings = existing_listings.merge(
-            existing_calculated,
-            left_on="ListingId",
-            right_on="listingid",
-            how="left",
-            suffixes=("", "_existing")
+        need_df = property_level.apply_per_property(
+            need_df, _travel_transit_iso, label="travel/transit/iso"
         )
 
-        calc_fields = [
-            "transit_score", "amenities_score", "valid_certificate_of_compliance",
-            "nearest_neighbor_listingids",
-            "walk_time_urishall", "walk_time_agriculturequad", "walk_time_artsquad", "walk_time_engineeringquad",
-            "bike_time_urishall", "bike_time_agriculturequad", "bike_time_artsquad", "bike_time_engineeringquad",
-            "drive_time_urishall", "drive_time_agriculturequad", "drive_time_artsquad", "drive_time_engineeringquad",
-            "nearest_stop_name", "walk_time_to_nearest_stop",
-            "transit_time_to_ag_quad", "transit_time_to_arts_quad", "transit_time_to_eng_quad",
-            "iso15"
+    if len(have_df) > 0 and not existing_by_prop.empty:
+        print("🔄 Merging preserved calculations by PropertyId...")
+        merge_cols = ["PropertyId"] + [
+            c for c in calc_fields if c in existing_by_prop.columns
         ]
+        have_df = have_df.drop(
+            columns=[c for c in calc_fields if c in have_df.columns],
+            errors="ignore",
+        )
+        have_df = have_df.merge(
+            existing_by_prop[merge_cols],
+            on="PropertyId",
+            how="left",
+        )
 
-        for col in calc_fields:
-            src = f"{col}_existing"
-            if src in existing_listings.columns:
-                existing_listings[col] = existing_listings[src].fillna(existing_listings[col])
-                existing_listings.drop(columns=[src], inplace=True, errors="ignore")
-
-        existing_listings.drop(columns=["listingid"], inplace=True, errors="ignore")
-
-    # ============================================================
-    # 8) RECOMBINE DATA
-    # ============================================================
-    apartments_for_rent = pd.concat([new_listings, existing_listings], ignore_index=True)
+    apartments_for_rent = pd.concat([need_df, have_df], ignore_index=True)
 
     # ============================================================
-    # 9) CALCULATE GLOBAL AMENITY + RENTAL FEATURES
+    # 6) AMENITY + RENTAL FEATURES
     # ============================================================
-    print("🏬 Calculating amenity scores...")
-    apartments_for_rent = calculate_amenity_score.calculate_amenity_score(apartments_for_rent)
+    print("🏬 Calculating amenity scores (once per PropertyId)...")
+    apartments_for_rent = property_level.apply_per_property(
+        apartments_for_rent,
+        calculate_amenity_score.calculate_amenity_score,
+        label="amenities",
+    )
 
     print("📄 Extracting rental features...")
     apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)

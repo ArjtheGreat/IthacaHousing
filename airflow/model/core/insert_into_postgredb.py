@@ -2,8 +2,13 @@ import os
 import json
 import re
 import ast
+import time
+from datetime import datetime, timezone
+from decimal import Decimal
+
 import pandas as pd
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError, DBAPIError
 
 def clean_json_field(x):
     """
@@ -130,14 +135,75 @@ def normalize_safety_for_db(df):
     return df
 
 
+def _sanitize_record_value(v):
+    if v is None:
+        return None
+    if isinstance(v, float) and pd.isna(v):
+        return None
+    if isinstance(v, Decimal):
+        return float(v)
+    if isinstance(v, pd.Timestamp):
+        return v.to_pydatetime()
+    if isinstance(v, datetime):
+        return v
+    return v
+
+
+def _chunked(seq, size):
+    for i in range(0, len(seq), size):
+        yield seq[i : i + size]
+
+
+def _execute_with_retry(engine, statement, params=None, attempts=4, label="query"):
+    """Retry on transient SSL / connection drops (common with Supabase pooler)."""
+    last_err = None
+    for attempt in range(1, attempts + 1):
+        try:
+            with engine.begin() as conn:
+                if params is None:
+                    conn.execute(statement)
+                else:
+                    conn.execute(statement, params)
+            return
+        except (OperationalError, DBAPIError) as e:
+            last_err = e
+            msg = str(e).lower()
+            transient = any(
+                s in msg
+                for s in (
+                    "ssl syscall",
+                    "eof detected",
+                    "connection reset",
+                    "server closed the connection",
+                    "connection timed out",
+                    "could not receive data",
+                    "ssl connection has been closed",
+                )
+            )
+            if not transient or attempt == attempts:
+                raise
+            wait = min(2 ** attempt, 20)
+            print(
+                f"⚠️ {label} failed (attempt {attempt}/{attempts}): {e}. "
+                f"Retrying in {wait}s..."
+            )
+            try:
+                engine.dispose()
+            except Exception:
+                pass
+            time.sleep(wait)
+    raise last_err
+
+
 def psql_insert_copy(df):
     """
     Insert cleaned housing listing data into Supabase (PostgreSQL).
+    Batches rows to avoid SSL EOF on large single executemany payloads.
     """
     engine = create_engine(
         os.getenv("DB_URI"),
         pool_pre_ping=True,
-        pool_recycle=1800,
+        pool_recycle=300,
         pool_size=1,
         max_overflow=0,
         connect_args={
@@ -145,6 +211,7 @@ def psql_insert_copy(df):
             "keepalives_idle": 30,
             "keepalives_interval": 10,
             "keepalives_count": 5,
+            "connect_timeout": 30,
         },
     )
 
@@ -204,7 +271,6 @@ def psql_insert_copy(df):
     df = df[available_columns].copy() if available_columns else df.copy()
 
     # createdate is NOT NULL; scrape has no CreateDate — stamp insert time.
-    from datetime import datetime, timezone
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     if "createdate" not in df.columns:
         df["createdate"] = now
@@ -219,9 +285,9 @@ def psql_insert_copy(df):
     if "listingid" in df.columns:
         df["listingid"] = df["listingid"].astype(str)
 
-    with engine.begin() as conn:
-        # Migrate legacy integer PK → text for composite unit IDs (idempotent).
-        conn.execute(text("""
+    _execute_with_retry(
+        engine,
+        text("""
             DO $$
             BEGIN
                 IF EXISTS (
@@ -244,9 +310,14 @@ def psql_insert_copy(df):
                         ALTER COLUMN listingid TYPE text USING listingid::text;
                 END IF;
             END $$;
-        """))
+        """),
+        label="schema migrate",
+    )
 
     print(f"📋 Columns being inserted: {list(df.columns)}")
+    missing_optional = [c for c in ("iso15", "neighborhood") if c not in df.columns]
+    if missing_optional:
+        print(f"⚠️ Optional columns missing from frame (not inserted): {missing_optional}")
 
     placeholders = [f":{col}" for col in df.columns]
     insert_query = text(f"""
@@ -258,7 +329,8 @@ def psql_insert_copy(df):
 
     for record in records:
         for col in ["amenities", "listingphotos", "nearest_neighbor_listingids"]:
-            record[col] = clean_json_field(record.get(col))
+            if col in record:
+                record[col] = clean_json_field(record.get(col))
         if "owner_name" in record:
             owner = record["owner_name"]
             if isinstance(owner, (list, dict)):
@@ -268,18 +340,35 @@ def psql_insert_copy(df):
             else:
                 record["owner_name"] = str(owner)
         for k, v in list(record.items()):
-            if isinstance(v, float) and pd.isna(v):
-                record[k] = None
+            record[k] = _sanitize_record_value(v)
         record = convert_property_fields(record)
         record = convert_date_fields(record)
+        for k, v in list(record.items()):
+            record[k] = _sanitize_record_value(v)
 
-    # Truncate and insert in one transaction so a failed insert rolls back
-    # the truncate instead of leaving the table empty.
-    with engine.begin() as conn:
-        conn.execute(text("TRUNCATE TABLE housing_listings RESTART IDENTITY CASCADE;"))
-        print("🧹 Table truncated successfully")
-        conn.execute(insert_query, records)
-        print(f"✅ Inserted {len(records)} rows into housing_listings")
+    # Truncate first (own txn). Then insert in small batches so a pooler
+    # SSL drop doesn't wipe a multi-MB single statement.
+    _execute_with_retry(
+        engine,
+        text("TRUNCATE TABLE housing_listings RESTART IDENTITY CASCADE;"),
+        label="truncate",
+    )
+    print("🧹 Table truncated successfully")
+
+    batch_size = 50
+    inserted = 0
+    for batch_num, batch in enumerate(_chunked(records, batch_size), start=1):
+        _execute_with_retry(
+            engine,
+            insert_query,
+            params=batch,
+            label=f"insert batch {batch_num}",
+        )
+        inserted += len(batch)
+        if batch_num == 1 or batch_num % 5 == 0 or inserted == len(records):
+            print(f"💾 Inserted {inserted}/{len(records)} rows...")
+
+    print(f"✅ Inserted {inserted} rows into housing_listings")
 
 def confirmation(): 
     print("Confirmed Pipeline Complete!")

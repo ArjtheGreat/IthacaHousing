@@ -412,12 +412,66 @@ def extract_landlord_names(apartments_for_rent):
     matched_count = (apartments_for_rent["owner_name"] != "Not Found").sum()
     print(f"📊 Successfully matched {matched_count}/{len(apartments_for_rent)} listings to owners")
 
-    # Normalize unique owner names once (OpenAI) then broadcast
-    unique_owners = apartments_for_rent["owner_name"].dropna().unique().tolist()
-    print(f"🤖 Normalizing {len(unique_owners)} unique owner names...")
-    owner_map = {name: process_prompt_for_landlord(name) for name in unique_owners}
-    apartments_for_rent["owner_name"] = apartments_for_rent["owner_name"].map(
-        lambda n: owner_map.get(n, n)
+    apartments_for_rent["owner_name"] = normalize_owner_names_cached(
+        apartments_for_rent["owner_name"]
     )
-  
+
     return apartments_for_rent
+
+
+def _owner_normalize_cache_path():
+    return os.path.join(MODEL_PATH, "data", "owner_name_normalize_cache.json")
+
+
+def _load_owner_normalize_cache():
+    path = _owner_normalize_cache_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        print(f"⚠️ Could not load owner normalize cache: {e}")
+        return {}
+
+
+def _save_owner_normalize_cache(cache: dict):
+    path = _owner_normalize_cache_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=0)
+    except Exception as e:
+        print(f"⚠️ Could not save owner normalize cache: {e}")
+
+
+def normalize_owner_names_cached(owner_series: pd.Series) -> pd.Series:
+    """
+    Normalize owner names with OpenAI only for names not already in the
+    on-disk cache. Skips placeholders like 'Not Found'.
+    """
+    cache = _load_owner_normalize_cache()
+    unique_owners = [
+        n for n in owner_series.dropna().unique().tolist()
+        if str(n).strip() and str(n).strip() != "Not Found"
+    ]
+
+    missing = [n for n in unique_owners if str(n) not in cache]
+    print(
+        f"🤖 Owner normalize: {len(unique_owners)} unique "
+        f"({len(unique_owners) - len(missing)} cached, {len(missing)} new API calls)"
+    )
+
+    for name in missing:
+        cache[str(name)] = process_prompt_for_landlord(name)
+
+    if missing:
+        _save_owner_normalize_cache(cache)
+
+    def _map(n):
+        if pd.isna(n) or str(n).strip() == "Not Found":
+            return n
+        return cache.get(str(n), n)
+
+    return owner_series.map(_map)

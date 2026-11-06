@@ -67,13 +67,14 @@ def add_property_features(apartments_for_rent):
     sale_price_col = "sale_price" if "sale_price" in apartments_for_rent.columns else "SALE_PRICE"
     
     if sqft_col in apartments_for_rent.columns and sale_price_col in apartments_for_rent.columns:
-        valid_data = (apartments_for_rent[sqft_col] > 0) & (apartments_for_rent[sale_price_col] > 0) & \
-                    pd.notna(apartments_for_rent[sqft_col]) & pd.notna(apartments_for_rent[sale_price_col])
-        
+        sqft = pd.to_numeric(apartments_for_rent[sqft_col], errors="coerce")
+        sale = pd.to_numeric(apartments_for_rent[sale_price_col], errors="coerce")
+        valid_data = (sqft > 0) & (sale > 0) & sqft.notna() & sale.notna()
+
         apartments_for_rent["sqft_per_sale_price"] = np.where(
             valid_data,
-            np.sqrt(apartments_for_rent[sale_price_col] / apartments_for_rent[sqft_col]),
-            np.nan
+            np.sqrt(sale / sqft),
+            np.nan,
         )
         print(f"✅ Added sqft_per_sale_price feature for {valid_data.sum()} valid records")
     else:
@@ -83,6 +84,10 @@ def add_property_features(apartments_for_rent):
     # Encode year built
     def encode_year_built(year):
         """Encode year built into categorical values"""
+        try:
+            year = float(year) if year is not None and not pd.isna(year) else np.nan
+        except (TypeError, ValueError):
+            return 0
         if pd.isna(year) or year == 0:
             return 0  
         elif year < 2000:

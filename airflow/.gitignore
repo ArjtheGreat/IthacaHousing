@@ -10,3 +10,4 @@ webserver_config.py
 airflow.cfg
 airflow.db
 model/core/scraped_properties_raw.json
+model/data/owner_name_normalize_cache.json

@@ -27,7 +27,8 @@ export interface PopupRow {
     beds: string;
     rent: string;
     color: string;
-    badge: string;
+    /** Omitted on the listings map, which does not show a fair-rent percentage. */
+    badge?: string;
     badgeClass: 'under' | 'fair' | 'over' | 'none';
 }
 
@@ -132,7 +133,7 @@ export function complexPopupHtml(content: PopupContent): string {
         `<span class="complex-popup-dot" style="background:${escapeHtml(row.color)}"></span>` +
         `<span class="complex-popup-beds">${escapeHtml(row.beds)}</span>` +
         `<span class="complex-popup-rent">${escapeHtml(row.rent)}<small>/person</small></span>` +
-        `<span class="complex-popup-badge complex-popup-${row.badgeClass}">${escapeHtml(row.badge)}</span>` +
+        (row.badge ? `<span class="complex-popup-badge complex-popup-${row.badgeClass}">${escapeHtml(row.badge)}</span>` : '') +
         `</button>`
     ).join('');
     const note = content.note ? `<span class="complex-popup-note">${escapeHtml(content.note)}</span>` : '';

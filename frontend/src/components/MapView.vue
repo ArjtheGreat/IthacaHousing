@@ -205,7 +205,7 @@
 
     <!-- Map Container -->
     <div class="relative flex z-[0] border-b-2 border-black overflow-hidden">
-      <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" @select-listing="selectListingFromSidebar" :listing="selectedListing" v-if="isSidebarVisible" />
+      <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" @select-listing="selectListingFromSidebar" :listing="selectedListing" :fair-rent="fairRent" v-if="isSidebarVisible" />
 
       <!-- Address Search Bar -->
       <div class="search-container">
@@ -245,10 +245,19 @@
       <div id="map"></div>
 
       <!-- Legend -->
-      <div class="legend">
+      <div v-if="!fairRent" class="legend">
+        <div class="legend-header">
+          <h4>Listings</h4>
+        </div>
+        <div class="neutral-legend">
+          <span class="neutral-swatch"></span>
+          <span>Rental listing</span>
+        </div>
+      </div>
+      <div v-else class="legend">
         <div class="legend-header">
           <h4>{{ priceDisplayMode === 'differential' ? 'Price Differential' : 'Raw Price' }}</h4>
-          <button @click="togglePriceDisplayMode" class="price-mode-toggle">
+          <button v-if="fairRent" @click="togglePriceDisplayMode" class="price-mode-toggle">
             {{ priceDisplayMode === 'differential' ? 'Show Raw Prices' : 'Show Differential' }}
           </button>
         </div>
@@ -298,6 +307,14 @@ import "@/assets/complexes.css";
 import cornellBoundaryUrl from "@/assets/cornell_main_boundary.geojson?url";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 
+const props = defineProps({
+  fairRent: { type: Boolean, default: true },
+});
+
+const LISTING_COLOR = '#355C7D';
+const LISTING_SELECTED_COLOR = '#B31B1B';
+const LISTING_DOT_RADIUS = 6;
+
 const map = ref(null); // Holds the ref for the map
 const isSidebarVisible = ref(false); // Toggle state for whether the Rental Sidebar is visible or not
 const selectedListing = ref(null); // Holds the prop state for the selected listing to pass to RentalSidebar
@@ -339,8 +356,8 @@ const showCommutePanel = ref(false); // Controls visibility of new commute panel
 // Points of Interest variables
 const activePOI = ref(null); // Tracks which POI is currently displayed
 
-// Price display mode: 'differential' or 'raw'
-const priceDisplayMode = ref('differential'); // 'differential' or 'raw'
+// Price display mode: 'differential' or 'raw'. Listings mode stays on raw prices.
+const priceDisplayMode = ref(props.fairRent ? 'differential' : 'raw');
 
 // Mobile functionality variables
 const isMobile = ref(false); // Tracks if user is on mobile
@@ -468,7 +485,29 @@ function getColorByRawPrice(rent, minRent, maxRent, p5, p95) {
 /**
  * Clears all marker highlights
  */
+function listingRadius(count) {
+    return Math.min(LISTING_DOT_RADIUS + 2 * Math.sqrt(Math.max(count, 1) - 1), 16);
+}
+
+function listingDotStyle(selected, radius) {
+    return {
+        radius: selected ? radius + 2 : radius,
+        color: '#ffffff',
+        weight: 1.5,
+        opacity: 1,
+        fillColor: selected ? LISTING_SELECTED_COLOR : LISTING_COLOR,
+        fillOpacity: 1,
+        stroke: true,
+    };
+}
+
 function clearAllHighlights() {
+    if (!props.fairRent) {
+        markers.value.forEach(marker => marker.setStyle?.(listingDotStyle(false, marker.options.baseRadius ?? LISTING_DOT_RADIUS)));
+        selectedEntry = null;
+        selectedMarker.value = null;
+        return;
+    }
     markers.value.forEach(marker => {
         if (marker.options.originalRadius) {
             marker.setStyle({
@@ -496,6 +535,13 @@ function highlightSelectedMarker(listing) {
 
     selectedEntry = entry;
     selectedMarker.value = entry.marker;
+
+    if (!props.fairRent) {
+        const radius = entry.marker.options.baseRadius ?? LISTING_DOT_RADIUS;
+        entry.marker.setStyle(listingDotStyle(true, radius));
+        entry.marker.bringToFront?.();
+        return;
+    }
 
     if (entry.complex.count > 1) {
         entry.marker.getElement()?.classList.add('complex-selected');
@@ -541,6 +587,7 @@ function getRawPriceStats(listings) {
  * Color of a single listing in the current price display mode
  */
 function listingColor(listing, stats) {
+    if (!props.fairRent) return LISTING_COLOR;
     if (priceDisplayMode.value === 'raw') {
         return getColorByRawPrice(listing.rent_per_person, stats.minRent, stats.maxRent, stats.p5, stats.p95);
     }
@@ -551,6 +598,12 @@ function listingColor(listing, stats) {
  * Center color and ring segments for a building marker in the current price display mode
  */
 function complexPaint(complex, stats) {
+    if (!props.fairRent) {
+        return {
+            center: LISTING_COLOR,
+            segments: [{ color: LISTING_COLOR, count: complex.count }],
+        };
+    }
     if (priceDisplayMode.value === 'raw') {
         const priced = complex.units.filter(unit => unit.rent_per_person > 0);
         return {
@@ -602,15 +655,18 @@ const formatRentRange = (complex) => (complex.minRent === complex.maxRent
  */
 function buildComplexPopup(entry, stats, totalUnits) {
     const { complex } = entry;
-    const rows = sortByValue(complex.units).map(unit => {
-        const score = valueScore(unit);
+    const units = props.fairRent
+        ? sortByValue(complex.units)
+        : [...complex.units].sort((a, b) => (a.rent_per_person || 0) - (b.rent_per_person || 0));
+    const rows = units.map(unit => {
+        const score = props.fairRent ? valueScore(unit) : null;
         return {
             id: unit.listingid,
             beds: unit.available_bedrooms == null ? 'N/A' : unit.available_bedrooms > 0 ? `${Number(unit.available_bedrooms)} bd` : 'Studio',
             rent: formatRent(unit.rent_per_person),
             color: listingColor(unit, stats),
-            badge: score === null ? 'n/a' : `${(Math.abs(score) * 100).toFixed(1)}%`,
-            badgeClass: score === null ? 'none' : bucketForScore(score),
+            badge: !props.fairRent ? '' : score === null ? 'n/a' : `${(Math.abs(score) * 100).toFixed(1)}%`,
+            badgeClass: !props.fairRent || score === null ? 'none' : bucketForScore(score),
         };
     });
     const range = complex.minRent === null ? '' : ` · ${formatRentRange(complex)}`;
@@ -641,6 +697,7 @@ async function openListing(listing) {
  * Switches listing markers between their zoomed-in and zoomed-out forms
  */
 function applyZoomMode() {
+    if (!props.fairRent) return;
     const compact = map.value.getZoom() < COMPLEX_FULL_ZOOM;
     if (compact === isCompactZoom) return;
     isCompactZoom = compact;
@@ -781,6 +838,56 @@ function resetMarkerEntries() {
 }
 
 /**
+ * One solid dot per property. Larger properties (more listings) get a larger dot.
+ * A property with several listings opens a list so each one can still be opened.
+ */
+function addListingDots(listings, rawMap) {
+    const grouped = groupIntoComplexes(listings);
+    complexes.value = grouped;
+    const stats = getRawPriceStats(listings);
+
+    const totalUnitsByListingId = new Map();
+    if (listings.length < allListings.value.length) {
+        groupIntoComplexes(toRaw(allListings.value)).forEach(complex => {
+            complex.units.forEach(unit => totalUnitsByListingId.set(String(unit.listingid), complex.count));
+        });
+    }
+
+    grouped.forEach(complex => {
+        const radius = listingRadius(complex.count);
+        const marker = L.circleMarker([complex.lat, complex.lng], listingDotStyle(false, radius)).addTo(rawMap);
+        marker.options.baseRadius = radius;
+        marker.on('mouseover', () => marker.bringToFront());
+        const entry = { complex, marker, paint: null };
+
+        if (complex.count === 1) {
+            marker.on('click', () => openListing(complex.units[0]));
+        } else {
+            marker.bindPopup(() => buildComplexPopup(entry, stats, totalUnitsByListingId.get(String(complex.units[0].listingid)) ?? complex.count), {
+                className: 'complex-popup-wrap',
+                maxWidth: 300,
+                autoPanPaddingTopLeft: [20, 130],
+            });
+            marker.on('popupopen', (event) => {
+                event.popup.getElement().onclick = (click) => {
+                    const row = click.target.closest('[data-listing-id]');
+                    const listing = row && complex.units.find(unit => String(unit.listingid) === row.dataset.listingId);
+                    if (!listing) return;
+                    row.parentElement.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+                    row.classList.add('active');
+                    if (isMobile.value) marker.closePopup();
+                    openListing(listing);
+                };
+            });
+        }
+
+        complex.units.forEach(unit => entryByListingId.set(String(unit.listingid), entry));
+        markerEntries.push(entry);
+        markers.value.push(markRaw(marker));
+    });
+}
+
+/**
  * Add markers to the map: one per building.
  * A building with a single listing keeps the plain dot; a building with several gets a
  * count marker whose popup lists the units.
@@ -795,6 +902,11 @@ function addMarkers(listings, filtered) {
 
     if (heatmapLayer.value) {
       map.value.removeLayer(heatmapLayer.value); 
+    }
+
+    if (!props.fairRent) {
+        addListingDots(listings, rawMap);
+        return;
     }
 
     const grouped = groupIntoComplexes(listings);
@@ -2253,6 +2365,22 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   margin: 0 0 8px;
   font-size: 0.95rem;
   color: #333;
+}
+
+.neutral-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.neutral-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #355C7D;
+  flex-shrink: 0;
 }
 
 .legend ul {
