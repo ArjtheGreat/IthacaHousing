@@ -139,6 +139,38 @@ def listing_photos(prop, listing_id):
     return photos
 
 
+def fill_layout_from_matching_floorplans(rows):
+    """Fill missing beds/baths only from the same named unit at the same property.
+
+    The Cornell feed can publish separate floorplan IDs for different availability
+    dates, with a layout on one record and null beds/baths on the other. Never
+    use a different unit's layout or resolve conflicting sibling specifications.
+    """
+    by_unit = {}
+    for row in rows:
+        name = re.sub(r"\\s+", " ", str(row.get("UnitName") or "").strip()).casefold()
+        if not name:
+            continue
+        key = (str(row.get("PropertyId")), name)
+        known = by_unit.setdefault(key, {"Bedrooms": set(), "Bathrooms": set()})
+        for field in ("Bedrooms", "Bathrooms"):
+            value = number(row.get(field))
+            if value is not None:
+                known[field].add(value)
+
+    for row in rows:
+        name = re.sub(r"\\s+", " ", str(row.get("UnitName") or "").strip()).casefold()
+        key = (str(row.get("PropertyId")), name)
+        known = by_unit.get(key)
+        if not known:
+            continue
+        for field in ("Bedrooms", "Bathrooms"):
+            if row.get(field) is None and len(known[field]) == 1:
+                row[field] = next(iter(known[field]))
+
+    return rows
+
+
 def rows_from_data(data):
     rows = []
     for key, prop in data.items():
@@ -222,7 +254,7 @@ def rows_from_data(data):
                     ensure_ascii=False,
                 ),
             })
-    return rows
+    return fill_layout_from_matching_floorplans(rows)
 
 
 def fetch_html():
