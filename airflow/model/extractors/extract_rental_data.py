@@ -201,130 +201,67 @@ def get_existing_rental_data():
         return {}
 
 def deterministic_extract(row):
-    """Compute rent_per_person from structured scrape fields — no LLM."""
+    """Normalize current structured rents without guessing a missing unit size.
+
+    Unit-priced listings need a reliable bedroom count to determine per-person
+    rent. A room/per-person price is already normalized. The raw unit rent is
+    always preserved as total_rent_amount for Price Per Unit listings.
+    """
     rent = pd.to_numeric(row.get("RentAmount"), errors="coerce")
     bedrooms = pd.to_numeric(row.get("Bedrooms"), errors="coerce")
     bathrooms = pd.to_numeric(row.get("Bathrooms"), errors="coerce")
 
-    if pd.isna(bedrooms) or bedrooms <= 0:
+    # Studio apartments have one rentable sleeping space for rent normalization.
+    if pd.notna(bedrooms) and bedrooms == 0:
         bedrooms = 1.0
-    if pd.isna(bathrooms) or bathrooms <= 0:
-        bathrooms = 1.0
+    if pd.notna(bedrooms) and bedrooms < 0:
+        bedrooms = np.nan
+    if pd.notna(bathrooms) and bathrooms <= 0:
+        bathrooms = np.nan
 
     rent_type = str(row.get("RentType") or "")
     per_person = "person" in rent_type.lower()
+    occupant_count = float(bedrooms) if pd.notna(bedrooms) else np.nan
 
-    if pd.isna(rent):
-        rent_per_person = np.nan
+    if pd.isna(rent) or rent <= 0:
+        per_person_rent = np.nan
+        total_rent = np.nan
     elif per_person:
-        rent_per_person = float(rent)
+        per_person_rent = float(rent)
+        total_rent = float(rent) * occupant_count if pd.notna(occupant_count) else np.nan
     else:
-        rent_per_person = float(rent) / float(bedrooms)
+        per_person_rent = float(rent) / occupant_count if pd.notna(occupant_count) and occupant_count > 0 else np.nan
+        total_rent = float(rent)
 
     return {
-        "available_bedrooms": float(bedrooms),
-        "available_bathrooms": float(bathrooms),
-        "rent_per_person": rent_per_person,
-        "num_people": float(bedrooms),
+        "available_bedrooms": occupant_count,
+        "available_bathrooms": float(bathrooms) if pd.notna(bathrooms) else np.nan,
+        "rent_per_person": per_person_rent,
+        "num_people": occupant_count,
+        "total_rent_amount": total_rent,
     }
 
 
-def rental_extraction_key(row):
-    """Stable key so identical unit configs share one extraction."""
-    return "|".join(
-        [
-            str(row.get("PropertyId") or ""),
-            str(row.get("Bedrooms") or ""),
-            str(row.get("Bathrooms") or ""),
-            str(row.get("RentAmount") or ""),
-            str(row.get("RentType") or ""),
-            str(row.get("ShortDescription") or "")[:240],
-        ]
-    )
-
-
-def has_structured_rent_fields(row):
-    rent = pd.to_numeric(row.get("RentAmount"), errors="coerce")
-    bedrooms = pd.to_numeric(row.get("Bedrooms"), errors="coerce")
-    return pd.notna(rent) and pd.notna(bedrooms)
-
-
 def extract_rental_data(apartments_for_rent):
+    """Recompute rents from the current floor-plan data on every pipeline run.
+
+    Prior DB extraction caches were keyed by listing ID and description only,
+    so rent/bed changes could incorrectly reuse old rent_per_person values.
+    Structured fields are cheap to normalize; caching is unnecessary.
+    Unknown per-unit bedroom counts remain missing instead of becoming 1.
     """
-    Extract rental features once per unique unit config.
-
-    Structured scrape rows (beds + rent present) use deterministic math — no OpenAI.
-    Only ambiguous rows hit the LLM, and those are cached by extraction key.
-    """
-    existing_data = get_existing_rental_data()
-    cache = {}
-    llm_calls = 0
-    deterministic_hits = 0
-    db_hits = 0
-
-    def smart_extract(row):
-        nonlocal llm_calls, deterministic_hits, db_hits
-        listing_id = str(row.get("ListingId", ""))
-        current_description = (
-            str(row["ShortDescription"]) if pd.notna(row.get("ShortDescription")) else ""
-        )
-
-        if listing_id in existing_data:
-            existing_desc = (
-                str(existing_data[listing_id]["shortdescription"])
-                if pd.notna(existing_data[listing_id].get("shortdescription"))
-                else ""
-            )
-            if current_description == existing_desc:
-                db_hits += 1
-                return {
-                    "available_bedrooms": existing_data[listing_id]["available_bedrooms"],
-                    "available_bathrooms": existing_data[listing_id]["available_bathrooms"],
-                    "rent_per_person": existing_data[listing_id]["rent_per_person"],
-                    "num_people": existing_data[listing_id]["num_people"],
-                }
-
-        key = rental_extraction_key(row)
-        if key in cache:
-            return cache[key]
-
-        # Floor-plan scrape already has beds/rent — skip LLM
-        if has_structured_rent_fields(row):
-            result = deterministic_extract(row)
-            cache[key] = result
-            deterministic_hits += 1
-            return result
-
-        print(
-            f"🤖 Running LLM extraction for listing {listing_id} "
-            f"(missing structured rent/beds)"
-        )
-        result = safe_process(row)
-        cache[key] = result
-        llm_calls += 1
-        return result
-
-    apartments_for_rent = apartments_for_rent.copy()
-    apartments_for_rent["extracted_rental_data"] = apartments_for_rent.apply(
-        smart_extract, axis=1
+    out = apartments_for_rent.copy().reset_index(drop=True)
+    extracted = pd.DataFrame(
+        [deterministic_extract(row) for _, row in out.iterrows()],
+        index=out.index,
     )
+    for col in extracted.columns:
+        out[col] = extracted[col]
+    out["extracted_rental_data"] = extracted.to_dict(orient="records")
+    unresolved = int(out["rent_per_person"].isna().sum())
+    print(f"✅ Rent normalization: {len(out) - unresolved} priced, {unresolved} unresolved (excluded from rent model)")
+    return out
 
-    apartments_for_rent["extracted_rental_data"] = apartments_for_rent[
-        "extracted_rental_data"
-    ].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
-
-    extracted_df = pd.json_normalize(apartments_for_rent["extracted_rental_data"])
-    apartments_for_rent = pd.concat([apartments_for_rent, extracted_df], axis=1)
-    apartments_for_rent["total_rent_amount"] = (
-        apartments_for_rent["rent_per_person"] * apartments_for_rent["num_people"]
-    )
-
-    print(
-        f"✅ Rental extract: {deterministic_hits} deterministic, "
-        f"{db_hits} DB cache, {llm_calls} LLM, "
-        f"{len(cache)} unique configs"
-    )
-    return apartments_for_rent
 
 MODEL_PATH = "/opt/airflow/model"
 if not os.path.exists(MODEL_PATH):
