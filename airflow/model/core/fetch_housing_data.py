@@ -22,6 +22,7 @@ URL = "https://offcampus.housing.cornell.edu/listing"
 ASSIGNMENT = re.compile(r"\b(?:var|let|const)\s+listingData\s*=\s*JSON\.parse\(JSON\.stringify\(")
 COLUMNS = [
     "PropertyId", "ListingAddress", "ListingCity", "ListingZip", "RentType",
+    "FloorplanRentStyle", "FloorplanPerPerson",
     "HousingType", "PropertyCategory", "ShortDescription", "SafetyRatings", "Amenities", "Pets",
     "PropertyHighlights", "name", "address", "walk_time", "phone", "detail_url",
     "ListingId", "FloorplanId", "LegacyListingId", "UnitName", "UnitNumber",
@@ -234,6 +235,10 @@ def rows_from_data(data):
                 "LegacyListingId": f"{pid}-{index}",
                 "UnitName": plan.get("title"),
                 "UnitNumber": extra.get("unit_number"),
+                # Independent floor-plan flags if the source ever provides them.
+                # Do NOT treat derived person_rent/unit_rent as pricing metadata.
+                "FloorplanRentStyle": plan.get("rent_style"),
+                "FloorplanPerPerson": plan.get("per_person"),
                 "ListingGranularity": "floorplan" if plan else "property",
                 "RoomStatus": extra.get("room_status"),
                 "PropertyUnitsNumber": prop.get("units_number"),
