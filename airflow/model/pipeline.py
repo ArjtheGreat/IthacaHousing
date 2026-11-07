@@ -421,7 +421,22 @@ def housing_data_pipeline():
     apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)
     apartments_for_rent = data_preprocessing.calc_adjusted_bed_bath_values(apartments_for_rent)
 
-    print(f"📊 Listings ready for ML: {len(apartments_for_rent)}")
+    # Do not train on invented per-person rents for units with unknown bedroom counts.
+    # Keep unpriced units for the listings table and map after predictions are computed.
+    unresolved_rent_listings = apartments_for_rent.loc[
+        apartments_for_rent["rent_per_person"].isna()
+        | (apartments_for_rent["rent_per_person"] <= 0)
+    ].copy()
+    apartments_for_rent = apartments_for_rent.loc[
+        apartments_for_rent["rent_per_person"].notna()
+        & (apartments_for_rent["rent_per_person"] > 0)
+    ].copy().reset_index(drop=True)
+    print(
+        f"📊 Listings ready for ML: {len(apartments_for_rent)}; "
+        f"{len(unresolved_rent_listings)} retained as unpriced listings"
+    )
+    if apartments_for_rent.empty:
+        raise ValueError("No listings with reliable per-person rents to train on")
 
     # ============================================================
     # 10) ML PREPROCESSING + TRAINING
@@ -506,6 +521,16 @@ def housing_data_pipeline():
     # ============================================================
     # 12) INSERT INTO DB
     # ============================================================
+    # Keep model metrics restricted to priced observations, but store all scraped
+    # units in the database. Unknown rents must not acquire fabricated predictions.
+    priced_listings_for_metrics = apartments_for_rent
+    if not unresolved_rent_listings.empty:
+        apartments_for_rent = pd.concat(
+            [apartments_for_rent, unresolved_rent_listings],
+            ignore_index=True,
+            sort=False,
+        )
+
     print("💾 Inserting into database...")
     insert_into_postgredb.psql_insert_copy(apartments_for_rent)
     insert_into_postgredb.confirmation()
@@ -515,7 +540,7 @@ def housing_data_pipeline():
     # ============================================================
     print("📊 Generating pipeline metrics...")
     try:
-        metrics = pipeline_metrics.analyze_market_and_model(apartments_for_rent, results_df, X, X_spatial, y_clean, best_model)
+        metrics = pipeline_metrics.analyze_market_and_model(priced_listings_for_metrics, results_df, X, X_spatial, y_clean, best_model)
         pipeline_metrics.insert_pipeline_metrics(metrics)
     except Exception as e:
         print(f"⚠️ Error generating pipeline metrics: {e}")
