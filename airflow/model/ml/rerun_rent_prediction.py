@@ -112,6 +112,10 @@ def fetch_listings_for_retrain() -> pd.DataFrame:
         "transit_time_to_ag_quad",
         "transit_time_to_arts_quad",
         "transit_time_to_eng_quad",
+        "food_count_200m", "food_nearest_dist",
+        "attractions_count_200m", "attractions_nearest_dist",
+        "shopping_count_200m", "shopping_nearest_dist",
+        "grocery_count_200m", "grocery_nearest_dist",
     ]
 
     engine = _engine()
