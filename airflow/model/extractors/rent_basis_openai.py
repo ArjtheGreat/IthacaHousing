@@ -229,10 +229,6 @@ def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
     if not os.getenv("RENT_BASIS_OPENAI_ENABLED", "1").lower() in {"1", "true", "yes"}:
         print("ℹ️ OpenAI rent-basis classification disabled by configuration")
         return out
-    if not os.getenv("OPENAI_API_KEY"):
-        print("⚠️ OPENAI_API_KEY absent: rent basis remains unverified; no AI corrections")
-        return out
-
     from openai import OpenAI
 
     prior = _load_cached_results()
@@ -271,6 +267,9 @@ def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
                 reused += len(chunk)
                 continue
 
+            if not os.getenv("OPENAI_API_KEY"):
+                failed += len(chunk)
+                continue
             if client is None:
                 client = OpenAI(timeout=35.0, max_retries=2)
             allowed = set(chunk["ListingId"].astype(str))
@@ -316,6 +315,8 @@ def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
                 print(f"⚠️ OpenAI rent-basis classification failed for property "
                       f"{property_id}: {type(exc).__name__}: {exc}")
             # No sleep needed: SDK retries transient errors.
+    if failed and not os.getenv("OPENAI_API_KEY"):
+        print("⚠️ No OPENAI_API_KEY; unresolved rent basis remains source-derived")
     print(f"🤖 Rent-basis cache: {reused} reused, {successful} classified, "
           f"{failed} failed out of {len(out)} floorplans")
     return out
