@@ -6,7 +6,7 @@ from shapely.geometry import Point
 import geopandas as gpd
 from pathlib import Path
 from extractors.rent_basis_openai import classify_rent_bases
-from extractors.rent_iqr_audit import audit_normalized_rents, check_quote_amounts
+from extractors.rent_iqr_audit import (\n    pre_classification_iqr_context, audit_normalized_rents, check_quote_amounts\n)
 
 
 def get_existing_rental_data():
@@ -113,6 +113,9 @@ def extract_rental_data(apartments_for_rent):
     out["suspected_landlord_pricing_error"] = False
     out["pricing_adjustment_reason"] = None
 
+    # IQR first: show BOTH competing rent interpretations to the AI.
+    # Statistical plausibility is context, not source evidence or a correction.
+    out = pre_classification_iqr_context(out)
     out = classify_rent_bases(out)
     # A model can quote "$925 per bedroom" for a $1,850 whole-unit ad.
     # Such evidence describes the per-person SHARE, not the raw price basis:
