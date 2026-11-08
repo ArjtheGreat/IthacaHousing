@@ -29,7 +29,7 @@ def define_X_Y_variables(apartments_for_rent):
         "YR_BUILT_ENCODED", "Electricity Included", "Heat Included",
         "Water Included", "Internet Included", "Laundry Facilities",
         "Air Conditioning", "Furnished", "x_meters", "y_meters",
-        "submarket", "assessment_per_sqft",
+        "submarket", "assessment_per_sqft", "unit_sqft",
     ]
     for kind in ("food", "attractions", "shopping", "grocery"):
         base_cols.extend([f"{kind}_nearest_dist", f"{kind}_count_200m"])
