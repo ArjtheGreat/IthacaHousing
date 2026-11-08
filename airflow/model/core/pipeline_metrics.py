@@ -299,7 +299,10 @@ def spatial_residual_analysis(gdf):
 
 # ---------- MAIN WRAPPER ----------
 
-def analyze_market_and_model(apartments_for_rent, results_df, X, X_spatial, y, best_model_name):
+def analyze_market_and_model(
+    apartments_for_rent, results_df, X, X_spatial, y, best_model_name,
+    oof_feature_importance=None, oof_fold_metrics=None, oof_overall_metrics=None,
+):
     """
     Returns dashboard-ready analysis dict with all components.
     """
@@ -315,9 +318,15 @@ def analyze_market_and_model(apartments_for_rent, results_df, X, X_spatial, y, b
         "landlord_behavior": analyze_landlords(gdf),
         "overpricing": analyze_overpricing(gdf),
         "model_performance": summarize_model_performance(results_df, best_model_name),
-        "feature_importance": compute_feature_importance(best_model_name, X_spatial, y)
+        "feature_importance": (
+            oof_feature_importance.set_index("feature")["mean_normalized_gain"].to_dict()
+            if oof_feature_importance is not None else {}
+        ),
     }
-
+    if oof_fold_metrics is not None:
+        analysis["model_performance"]["fold_metrics"] = oof_fold_metrics.to_dict("records")
+    if oof_overall_metrics is not None:
+        analysis["model_performance"]["overall_oof"] = dict(oof_overall_metrics)
     return analysis
 
 
