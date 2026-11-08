@@ -17,27 +17,123 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import GroupKFold
 
 
-def define_X_Y_variables(apartments_for_rent):
-    """Return rent predictors and the original per-person asking rent in dollars.
+# Notebook model: separate baseline, bedrooms/bathrooms, and advertised amenities.
+# Keep names explicit so each family can be toggled without retraining on
+# different undisclosed inputs.
+UNIT_AMENITIES = (
+    "has_ac", "has_heating", "has_dishwasher", "is_furnished",
+    "has_in_unit_laundry", "has_microwave", "has_oven",
+    "has_refrigerator", "has_stainless_appliances", "has_garbage_disposal",
+    "has_hardwood_floors", "has_granite_countertops",
+    "has_quartz_countertops", "has_private_bathroom", "has_walk_in_closet",
+    "has_fireplace", "has_ceiling_fan", "has_keyless_entry",
+    "has_private_entrance", "has_private_balcony", "has_porch",
+    "has_patio", "has_high_ceilings",
+)
+BUILDING_AMENITIES = (
+    "has_fitness_center", "has_pool", "has_elevator", "has_study_room",
+    "has_resident_lounge", "has_rooftop_terrace", "has_sauna",
+    "has_courtyard", "has_yard", "has_grill", "has_bike_storage",
+    "has_ev_charging", "has_security_cameras", "has_controlled_access",
+    "has_package_room", "has_onsite_management", "has_onsite_maintenance",
+    "has_emergency_maintenance", "has_shared_laundry", "has_laundry",
+    "has_storage", "parking_available", "has_private_shuttle",
+    "ada_accessible_advertised",
+)
+UTILITY_AMENITIES = (
+    "heat_included_verified", "electricity_included_verified",
+    "water_included_verified", "internet_included_verified",
+    "trash_included_verified", "electricity_advertised",
+    "water_advertised", "trash_advertised", "gas_advertised",
+    "hot_water_advertised", "internet_available", "internet_ready",
+    "cable_ready", "snow_removal_advertised", "lawn_care_included",
+    "utilities_included",
+)
+LEASING_AMENITIES = (
+    "per_person_leasing", "roommate_matching_available",
+    "academic_term_lease", "short_term_lease_available",
+    "furnishing_option_available", "pets_negotiable", "no_pets_allowed",
+    "cats_allowed_advertised", "dogs_allowed_advertised",
+)
 
-    No target, listing identifiers, or target-derived comps are included.
-    Coordinates are added separately by the pipeline.
+USE_BASELINE_FEATURES = True
+USE_SQFT = True
+USE_SEPARATE_BEDS_BATHS = True
+USE_UNIT_AMENITIES = True
+USE_BUILDING_AMENITIES = True
+USE_UTILITY_AMENITIES = True
+USE_LEASING_AMENITIES = True
+EXCLUDE_FEATURES = ()
+INCLUDE_FEATURES = ()
+
+BASELINE_FEATURES = (
+    "pets", "combined_bedrooms_bathrooms", "walk_time_urishall",
+    "transit_score", "valid_certificate_of_compliance",
+    "yr_built_encoded", "electricity_included", "heat_included",
+    "water_included", "internet_included", "laundry_facilities",
+    "air_conditioning", "furnished", "food_nearest_dist",
+    "food_count_200m", "attractions_nearest_dist",
+    "attractions_count_200m", "shopping_nearest_dist",
+    "shopping_count_200m", "grocery_nearest_dist",
+    "grocery_count_200m", "latitude", "longitude",
+    "x_meters", "y_meters", "submarket", "assessment_per_sqft",
+)
+# Fresh-ingest dataframe uses title-case names in some legacy transforms;
+# DB-only rerun has lowercase SQL columns as well.
+BASELINE_ALIASES = {
+    "pets": "Pets",
+    "yr_built_encoded": "YR_BUILT_ENCODED",
+    "electricity_included": "Electricity Included",
+    "heat_included": "Heat Included",
+    "water_included": "Water Included",
+    "internet_included": "Internet Included",
+    "laundry_facilities": "Laundry Facilities",
+    "air_conditioning": "Air Conditioning",
+    "furnished": "Furnished",
+}
+
+
+def define_X_Y_variables(apartments_for_rent):
+    """Production features matching IthacaInsightsNewDev.ipynb's enabled toggles.
+
+    Resolve legacy title-case aliases without changing canonical feature names;
+    remove all-missing and constant predictors as in the notebook. Target and
+    identifiers never enter the feature matrix.
     """
-    base_cols = [
-        "Pets", "combined_bedrooms_bathrooms", "walk_time_urishall",
-        "transit_score", "valid_certificate_of_compliance",
-        "YR_BUILT_ENCODED", "Electricity Included", "Heat Included",
-        "Water Included", "Internet Included", "Laundry Facilities",
-        "Air Conditioning", "Furnished", "x_meters", "y_meters",
-        "submarket", "assessment_per_sqft", "unit_sqft",
-    ]
-    for kind in ("food", "attractions", "shopping", "grocery"):
-        base_cols.extend([f"{kind}_nearest_dist", f"{kind}_count_200m"])
-    cols = list(dict.fromkeys(c for c in base_cols if c in apartments_for_rent.columns))
-    if not cols:
+    frame = apartments_for_rent
+    selected = []
+    if USE_BASELINE_FEATURES:
+        selected.extend(BASELINE_FEATURES)
+    if USE_SQFT:
+        selected.append("unit_sqft")
+    if USE_SEPARATE_BEDS_BATHS:
+        selected.extend(("available_bedrooms", "available_bathrooms"))
+    if USE_UNIT_AMENITIES:
+        selected.extend(UNIT_AMENITIES)
+    if USE_BUILDING_AMENITIES:
+        selected.extend(BUILDING_AMENITIES)
+    if USE_UTILITY_AMENITIES:
+        selected.extend(UTILITY_AMENITIES)
+    if USE_LEASING_AMENITIES:
+        selected.extend(LEASING_AMENITIES)
+    selected.extend(INCLUDE_FEATURES)
+    selected = [c for c in dict.fromkeys(selected) if c not in EXCLUDE_FEATURES]
+
+    columns = {}
+    for name in selected:
+        source = name if name in frame.columns else BASELINE_ALIASES.get(name)
+        if source is not None and source in frame.columns:
+            columns[name] = pd.to_numeric(frame[source], errors="coerce")
+        elif name not in BASELINE_FEATURES:
+            raise ValueError(f"Missing required notebook predictor: {name}")
+    X = pd.DataFrame(columns, index=frame.index).replace([np.inf, -np.inf], np.nan)
+    # Match notebook preprocessing, without leaking any rent/target values.
+    X = X.loc[:, X.notna().any()]
+    X = X.loc[:, X.nunique(dropna=True) > 1]
+    if X.empty:
         raise ValueError("No usable rent predictors present")
-    print(f"📋 Rent model predictors ({len(cols)}): {cols}")
-    return apartments_for_rent[cols].copy(), apartments_for_rent["rent_per_person"].copy()
+    print(f"📋 Production notebook rent predictors ({len(X.columns)}): {list(X.columns)}")
+    return X, frame["rent_per_person"].copy()
 
 
 def group_by_property_df(df):
