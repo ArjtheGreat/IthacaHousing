@@ -285,7 +285,22 @@ def housing_data_pipeline():
     print("📥 Fetching rental data...")
     apartments_for_rent = fetch_housing_data.housing_data_preprocessing(existing_coordinates=existing_coordinates)
 
-    print(apartments_for_rent["latitude"].head())
+    # Cornell reports square footage for individual floorplans, not parcels.
+    # Keep it numeric and missing when unavailable, so XGBoost can handle
+    # missing areas without ever replacing them with assessment_sqft.
+    if "unit_sqft" not in apartments_for_rent.columns and "SqFt" in apartments_for_rent.columns:
+        apartments_for_rent["unit_sqft"] = apartments_for_rent["SqFt"]
+    if "unit_sqft" not in apartments_for_rent.columns:
+        apartments_for_rent["unit_sqft"] = np.nan
+    area = pd.to_numeric(apartments_for_rent["unit_sqft"], errors="coerce")
+    apartments_for_rent["unit_sqft"] = area.where(area > 0)
+    available_areas = int(apartments_for_rent["unit_sqft"].notna().sum())
+    print(
+        f"📐 Cornell unit_sqft available for {available_areas}/"
+        f"{len(apartments_for_rent)} floorplans"
+    )
+    if available_areas == 0:
+        print("⚠️ No floorplan areas received; XGBoost cannot learn a SQFT effect on this run")
 
     apartments_for_rent = property_level.ensure_property_id(apartments_for_rent)
 
@@ -489,6 +504,13 @@ def housing_data_pipeline():
     # ============================================================
     print("🧹 Preparing numerical rent-model predictors...")
     X, rent_dollars = model_training.define_X_Y_variables(apartments_for_rent)
+    if "unit_sqft" not in X.columns:
+        raise ValueError("unit_sqft was dropped before XGBoost training")
+    print(
+        f"📐 Training with unit_sqft: "
+        f"{int(pd.to_numeric(X['unit_sqft'], errors='coerce').notna().sum())}/"
+        f"{len(X)} listings have source floorplan area"
+    )
 
     # No global median imputation before CV: avoid training data leakage.
     # XGBoost handles missing numerical values natively in each fold.
