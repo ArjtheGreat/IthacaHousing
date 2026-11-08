@@ -10,6 +10,8 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError, DBAPIError
 
+from calculators.calculate_amenity_score import CANONICAL_AMENITY_COLUMNS
+
 # Predictors that are built in memory for the rent model. Spaced amenity
 # names are renamed here so the insert sanitizer does not collapse them
 # into names like "electricityincluded".
@@ -44,6 +46,10 @@ def ensure_model_feature_columns(engine):
         """),
         label="model feature columns",
     )
+    # Experimental amenity flags are persisted for database-only retraining.
+    # Each flag means advertised; missing advertised evidence is encoded as zero.
+    additions = ", ".join(f"ADD COLUMN IF NOT EXISTS {c} integer" for c in CANONICAL_AMENITY_COLUMNS)
+    _execute_with_retry(engine, text(f"ALTER TABLE housing_listings {additions}"), label="canonical amenity columns")
 
 
 def clean_json_field(x):
@@ -322,6 +328,8 @@ def psql_insert_copy(df):
         "internet_included", "laundry_facilities", "air_conditioning",
         "furnished",
     ]
+
+    base_columns.extend(CANONICAL_AMENITY_COLUMNS)
 
     travel_time_cols = [
         "walk_time_urishall", "walk_time_agriculturequad", "walk_time_artsquad", "walk_time_engineeringquad",
