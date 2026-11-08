@@ -204,6 +204,12 @@ def rows_from_data(data):
             "address": address,
             "walk_time": prop.get("distance_partner") or prop.get("distance"),
             "phone": prop.get("phone") or prop.get("contact_number") or prop.get("lead_text"),
+            # Preserve original contact metadata separately from parcel owner_name.
+            "landlord_email": prop.get("landlord_email"),
+            "landlord_name": prop.get("landlord_name") or prop.get("full_name"),
+            "landlord_full_name": prop.get("full_name"),
+            "landlord_username": prop.get("landlord_username"),
+            "contact_number": prop.get("contact_number"),
             "detail_url": f"{URL}?property={pid}",
             "latitude": prop.get("lat"),
             "longitude": prop.get("lng"),
