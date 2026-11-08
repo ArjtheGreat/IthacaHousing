@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import sys
 import os
 from pathlib import Path
@@ -486,68 +487,53 @@ def housing_data_pipeline():
     # ============================================================
     # 10) ML PREPROCESSING + TRAINING
     # ============================================================
-    print("🧹 Cleaning ML variables...")
-    X, y = model_training.define_X_Y_variables(apartments_for_rent)
-    X, y = data_preprocessing.clean_up_x_y(X, y)
-    X = data_preprocessing.median_mode_imputation(X)
-    y = data_preprocessing.log_transform_prices(y)
+    print("🧹 Preparing numerical rent-model predictors...")
+    X, rent_dollars = model_training.define_X_Y_variables(apartments_for_rent)
 
-    X = X.reset_index(drop=True)
+    # No global median imputation before CV: avoid training data leakage.
+    # XGBoost handles missing numerical values natively in each fold.
+    X = X.apply(pd.to_numeric, errors="coerce").replace([float("inf"), float("-inf")], float("nan"))
     apartments_for_rent = apartments_for_rent.reset_index(drop=True)
-    y = y.reset_index(drop=True) if hasattr(y, 'reset_index') else pd.Series(y).reset_index(drop=True)
-    
-    X_with_coords = X.copy()
-    if 'latitude' in apartments_for_rent.columns and 'longitude' in apartments_for_rent.columns:
-        X_with_coords['latitude'] = apartments_for_rent['latitude'].values
-        X_with_coords['longitude'] = apartments_for_rent['longitude'].values
-    else:
-        raise ValueError("Dataframe must contain 'latitude' and 'longitude' columns for spatial operations")
+    rent_dollars = pd.to_numeric(rent_dollars, errors="coerce").reset_index(drop=True)
+    y = np.log(rent_dollars)
+    for col in X.columns:
+        apartments_for_rent[col] = X[col].reset_index(drop=True)
 
-    print("🗺️ Adding H3 geospatial cells...")
-    X_with_coords = model_training.add_h3_cells(X_with_coords, h3_reses=(6, 7))
-    
-    print("🗺️ Applying spatial spectral clustering...")
-    X_with_coords = model_training.spatial_spectral_clustering(X_with_coords)
-    
-    x_cols = [col for col in X_with_coords.columns 
-              if col not in ['spatial_cluster', 'latitude', 'longitude']]
-    
-    print("🤖 Running spatial block cross-validation...")
-    metrics_df, avg = model_training.spatial_block_cv_xgb(
-        X_with_coords, y, x_cols, 
-        n_estimators=100, max_depth=6
+    if 'latitude' not in apartments_for_rent or 'longitude' not in apartments_for_rent:
+        raise ValueError("Missing latitude/longitude for rent model")
+    apartments_for_rent["latitude"] = pd.to_numeric(apartments_for_rent["latitude"], errors="coerce")
+    apartments_for_rent["longitude"] = pd.to_numeric(apartments_for_rent["longitude"], errors="coerce")
+
+    print("💰 Training one XGBoost per property-held-out fold...")
+    apartments_for_rent, fold_metrics, overall, feature_importance = (
+        model_training.compute_fair_rent_oof(
+            apartments_for_rent=apartments_for_rent,
+            y=y,
+            x_cols=list(X.columns),
+            n_splits=5,
+            n_estimators=100,
+            max_depth=6,
+        )
     )
-    
-    print(f"📊 Spatial CV Results - Mean RMSE: {avg['rmse']:.4f}, Mean R²: {avg['r2']:.4f}")
-    
-    apartments_for_rent['spatial_cluster'] = X_with_coords['spatial_cluster'].values
-    for res in (6, 7):
-        h3_col = f"h3_{res}"
-        if h3_col in X_with_coords.columns:
-            apartments_for_rent[h3_col] = X_with_coords[h3_col].values
-    
-    print("💰 Computing fair rent predictions...")
-    apartments_for_rent = model_training.compute_fair_rent_oof(
-        apartments_for_rent=apartments_for_rent,
-        y=y,
-        x_cols=x_cols,
-        h3_reses=(6, 7),
-        k_knn=10,
-        n_estimators=100,
-        max_depth=6
-    )
-    
+    print("\n📊 OOF fold metrics ($ per person per month):")
+    print(fold_metrics.to_string(index=False, float_format=lambda v: f"{v:,.2f}"))
+    print("\n📊 Pooled held-out-property metrics:")
+    for key in ("r2", "rmse", "mae", "bias", "median_residual", "residual_std", "p90_abs_error"):
+        print(f"  {key}: {overall[key]:,.3f}")
+    print("\n⭐ Most important rent predictors:")
+    print(feature_importance.head(15).to_string(index=False))
+
+    # Metrics now describe the very same OOF predictions shown on the site.
     results_df = pd.DataFrame({
-        'R2': [avg['r2']],
-        'RMSE': [avg['rmse']],
-        'MAE': [avg['mae']],
-        'MAPE': [None], 
-        'flagged': [False]
-    }, index=['Spatial Block CV XGBoost'])
-    
-    X_spatial = X_with_coords
+        "R2": [overall["r2"]],
+        "RMSE": [overall["rmse"]],
+        "MAE": [overall["mae"]],
+        "MAPE": [None],
+        "flagged": [False],
+    }, index=["Property-Grouped OOF XGBoost"])
+    X_spatial = X.copy()
     y_clean = y
-    best_model = 'Spatial Block CV XGBoost'
+    best_model = "Property-Grouped OOF XGBoost"
 
     # ============================================================
     # 11) CMA
@@ -585,7 +571,13 @@ def housing_data_pipeline():
     # ============================================================
     print("📊 Generating pipeline metrics...")
     try:
-        metrics = pipeline_metrics.analyze_market_and_model(priced_listings_for_metrics, results_df, X, X_spatial, y_clean, best_model)
+        metrics = pipeline_metrics.analyze_market_and_model(
+            priced_listings_for_metrics, results_df, X, X_spatial,
+            y_clean, best_model,
+            oof_feature_importance=feature_importance,
+            oof_fold_metrics=fold_metrics,
+            oof_overall_metrics=overall,
+        )
         pipeline_metrics.insert_pipeline_metrics(metrics)
     except Exception as e:
         print(f"⚠️ Error generating pipeline metrics: {e}")
