@@ -243,6 +243,14 @@ def psql_insert_copy(df):
 
     df = normalize_safety_for_db(df)
 
+    # Keep source floor-plan area separate from parcel assessment_sqft.
+    # Older CSV exports used "SqFt" (normalized to "sqft").
+    if "unit_sqft" not in df.columns and "sqft" in df.columns:
+        df["unit_sqft"] = df["sqft"]
+    if "unit_sqft" in df.columns:
+        area = pd.to_numeric(df["unit_sqft"], errors="coerce")
+        df["unit_sqft"] = area.where(area > 0)
+
     base_columns = [
         "listingid", "listingaddress", "listingcity", "listingzip", "createdate",
         "shortdescription", "rentamount", "renttype", "dateavailable", "unitnumber",
@@ -260,7 +268,7 @@ def psql_insert_copy(df):
         "transit_time_to_arts_quad", "transit_time_to_eng_quad",
         "iso15", "neighborhood", "neighborhood_assessment", "property_depth",
         "property_frontage", "property_acres", "property_pc", "water_access",
-        "sewer_access", "sewer_name", "year_built", "assessment_sqft", "sale_price",
+        "sewer_access", "sewer_name", "year_built", "assessment_sqft", "unit_sqft", "sale_price",
         "valid_certificate_of_compliance",
         "food_count_200m", "food_nearest_dist",
         "attractions_count_200m", "attractions_nearest_dist",
@@ -344,7 +352,8 @@ def psql_insert_copy(df):
                 ADD COLUMN IF NOT EXISTS shopping_count_200m numeric,
                 ADD COLUMN IF NOT EXISTS shopping_nearest_dist numeric,
                 ADD COLUMN IF NOT EXISTS grocery_count_200m numeric,
-                ADD COLUMN IF NOT EXISTS grocery_nearest_dist numeric;
+                ADD COLUMN IF NOT EXISTS grocery_nearest_dist numeric,
+                ADD COLUMN IF NOT EXISTS unit_sqft numeric;
         """),
         label="rent adjustment schema migrate",
     )
