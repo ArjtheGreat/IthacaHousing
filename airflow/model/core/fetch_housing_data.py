@@ -25,6 +25,8 @@ COLUMNS = [
     "FloorplanRentStyle", "FloorplanPerPerson",
     "HousingType", "PropertyCategory", "ShortDescription", "SafetyRatings", "Amenities", "Pets",
     "PropertyHighlights", "name", "address", "walk_time", "phone", "detail_url",
+    "landlord_email", "landlord_name", "landlord_full_name", "landlord_username",
+    "contact_number",
     "ListingId", "FloorplanId", "LegacyListingId", "UnitName", "UnitNumber",
     "ListingGranularity", "RoomStatus", "PropertyUnitsNumber",
     "RentAmount", "RentMin", "RentMax",
