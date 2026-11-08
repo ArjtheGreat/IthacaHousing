@@ -19,7 +19,7 @@ metadata, descriptions, and leasing information (in chunks for large properties)
 For each listing the response is:
 `rent_basis` (`per_person`, `per_unit`, `unknown`),
 `rent_basis_confidence`, `rent_basis_evidence_type`,
-`rent_basis_evidence`, and `rent_basis_source`.
+`rent_basis_evidence`, `rent_basis_source`, and `rent_basis_fingerprint`.
 
 Only **high-confidence, explicit, quoted source evidence** that corroborates
 an AI classification can override the original Cornell `RentType`
@@ -40,10 +40,12 @@ The pipeline retains the existing Cornell `RentType` normalization, without
 claiming it is verified. Do not treat `unknown` as an audited label. Log and
 review ambiguous units against original landlord pages.
 
-The classifier is called once per property/chunk on each **full ingest**.
+**Caching:** Before the full ingest replaces the listings table, the classifier reads prior decisions from Supabase. It computes a SHA-256 fingerprint of the full relevant property/chunk source payload, the prompt version, and the configured model. It skips the API whenever every floorplan in the chunk already has a saved `rent_basis_confidence` and a matching fingerprint. `unknown`/low-confidence results are cached too (they stay unverified); failed calls are not cached. If a floorplan, property description, model ID, or prompt changes, that chunk is audited again. A new floorplan in the same chunk may require rechecking existing units to retain property context. The first run will call the API because existing rows lack fingerprints. A full refresh still rewrites the table, but it retains the cached decisions through the in-memory dataframe. The cache is not dependent on prior `rent_per_person` values.
+
+The classifier is only invoked by **full ingest** when classifications are missing or stale.
 The database-only rent-model rerun does not scrape source data and does **not**
 rerun the classifier; it uses the last saved `rent_per_person` values.
-No change is made to live Supabase until the Airflow ingest runs.
+The Airflow DAG ID is `retrain_rental_model` (`airflow/dags/housing_data_training.py`). Its schedule is `0 12 * * *` in Airflow's configured timezone. No change is made to live Supabase until that DAG runs.
 
 ## Validation
 
