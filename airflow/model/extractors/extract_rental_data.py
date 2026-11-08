@@ -6,6 +6,7 @@ from shapely.geometry import Point
 import geopandas as gpd
 from pathlib import Path
 from extractors.rent_basis_openai import classify_rent_bases
+from extractors.rent_iqr_audit import audit_normalized_rents, check_quote_amounts
 
 
 def get_existing_rental_data():
@@ -113,9 +114,14 @@ def extract_rental_data(apartments_for_rent):
     out["pricing_adjustment_reason"] = None
 
     out = classify_rent_bases(out)
+    # A model can quote "$925 per bedroom" for a $1,850 whole-unit ad.
+    # Such evidence describes the per-person SHARE, not the raw price basis:
+    # refuse to flip the underlying amount, and flag the contradiction.
+    out["rent_quote_amount_conflict"] = check_quote_amounts(out)
     explicit = (
         out["rent_basis_confidence"].eq("high")
         & out["rent_basis_evidence_type"].eq("explicit")
+        & ~out["rent_quote_amount_conflict"]
     )
     # Only act on evidence-backed overrides. A model saying "this seems
     # cheap" is NOT sufficient to change the target labels.
@@ -150,6 +156,10 @@ def extract_rental_data(apartments_for_rent):
         f"unit→person, {int(to_unit.sum())} person→unit; "
         f"{int(out['rent_basis'].eq('unknown').sum())} ambiguous"
     )
+
+    # Independent statistical audit (original lower-tail log-IQR threshold).
+    # Flags anomalous rows but NEVER silently overwrites source-backed rents.
+    out = audit_normalized_rents(out)
 
     # Include adjusted amounts in the per-listing extraction payload.
     out["extracted_rental_data"] = out[[
