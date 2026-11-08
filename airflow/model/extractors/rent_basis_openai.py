@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import time
 
 import pandas as pd
 
@@ -113,18 +112,25 @@ def _schema():
     }
 
 
-def _verbatim_evidence(evidence, records):
+def _verbatim_evidence(evidence, records, listing_id):
     """Never accept unsupported model-generated 'quotes' as verified evidence."""
     evidence = (evidence or "").strip()
     if not evidence:
         return False
+    floorplan = next(
+        (row for row in records["floorplans"] if row["listingid"] == listing_id),
+        {},
+    )
+    # A quote from another unit's description cannot prove THIS unit's basis.
+    # Property-wide pricing labels and mixed leasing options are context only.
     source_text = " ".join(
-        str(value)
-        for value in [
-            *records["property"].values(),
-            *(v for row in records["floorplans"] for v in row.values()),
-        ]
-        if value is not None
+        str(v) for v in (
+            floorplan.get("source_description"),
+            floorplan.get("unit_name"),
+            floorplan.get("floorplan_rent_style"),
+            floorplan.get("floorplan_per_person"),
+            records["property"].get("property_description"),
+        ) if v is not None
     ).casefold()
     return evidence.casefold() in source_text
 
@@ -187,7 +193,7 @@ def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
                     # Downgrade invented or unverifiable "explicit" evidence.
                     # A property-level label alone can be ambiguous, so don't
                     # allow it to establish a per-person override.
-                    if evidence_type == "explicit" and not _verbatim_evidence(evidence, records):
+                    if evidence_type == "explicit" and not _verbatim_evidence(evidence, records, listing_id):
                         evidence_type = "inferred"
                     out.loc[idx, "rent_basis"] = basis
                     out.loc[idx, "rent_basis_confidence"] = confidence
