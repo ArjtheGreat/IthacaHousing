@@ -60,13 +60,13 @@ class SpatialOOFTests(unittest.TestCase):
         train = frame.loc[frame["PropertyId"].isin(["0", "1", "2"])].copy()
         test = frame.loc[frame["PropertyId"] == "3"].copy()
         y = np.log(train["rent_per_person"].to_numpy())
-        tr1, te1 = add_spatial_fold_features(train, test, y, k=2)
+        tr1, te1 = add_spatial_fold_features(train, test, y, k=3)
 
         # Reprice property 0 dramatically: none of its own training features
         # should change, but others can legitimately change.
         y2 = y.copy()
         y2[train["PropertyId"].to_numpy() == "0"] += 3.0
-        tr2, te2 = add_spatial_fold_features(train, test, y2, k=2)
+        tr2, te2 = add_spatial_fold_features(train, test, y2, k=3)
         own = train["PropertyId"] == "0"
         for name in ("knn_rent_log", "h3_6_te", "h3_7_te"):
             np.testing.assert_allclose(
