@@ -113,6 +113,7 @@ class HousingListing(Base):
     sewer_name = Column(String)
     year_built = Column(Integer)
     assessment_sqft = Column(Numeric)
+    unit_sqft = Column(Numeric)  # Cornell floor-plan area; not parcel assessment area
     sale_price = Column(Numeric)
 
 
