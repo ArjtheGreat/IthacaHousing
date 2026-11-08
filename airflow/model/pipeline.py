@@ -478,6 +478,8 @@ def housing_data_pipeline():
         label="amenities",
     )
 
+    apartments_for_rent = calculate_amenity_score.add_canonical_amenities(apartments_for_rent)
+
     print("📄 Extracting rental features...")
     apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)
     apartments_for_rent = data_preprocessing.calc_adjusted_bed_bath_values(apartments_for_rent)
