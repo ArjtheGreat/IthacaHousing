@@ -23,3 +23,8 @@
 .complex-popup-over { background: #fee2e2; color: #dc2626; }
 .complex-popup-fair { background: #f1f5f9; color: #111; }
 .complex-popup-none { background: #f1f5f9; color: #6b7280; }
+
+/* Listing assistant: numbered pins on recommended listings */
+.rec-pin-wrap { background: none; border: none; }
+.rec-pin { position: relative; height: 28px; padding: 0 8px; border-radius: 14px; background: #f59e0b; color: #fff; font: 700 13px/28px 'Inter', sans-serif; text-align: center; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); cursor: pointer; }
+.rec-pin::after { content: ''; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #f59e0b; border-bottom: 0; }

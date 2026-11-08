@@ -371,3 +371,47 @@ export const fetchPipelineMetrics = async (): Promise<any> => {
 
 
 
+
+export interface AssistantFilters {
+    beds: number | null;
+    baths: number | null;
+    budget: number | null;
+    commute: { destination: string; mode: string; max_time: number } | null;
+}
+
+export interface AssistantRecommendation {
+    listingid: string;
+    address: string;
+    rent_per_person: number | null;
+    beds: number | null;
+    baths: number | null;
+    reason: string;
+}
+
+export interface AssistantResponse {
+    reply: string;
+    filters: AssistantFilters | null;
+    recommendations: AssistantRecommendation[];
+}
+
+/**
+ * Asks the listing assistant (Claude, via the backend) to set filters and recommend listings
+ * @param messages - The chat so far, ending with the user's newest message
+ * @param currentFilters - What the Personal Preferences panel has set right now
+ */
+export const fetchAssistantRecommendations = async (
+    messages: { role: 'user' | 'assistant'; content: string }[],
+    currentFilters: Record<string, string | number | null>,
+): Promise<AssistantResponse> => {
+    try {
+        const response: AxiosResponse<AssistantResponse> = await axios.post(
+            `${baseURL}/assistant/recommend`,
+            { messages, current_filters: currentFilters },
+            { timeout: 120_000 },
+        );
+        return response.data;
+    } catch (error) {
+        const detail = axios.isAxiosError(error) ? error.response?.data?.detail : null;
+        throw new Error(typeof detail === 'string' ? detail : "Couldn't reach the assistant. Try again.");
+    }
+};

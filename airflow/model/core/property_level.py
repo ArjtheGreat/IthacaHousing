@@ -49,6 +49,17 @@ UNIT_LEVEL_COLS = frozenset({
 })
 
 
+def _without_duplicate_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep the first copy of any repeated column name.
+
+    A cache query that selects the same field twice makes pandas refuse to
+    align frames in ``concat`` (InvalidIndexError).
+    """
+    if df.columns.duplicated().any():
+        return df.loc[:, ~df.columns.duplicated()].copy()
+    return df
+
+
 def ensure_property_id(df: pd.DataFrame) -> pd.DataFrame:
     """Ensure PropertyId exists (derive from ListingId if needed)."""
     out = df.copy()
@@ -109,11 +120,12 @@ def apply_cached_property_enrichment(
     Fields not stored in housing_listings must continue to be recomputed.
     New Cornell source fields (such as contact details) are never overwritten.
     """
-    df = ensure_property_id(df)
+    df = _without_duplicate_columns(ensure_property_id(df))
     if df.empty:
         return df
     if existing is None or existing.empty or "listingid" not in existing.columns:
         return apply_per_property(df, fn, label=label)
+    existing = _without_duplicate_columns(existing)
 
     available = [field for field in fields if field in existing.columns]
     required = required or available
@@ -143,4 +155,8 @@ def apply_cached_property_enrichment(
     if not new.empty:
         new = apply_per_property(new, fn, label=label)
 
-    return pd.concat([known, new], ignore_index=True, sort=False)
+    return pd.concat(
+        [_without_duplicate_columns(known), _without_duplicate_columns(new)],
+        ignore_index=True,
+        sort=False,
+    )

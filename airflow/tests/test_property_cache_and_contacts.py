@@ -82,6 +82,30 @@ class ContactAndCacheTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(result.loc[0, "neighborhood"], "Collegetown")
 
+    def test_duplicate_cached_column_does_not_break_concat(self):
+        source = pd.DataFrame([
+            {"PropertyId": "10", "ListingId": "10-1"},
+            {"PropertyId": "20", "ListingId": "20-1"},
+        ])
+        existing = pd.DataFrame(
+            [["10-old", 1900, 1900]],
+            columns=["listingid", "year_built", "year_built"],
+        )
+
+        def compute(rep):
+            rep = rep.copy()
+            rep["year_built"] = 2001
+            return rep
+
+        result = apply_cached_property_enrichment(
+            source, existing, compute, fields=["year_built"],
+            required=["year_built"], label="parcel details",
+        )
+        self.assertFalse(result.columns.duplicated().any())
+        by_listing = result.set_index("ListingId")
+        self.assertEqual(by_listing.loc["10-1", "year_built"], 1900)
+        self.assertEqual(by_listing.loc["20-1", "year_built"], 2001)
+
 
 if __name__ == "__main__":
     unittest.main()

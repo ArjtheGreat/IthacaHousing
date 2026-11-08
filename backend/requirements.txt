@@ -182,3 +182,4 @@ WTForms==3.2.1
 yarl==1.18.3
 zipp==3.21.0
 xgboost==2.0.3
+anthropic==2.6.0

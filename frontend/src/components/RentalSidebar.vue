@@ -34,7 +34,7 @@
     <div class="rent-section">
         <div class="rent-main-card">
             <!-- Header -->
-            <div class="rent-card-header">
+            <div class="rent-card-header" :class="{ 'rent-card-header-compact': !fairRent }">
                 <h4 class="rent-comparison-title">
                     {{ fairRent ? 'Fair Rent Comparison' : 'Rent' }}
                     <div v-if="fairRent" class="tooltip-container">
@@ -58,12 +58,23 @@
                 </h4>
             </div>
             
-            <!-- Main Rent Display -->
-            <div class="rent-comparison-grid" :class="{ 'rent-single': !fairRent }">
-                <!-- Actual Rent Column -->
+            <!-- Listings mode: compact one-liner rent, no stacked card -->
+            <div v-if="!fairRent" class="rent-compact">
+                <div class="rent-compact-primary">
+                    <span class="rent-compact-amount">{{ formatMoney(listing?.rent_per_person) }}</span>
+                    <span class="rent-compact-unit">/ person</span>
+                </div>
+                <div class="rent-compact-secondary">
+                    {{ formatMoney(listing?.total_rent_amount) }} total
+                    <span v-if="listing?.num_people" class="rent-compact-people">· {{ listing.num_people }} {{ listing.num_people === 1 ? 'person' : 'people' }}</span>
+                </div>
+            </div>
+
+            <!-- Fair Rent Map: side-by-side comparison -->
+            <div v-else class="rent-comparison-grid">
                 <div class="rent-column actual-rent">
                     <div class="rent-column-header">
-                        <span class="column-label">{{ fairRent ? 'Actual Rent' : 'Rent' }}</span>
+                        <span class="column-label">Actual Rent</span>
                     </div>
                     <div class="rent-total-section">
                         <div class="rent-amount-large">{{ formatMoney(listing?.rent_per_person) }}</div>
@@ -75,8 +86,7 @@
                     </div>
                 </div>
 
-                <!-- Predicted Rent Column -->
-                <div v-if="fairRent" class="rent-column predicted-rent">
+                <div class="rent-column predicted-rent">
                     <div class="rent-column-header">
                         <span class="column-label">Fair Rent Estimation</span>
                     </div>
@@ -1772,6 +1782,10 @@ watch<Listing | undefined>(
     text-align: center;
 }
 
+.rent-card-header-compact {
+    margin-bottom: 6px;
+}
+
 .rent-comparison-title {
     font-size: 1.1rem;
     font-weight: 600;
@@ -1887,8 +1901,41 @@ watch<Listing | undefined>(
     align-items: stretch;
 }
 
-.rent-comparison-grid.rent-single {
-    grid-template-columns: 1fr;
+.rent-compact {
+    text-align: center;
+    padding: 4px 0 8px;
+}
+
+.rent-compact-primary {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 6px;
+    line-height: 1;
+}
+
+.rent-compact-amount {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #000000;
+    letter-spacing: -0.02em;
+}
+
+.rent-compact-unit {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #4b5563;
+}
+
+.rent-compact-secondary {
+    margin-top: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #6b7280;
+}
+
+.rent-compact-people {
+    color: #6b7280;
 }
 
 .rent-column {

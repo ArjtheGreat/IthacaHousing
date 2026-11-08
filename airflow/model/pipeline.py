@@ -69,7 +69,7 @@ def get_existing_listings_dataframe():
                        housingtype, owner_name, listingtypes, sale_price, property_acres,
                        assessment_sqft, neighborhood_assessment, property_depth,
                        property_frontage, property_pc, water_access, sewer_access,
-                       sewer_name, year_built, latitude, longitude, drive_time_urishall,
+                       sewer_name, latitude, longitude, drive_time_urishall,
                        drive_time_agriculturequad, drive_time_artsquad, drive_time_engineeringquad
                 FROM housing_listings
             """)

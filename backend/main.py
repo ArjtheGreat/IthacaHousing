@@ -51,6 +51,9 @@ app.add_middleware(
     allow_headers=["*"], 
 )
 
+from assistant import router as assistant_router
+app.include_router(assistant_router)
+
 instrumentator = Instrumentator().instrument(app)
 instrumentator.expose(app)
 

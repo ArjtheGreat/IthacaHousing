@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "/Users/asm/Documents/GitHub/IthacaHousing/backend/myenv/bin/uvicorn",
+      "runtimeArgs": [
+        "main:app",
+        "--app-dir",
+        "/Users/asm/Documents/GitHub/IthacaHousing/backend",
+        "--port",
+        "8000"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": [
+        "VITE_API_URL=http://localhost:8001",
+        "/Users/asm/Documents/GitHub/IthacaHousing/frontend/node_modules/.bin/vite",
+        "/Users/asm/Documents/GitHub/IthacaHousing/frontend",
+        "--port",
+        "5173"
+      ],
+      "port": 5173
+    }
+  ]
+}

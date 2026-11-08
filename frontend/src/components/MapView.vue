@@ -204,7 +204,7 @@
     </div>
 
     <!-- Map Container -->
-    <div class="relative flex z-[0] border-b-2 border-black overflow-hidden">
+    <div class="relative flex z-[0] border-b-2 border-black overflow-hidden" :class="{ 'has-assistant': !fairRent }">
       <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" @select-listing="selectListingFromSidebar" :listing="selectedListing" :fair-rent="fairRent" v-if="isSidebarVisible" />
 
       <!-- Address Search Bar -->
@@ -281,6 +281,17 @@
           </div> -->
         </div>
       </div> 
+
+      <!-- Claude-powered assistant: sets the filters above and pins its picks on the map -->
+      <ListingAssistant
+        v-if="!fairRent"
+        :class="{ 'assistant-beside-sidebar': isSidebarVisible && !isMobile }"
+        :current-filters="assistantCurrentFilters"
+        :selected-id="selectedListing?.listingid != null ? String(selectedListing.listingid) : null"
+        @result="applyAssistantResult"
+        @select="openRecommendedListing"
+        @clear="clearRecommendations"
+      />
     </div>
   </div>
 </template>
@@ -296,6 +307,7 @@ import { fetchListings, fetchListing, fetchListingsMinimal, fetchTopTenListings,
 import NavBar from "@/components/NavBar.vue";
 import RentalSidebar from "@/components/RentalSidebar.vue";
 import FilterAlert from "@/components/FilterAlert.vue";
+import ListingAssistant from "@/components/ListingAssistant.vue";
 import { RadioGroup, RadioGroupLabel, RadioGroupOption } from "@headlessui/vue";
 import "leaflet.heat";
 import { groupIntoComplexes, getColor, interpolateColor, valueScore, colorForScore, bucketForScore, sortByValue, titleCase, BUCKET_COLORS } from "@/utils/complexes";
@@ -1948,6 +1960,115 @@ const selectListingFromSidebar = async (listing) => {
 };
 
 /**
+ * ---------- Listing assistant ----------
+ */
+let recommendationLayer = null; // Numbered pins for the assistant's picks
+
+// What the Personal Preferences panel has set, so a follow-up ("make it cheaper") keeps the rest
+const assistantCurrentFilters = computed(() => ({
+  beds: selectedBeds.value || null,
+  baths: selectedBaths.value || null,
+  budget: selectedBudget.value || null,
+  destination: activeFilters.value.commute ? selectedDestination.value : null,
+  mode: activeFilters.value.commute ? selectedTransitMode.value : null,
+  max_time: activeFilters.value.commute ? Number(selectedCommuteTime.value) : null,
+}));
+
+const findListing = (id) => allListings.value.find(listing => String(listing.listingid) === String(id));
+
+/**
+ * Applies the assistant's filters through the same dropdown handlers a user would use,
+ * then pins its recommendations
+ */
+const applyAssistantResult = async (result) => {
+  const f = result.filters;
+  if (f) {
+    selectedBeds.value = f.beds ?? 0;
+    await updateBedFilter();
+    selectedBaths.value = f.baths ?? 0;
+    await updateBathFilter();
+    selectedBudget.value = f.budget ?? 0;
+    updateBudgetFilter();
+    if (f.commute) {
+      selectedDestination.value = f.commute.destination;
+      selectedTransitMode.value = f.commute.mode;
+      selectedCommuteTime.value = String(f.commute.max_time);
+      applyCommuteFilter();
+    } else {
+      selectedDestination.value = '';
+      selectedTransitMode.value = '';
+      selectedCommuteTime.value = '';
+      activeFilters.value.commute = null;
+      mergeFilters();
+    }
+  }
+  showRecommendations(result.recommendations || []);
+};
+
+/**
+ * Drops a numbered amber pin on each recommended listing and fits the map to them.
+ * Picks at the same building share one pin ("1·3").
+ */
+const showRecommendations = (recs) => {
+  clearRecommendations();
+  if (!recs.length || !map.value) return;
+  const rawMap = toRaw(map.value);
+
+  const pins = new Map(); // "lat,lng" -> { latlng, numbers, listing }
+  recs.forEach((rec, i) => {
+    const listing = findListing(rec.listingid);
+    if (!listing) return;
+    const entry = entryByListingId.get(String(rec.listingid));
+    const lat = entry?.complex.lat ?? listing.latitude;
+    const lng = entry?.complex.lng ?? listing.longitude;
+    const key = `${lat},${lng}`;
+    if (!pins.has(key)) pins.set(key, { latlng: [lat, lng], numbers: [], listing });
+    pins.get(key).numbers.push(i + 1);
+  });
+  if (!pins.size) return;
+
+  recommendationLayer = L.layerGroup();
+  pins.forEach(({ latlng, numbers, listing }) => {
+    const label = numbers.join('·');
+    const width = Math.max(28, 12 + label.length * 8);
+    const pin = L.marker(latlng, {
+      icon: L.divIcon({
+        html: `<div class="rec-pin">${label}</div>`,
+        className: 'rec-pin-wrap',
+        iconSize: [width, 28],
+        iconAnchor: [width / 2, 34],
+      }),
+      zIndexOffset: 2000,
+      title: listing.listingaddress || '',
+    });
+    pin.on('click', () => openListing(listing));
+    recommendationLayer.addLayer(pin);
+  });
+  recommendationLayer.addTo(rawMap);
+
+  const bounds = L.latLngBounds([...pins.values()].map(p => p.latlng));
+  rawMap.fitBounds(bounds, {
+    // Keep the pins clear of the filter panel (left) and the assistant panel (right)
+    paddingTopLeft: isMobile.value ? [30, 120] : [360, 140],
+    paddingBottomRight: isMobile.value ? [30, 120] : [420, 60],
+    maxZoom: 16,
+  });
+};
+
+const clearRecommendations = () => {
+  if (recommendationLayer && map.value) toRaw(map.value).removeLayer(recommendationLayer);
+  recommendationLayer = null;
+};
+
+/**
+ * Opens a recommended listing from the assistant's card
+ */
+const openRecommendedListing = async (listingid) => {
+  const listing = findListing(listingid);
+  if (listing) await openListing(listing);
+};
+
+/**
  * Toggle Menu
  */
 // const menuOpen = ref(true);
@@ -1963,6 +2084,15 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   width: 100vw;
   height: 100vh;
   z-index: 0;
+}
+
+/* Leave room for the assistant launcher in the bottom-right corner */
+.has-assistant :deep(.leaflet-bottom.leaflet-right) {
+  bottom: 70px;
+}
+
+.assistant-beside-sidebar {
+  right: 620px !important;
 }
 
 /* SEARCH BAR */
