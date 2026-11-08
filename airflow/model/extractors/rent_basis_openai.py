@@ -115,7 +115,7 @@ def _schema():
 def _verbatim_evidence(evidence, records, listing_id):
     """Never accept unsupported model-generated 'quotes' as verified evidence."""
     evidence = (evidence or "").strip()
-    if not evidence:
+    if len(evidence) < 8:
         return False
     floorplan = next(
         (row for row in records["floorplans"] if row["listingid"] == listing_id),
