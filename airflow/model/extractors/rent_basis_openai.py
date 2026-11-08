@@ -15,25 +15,38 @@ from sqlalchemy import create_engine, text
 
 MODEL = os.getenv("RENT_BASIS_OPENAI_MODEL", "gpt-4.1-mini")
 MAX_PROPERTY_FLOORPLANS = 60
-CLASSIFIER_VERSION = "rent-basis-v2-cache-2026-11"
-SYSTEM_PROMPT = """You audit rental listing PRICING BASIS, not fair market rent.
-Classify the ORIGINAL advertised amount for EACH floorplan as:
-- per_person: the stated amount covers ONE person's lease/room share
-- per_unit: the stated amount covers the ENTIRE rental unit
-- unknown: ambiguous, conflicting, or insufficient source evidence
+CLASSIFIER_VERSION = "rent-basis-v3-evidence-fields-2026-11"
+SYSTEM_PROMPT = """Classify the basis of the ORIGINAL advertised rental price.
+For each floorplan, return per_person, per_unit, or unknown.
 
-A property may have mixed rent conventions. Evaluate floorplans separately.
-Read source descriptions, floorplan titles, explicit floorplan pricing labels,
-and property-level rent labels. Property-wide labels are weak evidence when
-the property offers both individual and conventional leasing.
-Never infer the basis merely because a price looks cheap/expensive.
-Do not use listing predictions, previously calculated per-person rents,
-or derived fields such as person_rent as evidence.
-An explicit quote must be a verbatim substring of source text or an exact
-structured source label identifying the basis. If only indirect context is
-available, use 'inferred' (or 'none'), not 'explicit'.
-If ambiguous, select 'unknown'; confidence is NOT evidence.
-Return one answer per supplied listingid, with no invented identifiers."""
+Crucial: The input deliberately excludes Cornell's property-level RentType.
+That field is sometimes INCORRECT. Do not assume that a low rent is per person
+or a high rent is per unit. Do not use market estimates or fair rent predictions.
+
+Evidence hierarchy:
+1. Explicit price-basis language in the floorplan's unit_name,
+   source_description, floorplan_rent_style, or floorplan_per_person.
+2. Explicit language in property_description which clearly applies to this
+   type of floorplan (e.g. 'Two and three bedroom unit pricing is listed by bed').
+3. Property_leasing_features provide CONTEXT ONLY, never verification:
+   'individual leases offered' or 'per person leasing available' alone does
+   not prove a particular floorplan's advertised price is per person.
+
+When explicit evidence supports one classification, output confidence high,
+evidence_type explicit, evidence_source EXACTLY one of:
+unit_name, source_description, floorplan_rent_style, floorplan_per_person,
+property_description. evidence must be an EXACT CONTIGUOUS SUBSTRING from
+that source field (no summary, quote marks added, or 'source says' prefix).
+Examples of strong language: 'by the bed rent price', 'rent per bedroom',
+'pricing is listed by bed', 'rent is $1,000 per room', 'entire unit rent'.
+A unit named '1 in 3 Bed Unit' is suggestive, NOT explicit.
+
+If context implies a basis but no exact source statement supports it,
+return evidence_type inferred, confidence medium or low, and source field
+'none'. If source details are insufficient or contradictory, return unknown.
+NEVER claim high confidence based just on missing contradictory evidence.
+Never invent quotes. Return one result for every provided listingid."""
+
 
 
 def _clean(value, max_len=1200):
@@ -53,7 +66,6 @@ def _source_records(group):
     property_info = {
         "property_id": _clean(prop.get("PropertyId")),
         "address": _clean(prop.get("ListingAddress")),
-        "property_rent_type": _clean(prop.get("RentType")),
         "property_description": _clean(prop.get("ShortDescription"), 2500),
         "property_leasing_features": _clean(prop.get("PropertyHighlights"), 2500),
     }
@@ -102,7 +114,8 @@ def _load_cached_results():
             required = {
                 "listingid", "rent_basis", "rent_basis_confidence",
                 "rent_basis_evidence", "rent_basis_evidence_type",
-                "rent_basis_source", "rent_basis_fingerprint",
+                "rent_basis_source", "rent_basis_evidence_field",
+                "rent_basis_fingerprint",
             }
             present = {
                 row[0] for row in conn.execute(text(
@@ -116,7 +129,7 @@ def _load_cached_results():
             rows = conn.execute(text(
                 "SELECT listingid, rent_basis, rent_basis_confidence, "
                 "rent_basis_evidence, rent_basis_evidence_type, "
-                "rent_basis_source, rent_basis_fingerprint "
+                "rent_basis_source, rent_basis_evidence_field, rent_basis_fingerprint "
                 "FROM housing_listings "
                 "WHERE rent_basis_confidence IS NOT NULL "
                 "AND rent_basis_fingerprint IS NOT NULL"
@@ -155,10 +168,14 @@ def _schema():
                                 "enum": ["explicit", "inferred", "none"],
                             },
                             "evidence": {"type": "string"},
+                            "evidence_source": {"type": "string", "enum": [
+                                "unit_name", "source_description", "floorplan_rent_style",
+                                "floorplan_per_person", "property_description", "none"
+                            ]},
                         },
                         "required": [
                             "listingid", "rent_basis", "confidence",
-                            "evidence_type", "evidence",
+                            "evidence_type", "evidence", "evidence_source",
                         ],
                         "additionalProperties": False,
                     },
@@ -170,46 +187,78 @@ def _schema():
     }
 
 
-def _verbatim_evidence(evidence, records, listing_id):
-    """Never accept unsupported model-generated 'quotes' as verified evidence."""
-    evidence = (evidence or "").strip()
-    if len(evidence) < 8:
-        return False
-    floorplan = next(
-        (row for row in records["floorplans"] if row["listingid"] == listing_id),
-        {},
-    )
-    # A quote from another unit's description cannot prove THIS unit's basis.
-    # Property-wide pricing labels and mixed leasing options are context only.
-    source_text = " ".join(
-        str(v) for v in (
-            floorplan.get("source_description"),
-            floorplan.get("unit_name"),
-            floorplan.get("floorplan_rent_style"),
-            floorplan.get("floorplan_per_person"),
-            records["property"].get("property_description"),
-        ) if v is not None
-    ).casefold()
-    return evidence.casefold() in source_text
+# Only these original source fields can verify an advertised rent basis.
+FLOORPLAN_EVIDENCE_FIELDS = frozenset({
+    "unit_name", "source_description",
+    "floorplan_rent_style", "floorplan_per_person",
+})
+PROPERTY_EVIDENCE_FIELDS = frozenset({"property_description"})
 
 
-def _evidence_identifies_basis(evidence, basis):
-    """A real quote can still be irrelevant to the actual rent basis."""
-    phrase = " ".join((evidence or "").lower().split())
+def _explicit_basis(quote, basis):
+    """Conservative vocabulary of actual price-basis statements."""
+    import re
+
+    phrase = " ".join((quote or "").casefold().split())
     if basis == "per_person":
-        markers = (
-            "per person", "per bedroom", "per bed", "per room",
-            "each person", "each tenant", "each bedroom", "individual lease",
-        )
-    elif basis == "per_unit":
-        markers = (
-            "per unit", "entire apartment", "entire unit",
-            "whole apartment", "whole unit", "total apartment rent",
-            "total unit rent", "entire home",
-        )
-    else:
+        # 'Rent by the bed' is price-specific; 'individual leases offered'
+        # is not. Require a reference to rent/pricing for isolated 'by the bed'.
+        return bool(re.search(
+            r"(?:per\s+(?:person|bedroom|bed|room)|"
+            r"by\s+the\s+bed\s+(?:rent|price|pricing)|"
+            r"(?:rent|price|pricing)\s+(?:\w+\s+){0,5}by\s+(?:the\s+)?bed|"
+            r"price\s+is\s+for\s+(?:a\s+)?room\s+only|"
+            r"rent\s+is\s+[^.]{0,40}per\s+room)",
+            phrase,
+        ))
+    if basis == "per_unit":
+        return bool(re.search(
+            r"(?:per\s+unit|entire\s+(?:apartment|unit|home)\s+rent|"
+            r"(?:rent|price|pricing)\s+(?:for\s+)?(?:the\s+)?"
+            r"(?:whole|entire)\s+(?:unit|apartment|home)|"
+            r"total\s+(?:apartment|unit)\s+rent)",
+            phrase,
+        ))
+    return False
+
+
+def validate_explicit_evidence(entry, records):
+    """Recompute verification from actual fields, not model confidence."""
+    source = entry.get("evidence_source")
+    basis = entry.get("rent_basis")
+    quote = (entry.get("evidence") or "").strip()
+    if source not in FLOORPLAN_EVIDENCE_FIELDS | PROPERTY_EVIDENCE_FIELDS:
         return False
-    return any(marker in phrase for marker in markers)
+    if len(quote) < 8 or not _explicit_basis(quote, basis):
+        return False
+
+    floorplan = next(
+        (row for row in records["floorplans"]
+         if row["listingid"] == entry.get("listingid")),
+        None,
+    )
+    if floorplan is None:
+        return False
+    value = (floorplan if source in FLOORPLAN_EVIDENCE_FIELDS
+             else records["property"]).get(source)
+    if not isinstance(value, str) or quote.casefold() not in value.casefold():
+        return False
+
+    # Property-wide qualifications must not be applied to excluded floorplans
+    # e.g. a 1BR in a building describing "2 and 3 bedroom pricing by bed".
+    if source == "property_description":
+        import re
+        context = " ".join(value.casefold().split())
+        bed = pd.to_numeric(floorplan.get("bedrooms"), errors="coerce")
+        qualified = re.search(
+            r"(?:two\s+and\s+three|2\s+and\s+3|2\s*-\s*3)\s*"
+            r"bedroom[^.]{0,100}(?:by\s+(?:the\s+)?bed|per\s+(?:person|bed))",
+            context,
+        )
+        if qualified and pd.notna(bed) and int(bed) not in (2, 3):
+            return False
+    return True
+
 
 
 def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
@@ -222,7 +271,7 @@ def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
     for column in (
         "rent_basis", "rent_basis_confidence", "rent_basis_evidence",
         "rent_basis_evidence_type", "rent_basis_source",
-        "rent_basis_fingerprint",
+        "rent_basis_evidence_field", "rent_basis_fingerprint",
     ):
         out[column] = None
 
@@ -261,7 +310,7 @@ def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
                     for name in (
                         "rent_basis", "rent_basis_confidence", "rent_basis_evidence",
                         "rent_basis_evidence_type", "rent_basis_source",
-                        "rent_basis_fingerprint",
+                        "rent_basis_evidence_field", "rent_basis_fingerprint",
                     ):
                         out.loc[idx, name] = previous.get(name)
                 reused += len(chunk)
@@ -295,18 +344,21 @@ def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
                     confidence = entry["confidence"]
                     evidence_type = entry["evidence_type"]
                     evidence = entry["evidence"][:500]
+                    evidence_source = entry["evidence_source"]
                     # Downgrade invented or unverifiable "explicit" evidence.
                     # A property-level label alone can be ambiguous, so don't
                     # allow it to establish a per-person override.
-                    if evidence_type == "explicit" and not (
-                        _verbatim_evidence(evidence, records, listing_id)
-                        and _evidence_identifies_basis(evidence, basis)
-                    ):
+                    if evidence_type == "explicit" and not validate_explicit_evidence(entry, records):
                         evidence_type = "inferred"
+                        confidence = "medium"
+                    # High confidence without source evidence is not verified.
+                    if evidence_type != "explicit" and confidence == "high":
+                        confidence = "medium"
                     out.loc[idx, "rent_basis"] = basis
                     out.loc[idx, "rent_basis_confidence"] = confidence
                     out.loc[idx, "rent_basis_evidence"] = evidence
                     out.loc[idx, "rent_basis_evidence_type"] = evidence_type
+                    out.loc[idx, "rent_basis_evidence_field"] = evidence_source
                     out.loc[idx, "rent_basis_source"] = "openai"
                     out.loc[idx, "rent_basis_fingerprint"] = fingerprint
                 successful += len(chunk)
