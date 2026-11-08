@@ -8,6 +8,7 @@ import time
 from shapely.geometry import Point
 import geopandas as gpd
 from pathlib import Path
+from extractors.rent_basis_openai import classify_rent_bases
 
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -257,43 +258,52 @@ def extract_rental_data(apartments_for_rent):
     )
     for col in extracted.columns:
         out[col] = extracted[col]
-    # Apply the requested lower-tail-only log-IQR adjustment to the ORIGINAL
-    # normalized rent, once per scrape (not iteratively on adjusted values).
-    # This is a heuristic Ithaca Insights correction, not a verified landlord error.
+    # The original source label is a fallback only: Cornell property-wide
+    # "Price Per Unit" is often wrong for individual room/bedroom offerings.
+    # Do not automatically flip cheap units based on IQR or model residuals.
     out["rent_per_person_original"] = out["rent_per_person"].copy()
     out["ithaca_insights_adjustment"] = False
     out["suspected_landlord_pricing_error"] = False
     out["pricing_adjustment_reason"] = None
 
-    original = pd.to_numeric(out["rent_per_person_original"], errors="coerce")
-    valid = original.notna() & np.isfinite(original) & (original > 0)
-    log_rent = np.log(original.loc[valid])
-    if not log_rent.empty:
-        log_p25, log_p75 = log_rent.quantile([0.25, 0.75])
-        log_iqr = log_p75 - log_p25
-        log_median = log_rent.median()
-        lower_cutoff = np.exp(log_median - 1.2 * log_iqr)
-        is_unit = out["RentType"].fillna("").astype(str).str.strip().str.casefold().eq("price per unit")
-        advertised = pd.to_numeric(out["RentAmount"], errors="coerce")
-        occupants = pd.to_numeric(out["num_people"], errors="coerce")
-        adjust = (
-            valid & is_unit & (original < lower_cutoff)
-            & advertised.notna() & (advertised > 0)
-            & occupants.notna() & (occupants > 0)
-        )
-        out.loc[adjust, "rent_per_person"] = advertised.loc[adjust].astype(float)
-        # Per-person interpretation implies an estimated total for the
-        # full occupancy, not the scraped original whole-unit asking rent.
-        out.loc[adjust, "total_rent_amount"] = (
-            advertised.loc[adjust] * occupants.loc[adjust]
-        ).astype(float)
-        out.loc[adjust, "ithaca_insights_adjustment"] = True
-        out.loc[adjust, "suspected_landlord_pricing_error"] = True
-        out.loc[adjust, "pricing_adjustment_reason"] = "lower_log_iqr_1_2_unit_to_person"
-        print(
-            f"⚠️ Ithaca Insights lower-tail pricing-basis adjustments: {int(adjust.sum())}; "
-            f"cutoff ${lower_cutoff:,.2f} per person"
-        )
+    out = classify_rent_bases(out)
+    explicit = (
+        out["rent_basis_confidence"].eq("high")
+        & out["rent_basis_evidence_type"].eq("explicit")
+    )
+    # Only act on evidence-backed overrides. A model saying "this seems
+    # cheap" is NOT sufficient to change the target labels.
+    current_type = out["RentType"].fillna("").astype(str).str.casefold()
+    new_person = explicit & out["rent_basis"].eq("per_person")
+    new_unit = explicit & out["rent_basis"].eq("per_unit")
+    to_person = new_person & ~current_type.str.contains("person")
+    to_unit = new_unit & current_type.str.contains("person")
+
+    advertised = pd.to_numeric(out["RentAmount"], errors="coerce")
+    occupants = pd.to_numeric(out["num_people"], errors="coerce")
+    valid = advertised.gt(0) & occupants.gt(0)
+    to_person &= valid
+    to_unit &= valid
+
+    out.loc[to_person, "rent_per_person"] = advertised[to_person].astype(float)
+    out.loc[to_person, "total_rent_amount"] = (
+        advertised[to_person] * occupants[to_person]
+    ).astype(float)
+    out.loc[to_unit, "rent_per_person"] = (
+        advertised[to_unit] / occupants[to_unit]
+    ).astype(float)
+    out.loc[to_unit, "total_rent_amount"] = advertised[to_unit].astype(float)
+
+    adjusted = to_person | to_unit
+    out.loc[adjusted, "ithaca_insights_adjustment"] = True
+    out.loc[adjusted, "suspected_landlord_pricing_error"] = True
+    out.loc[to_person, "pricing_adjustment_reason"] = "openai_source_verified_per_person"
+    out.loc[to_unit, "pricing_adjustment_reason"] = "openai_source_verified_per_unit"
+    print(
+        f"🤖 Rent-basis source-evidenced overrides: {int(to_person.sum())} "
+        f"unit→person, {int(to_unit.sum())} person→unit; "
+        f"{int(out['rent_basis'].eq('unknown').sum())} ambiguous"
+    )
 
     # Include adjusted amounts in the per-listing extraction payload.
     out["extracted_rental_data"] = out[[
