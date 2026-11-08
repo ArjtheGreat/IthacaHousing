@@ -6,13 +6,16 @@ metadata/text. Economic plausibility is not evidence of rent basis.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 
 import pandas as pd
+from sqlalchemy import create_engine, text
 
 MODEL = os.getenv("RENT_BASIS_OPENAI_MODEL", "gpt-4.1-mini")
 MAX_PROPERTY_FLOORPLANS = 60
+CLASSIFIER_VERSION = "rent-basis-v2-cache-2026-11"
 SYSTEM_PROMPT = """You audit rental listing PRICING BASIS, not fair market rent.
 Classify the ORIGINAL advertised amount for EACH floorplan as:
 - per_person: the stated amount covers ONE person's lease/room share
@@ -69,6 +72,61 @@ def _source_records(group):
             "source_description": _clean(row.get("ShortDescription"), 1000),
         })
     return {"property": property_info, "floorplans": floorplans}
+
+
+def _fingerprint(records):
+    """Invalidate classification on any changed source evidence, prompt, or model."""
+    payload = {
+        "version": CLASSIFIER_VERSION,
+        "model": MODEL,
+        "prompt": SYSTEM_PROMPT,
+        "records": records,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
+def _load_cached_results():
+    """Fetch prior decisions BEFORE the full-refresh TRUNCATE TABLE.
+
+    Older schemas without these fields safely behave as an empty cache.
+    """
+    uri = os.getenv("DB_URI")
+    if not uri:
+        print("ℹ️ No DB_URI; rent basis cache unavailable")
+        return {}
+    engine = create_engine(uri, pool_pre_ping=True)
+    try:
+        with engine.connect() as conn:
+            required = {
+                "listingid", "rent_basis", "rent_basis_confidence",
+                "rent_basis_evidence", "rent_basis_evidence_type",
+                "rent_basis_source", "rent_basis_fingerprint",
+            }
+            present = {
+                row[0] for row in conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'housing_listings'"
+                ))
+            }
+            if not required.issubset(present):
+                print("ℹ️ No persisted rent-basis cache columns yet; first run audits listings")
+                return {}
+            rows = conn.execute(text(
+                "SELECT listingid, rent_basis, rent_basis_confidence, "
+                "rent_basis_evidence, rent_basis_evidence_type, "
+                "rent_basis_source, rent_basis_fingerprint "
+                "FROM housing_listings "
+                "WHERE rent_basis_confidence IS NOT NULL "
+                "AND rent_basis_fingerprint IS NOT NULL"
+            )).mappings()
+            return {str(row["listingid"]): dict(row) for row in rows}
+    except Exception as exc:
+        print(f"⚠️ Could not load prior rent-basis classifications: {exc}")
+        return {}
+    finally:
+        engine.dispose()
 
 
 def _schema():
@@ -164,6 +222,7 @@ def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
     for column in (
         "rent_basis", "rent_basis_confidence", "rent_basis_evidence",
         "rent_basis_evidence_type", "rent_basis_source",
+        "rent_basis_fingerprint",
     ):
         out[column] = None
 
@@ -176,16 +235,44 @@ def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
 
     from openai import OpenAI
 
-    client = OpenAI(timeout=35.0, max_retries=2)
+    prior = _load_cached_results()
+    client = None
     if "PropertyId" not in out:
         out["PropertyId"] = out["ListingId"].astype(str).str.rsplit("-", n=1).str[0]
 
     successful = 0
+    reused = 0
+    failed = 0
     for property_id, group in out.groupby("PropertyId", sort=False):
         # A very large property is split into consistent, bounded requests.
         for start in range(0, len(group), MAX_PROPERTY_FLOORPLANS):
             chunk = group.iloc[start:start + MAX_PROPERTY_FLOORPLANS]
             records = _source_records(chunk)
+            fingerprint = _fingerprint(records)
+            # A classification is reusable only if the *full property context*
+            # is unchanged. Even "unknown" is cached to avoid repeated spend.
+            cached = {
+                lid: prior[lid] for lid in chunk["ListingId"].astype(str)
+                if lid in prior
+                and prior[lid].get("rent_basis_fingerprint") == fingerprint
+                and prior[lid].get("rent_basis") in {"per_person", "per_unit", "unknown"}
+                and prior[lid].get("rent_basis_confidence") in {"high", "medium", "low"}
+                and prior[lid].get("rent_basis_evidence_type") in {"explicit", "inferred", "none"}
+            }
+            if len(cached) == len(chunk):
+                for lid, previous in cached.items():
+                    idx = chunk.index[chunk["ListingId"].astype(str) == lid]
+                    for name in (
+                        "rent_basis", "rent_basis_confidence", "rent_basis_evidence",
+                        "rent_basis_evidence_type", "rent_basis_source",
+                        "rent_basis_fingerprint",
+                    ):
+                        out.loc[idx, name] = previous.get(name)
+                reused += len(chunk)
+                continue
+
+            if client is None:
+                client = OpenAI(timeout=35.0, max_retries=2)
             allowed = set(chunk["ListingId"].astype(str))
             try:
                 response = client.chat.completions.create(
@@ -222,10 +309,13 @@ def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
                     out.loc[idx, "rent_basis_evidence"] = evidence
                     out.loc[idx, "rent_basis_evidence_type"] = evidence_type
                     out.loc[idx, "rent_basis_source"] = "openai"
+                    out.loc[idx, "rent_basis_fingerprint"] = fingerprint
                 successful += len(chunk)
             except Exception as exc:
+                failed += len(chunk)
                 print(f"⚠️ OpenAI rent-basis classification failed for property "
                       f"{property_id}: {type(exc).__name__}: {exc}")
             # No sleep needed: SDK retries transient errors.
-    print(f"🤖 OpenAI rent-basis classified {successful}/{len(out)} floorplans")
+    print(f"🤖 Rent-basis cache: {reused} reused, {successful} classified, "
+          f"{failed} failed out of {len(out)} floorplans")
     return out
