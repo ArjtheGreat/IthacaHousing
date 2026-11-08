@@ -296,6 +296,29 @@ def _experimental_model_comparisons(frame, baseline_columns, y):
         }
         report.append(row)
         frame["oof_" + ("xgb_amenities" if label.startswith("XGBoost") else "linear_amenities")] = predictions
+    # Exploratory, property-clustered inference on log asking rent. This is
+    # descriptive, not causal; inspect correlated features before interpretation.
+    try:
+        import statsmodels.api as sm
+        inference_X = X_new.fillna(0)
+        inference_X = inference_X.loc[:, inference_X.nunique(dropna=False) > 1]
+        # Drop exactly redundant columns to avoid singular duplicate indicators.
+        inference_X = inference_X.T.drop_duplicates().T.astype(float)
+        inference_X = sm.add_constant(inference_X, has_constant="add")
+        fitted = sm.OLS(y, inference_X).fit(
+            cov_type="cluster", cov_kwds={"groups": groups.to_numpy()}
+        )
+        inference = pd.DataFrame({
+            "feature": fitted.params.index,
+            "coefficient_log_rent": fitted.params.values,
+            "cluster_robust_se": fitted.bse.values,
+            "p_value": fitted.pvalues.values,
+        }).query("feature != 'const'").sort_values("p_value")
+        print("📐 Exploratory linear regression inference (cluster-robust by property):")
+        print(inference.head(20).round(4).to_string(index=False))
+        print("ℹ️ Collinearity and observational confounding limit coefficient interpretation.")
+    except Exception as exc:
+        print(f"⚠️ Optional clustered inference unavailable: {exc}")
     return pd.DataFrame(report)
 
 
