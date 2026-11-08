@@ -361,6 +361,7 @@ def psql_insert_copy(df):
             "suspected_landlord_pricing_error", "pricing_adjustment_reason",
             "rent_basis", "rent_basis_confidence", "rent_basis_evidence",
             "rent_basis_evidence_type", "rent_basis_source",
+            "rent_basis_fingerprint",
         ],
         "floorplan": [
             "bedrooms", "bathrooms", "available_bedrooms",
@@ -471,6 +472,7 @@ def psql_insert_copy(df):
                 ADD COLUMN IF NOT EXISTS rent_basis_evidence text,
                 ADD COLUMN IF NOT EXISTS rent_basis_evidence_type text,
                 ADD COLUMN IF NOT EXISTS rent_basis_source text,
+                ADD COLUMN IF NOT EXISTS rent_basis_fingerprint text,
                 ADD COLUMN IF NOT EXISTS landlord_email text,
                 ADD COLUMN IF NOT EXISTS landlord_name text,
                 ADD COLUMN IF NOT EXISTS landlord_full_name text,
