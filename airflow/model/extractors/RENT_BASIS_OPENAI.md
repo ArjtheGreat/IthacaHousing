@@ -13,17 +13,27 @@ lower-tail log-IQR conversion. It does **not** call external landlord sites.
 
 Install `openai` from `airflow/requirements.txt`. The code uses the OpenAI
 Chat Completions API with strict JSON-schema structured outputs. Each property
-is sent with its floorplans, original advertised rents, source pricing
+is sent with its floorplans, original advertised rents, floorplan-specific source pricing
 metadata, descriptions, and leasing information (in chunks for large properties).
+**Cornell's property-level `RentType` is withheld from the model** because the
+purpose of the audit is to check whether that label is wrong.
 
 For each listing the response is:
 `rent_basis` (`per_person`, `per_unit`, `unknown`),
 `rent_basis_confidence`, `rent_basis_evidence_type`,
-`rent_basis_evidence`, `rent_basis_source`, and `rent_basis_fingerprint`.
+`rent_basis_evidence`, `rent_basis_evidence_field`, `rent_basis_source`,
+and `rent_basis_fingerprint`.
 
 Only **high-confidence, explicit, quoted source evidence** that corroborates
 an AI classification can override the original Cornell `RentType`
-normalization. The numeric calculation is deterministic:
+normalization. OpenAI must return an **exact contiguous quote** and the precise
+source field (`unit_name`, `source_description`, `floorplan_rent_style`,
+`floorplan_per_person`, or `property_description`). Python validates that
+field/quote pairing and checks for rent-basis language such as `per person`,
+`by the bed rent price`, `pricing is listed by bed`, or `entire unit rent`.
+Property-wide statements describing only 2BR/3BR units cannot verify a 1BR.
+Generic leasing availability and `individual leases offered` alone cannot
+verify a unit's price basis. The numeric calculation is deterministic:
 - `per_person` → `rent_per_person = RentAmount`
 - `per_unit` → `rent_per_person = RentAmount / num_people`
 
@@ -40,7 +50,7 @@ The pipeline retains the existing Cornell `RentType` normalization, without
 claiming it is verified. Do not treat `unknown` as an audited label. Log and
 review ambiguous units against original landlord pages.
 
-**Caching:** Before the full ingest replaces the listings table, the classifier reads prior decisions from Supabase. It computes a SHA-256 fingerprint of the full relevant property/chunk source payload, the prompt version, and the configured model. It skips the API whenever every floorplan in the chunk already has a saved `rent_basis_confidence` and a matching fingerprint. `unknown`/low-confidence results are cached too (they stay unverified); failed calls are not cached. If a floorplan, property description, model ID, or prompt changes, that chunk is audited again. A new floorplan in the same chunk may require rechecking existing units to retain property context. The first run will call the API because existing rows lack fingerprints. A full refresh still rewrites the table, but it retains the cached decisions through the in-memory dataframe. The cache is not dependent on prior `rent_per_person` values.
+**Caching:** Before the full ingest replaces the listings table, the classifier reads prior decisions from Supabase. It computes a SHA-256 fingerprint of the full relevant property/chunk source payload, the prompt version, and the configured model. It skips the API whenever every floorplan in the chunk already has a saved `rent_basis_confidence` and a matching fingerprint. `unknown`/low-confidence results are cached too (they stay unverified); failed calls are not cached. If a floorplan, property description, model ID, or prompt changes, that chunk is audited again. The v3 prompt and evidence-schema update intentionally invalidates the v2 cache **once**; budget for reclassification of all properties on the first new run. A new floorplan in the same chunk may require rechecking existing units to retain property context. The first run will call the API because existing rows lack fingerprints. A full refresh still rewrites the table, but it retains the cached decisions through the in-memory dataframe. The cache is not dependent on prior `rent_per_person` values.
 
 The classifier is only invoked by **full ingest** when classifications are missing or stale.
 The database-only rent-model rerun does not scrape source data and does **not**
@@ -49,7 +59,7 @@ The Airflow DAG ID is `retrain_rental_model` (`airflow/dags/housing_data_trainin
 
 ## Validation
 
-Run `python -m unittest discover -s airflow/tests -p 'test_openai_rent_basis.py'`
+Run `python -m unittest discover -s airflow/tests -p 'test_openai_rent_basis*.py'`
 from the repo root with the Airflow dependencies installed. Tests mock the
 classifier; they do not spend API credits.
 
