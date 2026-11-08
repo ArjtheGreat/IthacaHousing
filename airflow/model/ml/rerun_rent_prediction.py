@@ -92,6 +92,7 @@ def fetch_listings_for_retrain() -> pd.DataFrame:
         "year_built",
         "sale_price",
         "assessment_sqft",
+        "unit_sqft",
         "neighborhood",
         "owner_name",
         "lengthavailable",
@@ -185,6 +186,12 @@ def prepare_features_from_db(df: pd.DataFrame) -> pd.DataFrame:
         out = data_preprocessing.calc_adjusted_bed_bath_values(out)
 
     out = data_preprocessing.add_property_features(out)
+
+    # Preserve actual Cornell floor-plan area; missing/zero means unknown.
+    # Do not substitute parcel assessment_sqft for an individual unit.
+    if "unit_sqft" in out.columns:
+        unit_area = pd.to_numeric(out["unit_sqft"], errors="coerce")
+        out["unit_sqft"] = unit_area.where(unit_area > 0)
 
     # CMA lat/lng aliases
     if "GmapLatitude" not in out.columns and "latitude" in out.columns:
