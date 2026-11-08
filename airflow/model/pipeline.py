@@ -11,6 +11,7 @@ if MODEL_PATH not in sys.path:
     sys.path.insert(0, MODEL_PATH)
 
 import core.fetch_housing_data as fetch_housing_data
+import core.excluded_listing_unit_ids as excluded_listing_unit_ids
 import core.insert_into_postgredb as insert_into_postgredb
 import core.pipeline_metrics as pipeline_metrics
 import core.property_level as property_level
@@ -479,6 +480,13 @@ def housing_data_pipeline():
     )
 
     apartments_for_rent = calculate_amenity_score.add_canonical_amenities(apartments_for_rent)
+
+    # Apply explicit unit-level exclusions before ML and before any DB insert.
+    # The full refresh TRUNCATEs the old table, so excluded units disappear
+    # from Supabase instead of being inserted again.
+    apartments_for_rent = excluded_listing_unit_ids.exclude_listing_units(
+        apartments_for_rent
+    )
 
     print("📄 Extracting rental features...")
     apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)
