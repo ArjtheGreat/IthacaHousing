@@ -58,6 +58,27 @@ rerun the classifier; it uses the last saved `rent_per_person` values.
 The Airflow DAG ID is `retrain_rental_model` (`airflow/dags/housing_data_training.py`). Its schedule is `0 12 * * *` in Airflow's configured timezone. No change is made to live Supabase until that DAG runs.
 
 
+## IQR context before OpenAI
+
+The full-ingest extractor runs `pre_classification_iqr_context` **before**
+`classify_rent_bases`. It uses the existing source-normalized per-person
+values to calculate the original 1.2× lower log-IQR cutoff. For every
+floorplan it sends the OpenAI model BOTH possible interpretations:
+`RentAmount / num_people` (per-unit hypothesis) and `RentAmount`
+(per-person hypothesis), and whether each falls below that provisional
+cutoff. The raw `RentType` is still withheld from the AI.
+
+These IQR diagnostics are deliberately **not** verification. A suspicious
+value must not become `explicit` or `high` confidence solely because its
+alternative looks statistically plausible. Automatic changes still require
+independent literal source evidence. The provisional benchmark may itself be
+contaminated by incorrectly normalized listings.
+
+The classifier cache fingerprint includes these diagnostics and the v4
+prompt version. **The first run after this change reclassifies existing
+properties**; identical later runs reuse their cached results. Changes to
+the global cutoff may invalidate more property groups.
+
 ## Post-LLM IQR audit
 
 After the model classifies source price bases and Python calculates rents,
