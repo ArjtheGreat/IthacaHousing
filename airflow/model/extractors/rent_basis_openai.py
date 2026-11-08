@@ -135,6 +135,25 @@ def _verbatim_evidence(evidence, records, listing_id):
     return evidence.casefold() in source_text
 
 
+def _evidence_identifies_basis(evidence, basis):
+    """A real quote can still be irrelevant to the actual rent basis."""
+    phrase = " ".join((evidence or "").lower().split())
+    if basis == "per_person":
+        markers = (
+            "per person", "per bedroom", "per bed", "per room",
+            "each person", "each tenant", "each bedroom", "individual lease",
+        )
+    elif basis == "per_unit":
+        markers = (
+            "per unit", "entire apartment", "entire unit",
+            "whole apartment", "whole unit", "total apartment rent",
+            "total unit rent", "entire home",
+        )
+    else:
+        return False
+    return any(marker in phrase for marker in markers)
+
+
 def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
     """Classify every floorplan in property context; unknowns are not corrected.
 
@@ -193,7 +212,10 @@ def classify_rent_bases(frame: pd.DataFrame) -> pd.DataFrame:
                     # Downgrade invented or unverifiable "explicit" evidence.
                     # A property-level label alone can be ambiguous, so don't
                     # allow it to establish a per-person override.
-                    if evidence_type == "explicit" and not _verbatim_evidence(evidence, records, listing_id):
+                    if evidence_type == "explicit" and not (
+                        _verbatim_evidence(evidence, records, listing_id)
+                        and _evidence_identifies_basis(evidence, basis)
+                    ):
                         evidence_type = "inferred"
                     out.loc[idx, "rent_basis"] = basis
                     out.loc[idx, "rent_basis_confidence"] = confidence
