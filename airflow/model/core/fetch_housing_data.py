@@ -28,7 +28,7 @@ COLUMNS = [
     "ListingId", "FloorplanId", "LegacyListingId", "UnitName", "UnitNumber",
     "ListingGranularity", "RoomStatus", "PropertyUnitsNumber",
     "RentAmount", "RentMin", "RentMax",
-    "Bedrooms", "Bathrooms", "SqFt",
+    "Bedrooms", "Bathrooms", "SqFt", "unit_sqft",
     "AvailableFrom", "AvailableDate", "LengthAvailable",
     "latitude", "longitude", "RentRaw", "ListingPhotos",
 ]
@@ -254,6 +254,7 @@ def rows_from_data(data):
                 "Bedrooms": number(plan.get("bed")) if plan else number(prop.get("min_bed")),
                 "Bathrooms": number(plan.get("bath")) if plan else number(prop.get("min_bath")),
                 "SqFt": number(plan.get("sq_footage")),
+                "unit_sqft": number(plan.get("sq_footage")),
                 # Site "Available" field (Now / 08-01-2027) — not lease length.
                 "AvailableFrom": plan.get("available_date") or prop.get("available"),
                 "AvailableDate": plan.get("available_date"),
