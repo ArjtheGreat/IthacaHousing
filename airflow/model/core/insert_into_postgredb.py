@@ -262,6 +262,10 @@ def psql_insert_copy(df):
         "property_frontage", "property_acres", "property_pc", "water_access",
         "sewer_access", "sewer_name", "year_built", "assessment_sqft", "sale_price",
         "valid_certificate_of_compliance",
+        "food_count_200m", "food_nearest_dist",
+        "attractions_count_200m", "attractions_nearest_dist",
+        "shopping_count_200m", "shopping_nearest_dist",
+        "grocery_count_200m", "grocery_nearest_dist",
     ]
 
     travel_time_cols = [
@@ -332,7 +336,15 @@ def psql_insert_copy(df):
                 ADD COLUMN IF NOT EXISTS landlord_name text,
                 ADD COLUMN IF NOT EXISTS landlord_full_name text,
                 ADD COLUMN IF NOT EXISTS landlord_username text,
-                ADD COLUMN IF NOT EXISTS contact_number text;
+                ADD COLUMN IF NOT EXISTS contact_number text,
+                ADD COLUMN IF NOT EXISTS food_count_200m numeric,
+                ADD COLUMN IF NOT EXISTS food_nearest_dist numeric,
+                ADD COLUMN IF NOT EXISTS attractions_count_200m numeric,
+                ADD COLUMN IF NOT EXISTS attractions_nearest_dist numeric,
+                ADD COLUMN IF NOT EXISTS shopping_count_200m numeric,
+                ADD COLUMN IF NOT EXISTS shopping_nearest_dist numeric,
+                ADD COLUMN IF NOT EXISTS grocery_count_200m numeric,
+                ADD COLUMN IF NOT EXISTS grocery_nearest_dist numeric;
         """),
         label="rent adjustment schema migrate",
     )
