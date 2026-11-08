@@ -20,6 +20,7 @@ from sqlalchemy.exc import OperationalError, DBAPIError
 
 import calculators.calculate_amenity_score as calculate_amenity_score
 import core.insert_into_postgredb as insert_into_postgredb
+import core.excluded_listing_unit_ids as excluded_listing_unit_ids
 import core.pipeline_metrics as pipeline_metrics
 import ml.comparative_market_analysis as comparative_market_analysis
 import ml.data_preprocessing as data_preprocessing
@@ -71,6 +72,22 @@ def _existing_columns(conn) -> set[str]:
         )
     ).fetchall()
     return {r[0] for r in rows}
+
+
+def delete_excluded_listings_from_db() -> int:
+    """Remove excluded unit IDs in the DB-only path (full ingest truncates)."""
+    excluded = sorted(excluded_listing_unit_ids.EXCLUDED_LISTING_UNIT_IDS)
+    if not excluded:
+        return 0
+    engine = _engine()
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("DELETE FROM housing_listings WHERE listingid = ANY(:excluded_ids)"),
+            {"excluded_ids": excluded},
+        )
+        removed = int(result.rowcount or 0)
+    print(f"🚫 Deleted {removed} excluded unit rows from housing_listings")
+    return removed
 
 
 def fetch_listings_for_retrain() -> pd.DataFrame:
@@ -167,6 +184,8 @@ def _parse_amenities(value):
 def prepare_features_from_db(df: pd.DataFrame) -> pd.DataFrame:
     """Map DB columns → training frame used by define_X_Y / fair-rent OOF."""
     out = df.copy()
+
+    out = excluded_listing_unit_ids.exclude_listing_units(out)
 
     # Identity / grouping
     out["ListingId"] = out["listingid"].astype(str)
@@ -492,6 +511,7 @@ def rerun_rent_prediction_pipeline():
     """
     print("🚀 Starting rent-prediction re-run from database (no scrape)")
 
+    delete_excluded_listings_from_db()
     raw = fetch_listings_for_retrain()
     apartments = prepare_features_from_db(raw)
 
