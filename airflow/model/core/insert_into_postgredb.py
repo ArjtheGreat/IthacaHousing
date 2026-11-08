@@ -87,7 +87,7 @@ def create_clean_listing_view(engine, preferred_order):
     _execute_with_retry(
         engine,
         text(f'DROP VIEW IF EXISTS public."{CLEAN_VIEW_NAME}"; '
-             f'CREATE VIEW public."{CLEAN_VIEW_NAME}" AS '
+             f'CREATE VIEW public."{CLEAN_VIEW_NAME}" WITH (security_invoker = true) AS '
              f'SELECT {projection} FROM public.housing_listings'),
         label="refresh organized housing listings view",
     )
