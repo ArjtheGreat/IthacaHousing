@@ -253,7 +253,9 @@ def psql_insert_copy(df):
         "predicted_rent_cma", "nearest_neighbor_listingids", "rent_per_person",
         "num_people", "total_rent_amount", "rent_per_person_original",
         "ithaca_insights_adjustment", "suspected_landlord_pricing_error",
-        "pricing_adjustment_reason", "owner_name", "nearest_stop_name",
+        "pricing_adjustment_reason", "owner_name", "landlord_email",
+        "landlord_name", "landlord_full_name", "landlord_username",
+        "contact_number", "nearest_stop_name",
         "walk_time_to_nearest_stop", "transit_time_to_ag_quad",
         "transit_time_to_arts_quad", "transit_time_to_eng_quad",
         "iso15", "neighborhood", "neighborhood_assessment", "property_depth",
@@ -325,7 +327,12 @@ def psql_insert_copy(df):
                 ADD COLUMN IF NOT EXISTS rent_per_person_original numeric,
                 ADD COLUMN IF NOT EXISTS ithaca_insights_adjustment boolean NOT NULL DEFAULT false,
                 ADD COLUMN IF NOT EXISTS suspected_landlord_pricing_error boolean NOT NULL DEFAULT false,
-                ADD COLUMN IF NOT EXISTS pricing_adjustment_reason text;
+                ADD COLUMN IF NOT EXISTS pricing_adjustment_reason text,
+                ADD COLUMN IF NOT EXISTS landlord_email text,
+                ADD COLUMN IF NOT EXISTS landlord_name text,
+                ADD COLUMN IF NOT EXISTS landlord_full_name text,
+                ADD COLUMN IF NOT EXISTS landlord_username text,
+                ADD COLUMN IF NOT EXISTS contact_number text;
         """),
         label="rent adjustment schema migrate",
     )
