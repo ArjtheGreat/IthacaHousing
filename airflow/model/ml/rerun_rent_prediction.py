@@ -24,6 +24,12 @@ import core.pipeline_metrics as pipeline_metrics
 import ml.comparative_market_analysis as comparative_market_analysis
 import ml.data_preprocessing as data_preprocessing
 import ml.model_training as model_training
+from sklearn.linear_model import LinearRegression
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import GroupKFold
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 
 PREDICTION_UPDATE_COLS = [
@@ -181,6 +187,7 @@ def prepare_features_from_db(df: pd.DataFrame) -> pd.DataFrame:
     if "Amenities" in out.columns:
         out["Amenities"] = out["Amenities"].apply(_parse_amenities)
         out = calculate_amenity_score.calculate_amenity_score(out)
+        out = calculate_amenity_score.add_canonical_amenities(out)
 
     # Bed/bath features
     if "available_bedrooms" not in out.columns and "Bedrooms" in out.columns:
@@ -238,6 +245,60 @@ def prepare_features_from_db(df: pd.DataFrame) -> pd.DataFrame:
     return out.reset_index(drop=True)
 
 
+
+def _experimental_model_comparisons(frame, baseline_columns, y):
+    """Compare all challengers on identical held-out-property folds.
+
+    Experimental models NEVER overwrite the established production predictions.
+    Linear coefficients are associations, not causal effects; grouped folds keep
+    all units in one property out of their own training data.
+    """
+    canonical = list(calculate_amenity_score.CANONICAL_AMENITY_COLUMNS)
+    base = list(dict.fromkeys(list(baseline_columns) + ["latitude", "longitude"]))
+    # Reuse exactly the baseline predictor set for a clean incremental comparison.
+    augmented = list(dict.fromkeys(base + canonical + [
+        c for c in ("available_bedrooms", "available_bathrooms") if c in frame
+    ]))
+    X_new = frame.reindex(columns=augmented).apply(pd.to_numeric, errors="coerce")
+    X_new = X_new.replace([np.inf, -np.inf], np.nan)
+    groups = model_training.group_by_property_df(frame)
+    folds = min(5, groups.nunique())
+    splitter = GroupKFold(n_splits=folds)
+    targets = np.exp(y)
+    models = {
+        "XGBoost + canonical amenities": lambda: __import__("xgboost").XGBRegressor(
+            n_estimators=100, max_depth=6, learning_rate=.1,
+            subsample=.8, colsample_bytree=.8, random_state=42,
+            n_jobs=-1, missing=np.nan,
+        ),
+        "Linear regression + canonical amenities": lambda: make_pipeline(
+            SimpleImputer(strategy="constant", fill_value=0, add_indicator=True),
+            StandardScaler(),
+            LinearRegression(),
+        ),
+    }
+    report = []
+    for label, factory in models.items():
+        predictions = np.full(len(frame), np.nan)
+        for train, test in splitter.split(X_new, y, groups):
+            model = factory()
+            model.fit(X_new.iloc[train], y[train])
+            # Train in log space as with baseline, evaluate in dollars.
+            predictions[test] = np.exp(np.clip(model.predict(X_new.iloc[test]), -10, 15))
+        residuals = targets - predictions
+        row = {
+            "model": label, "features": X_new.shape[1],
+            "r2": r2_score(targets, predictions),
+            "rmse": np.sqrt(mean_squared_error(targets, predictions)),
+            "mae": mean_absolute_error(targets, predictions),
+            "bias_actual_minus_pred": residuals.mean(),
+            "p90_abs_error": np.percentile(np.abs(residuals), 90),
+        }
+        report.append(row)
+        frame["oof_" + ("xgb_amenities" if label.startswith("XGBoost") else "linear_amenities")] = predictions
+    return pd.DataFrame(report)
+
+
 def run_ml_and_cma(apartments_for_rent: pd.DataFrame):
     """Property-grouped OOF XGBoost fair rent + CMA."""
     apartments_for_rent = apartments_for_rent.reset_index(drop=True).copy()
@@ -266,6 +327,21 @@ def run_ml_and_cma(apartments_for_rent: pd.DataFrame):
             n_estimators=100, max_depth=6,
         )
     )
+    # Diagnostic challengers: same GroupKFold scheme, never deployed automatically.
+    # Baseline's one-hots and predictions are preserved for apples-to-apples review.
+    challenge = _experimental_model_comparisons(apartments_for_rent, list(X.columns), y)
+    baseline_row = pd.DataFrame([{
+        "model": "Original XGBoost (production)",
+        "features": len(list(dict.fromkeys(list(X.columns) + ["latitude", "longitude"]))),
+        "r2": overall["r2"], "rmse": overall["rmse"], "mae": overall["mae"],
+        "bias_actual_minus_pred": overall["bias"],
+        "p90_abs_error": overall["p90_abs_error"],
+    }])
+    comparison = pd.concat([baseline_row, challenge], ignore_index=True)
+    print("📊 PROPERTY-GROUPED OOF MODEL COMPARISON (dollars/person/month):")
+    print(comparison.round(3).to_string(index=False))
+    print("⚠️ Linear regression coefficients are associations, not causal effects.")
+    print("✅ Only the original XGBoost predictions are written to production.")
     print("⭐ Top features:")
     print(feature_importance.head(12).to_string(index=False))
 
@@ -337,6 +413,7 @@ def update_predictions_in_db(df: pd.DataFrame, batch_size: int = 100) -> int:
                 "predicted_rent_cma": _sanitize(row.get("predicted_rent_cma")),
                 "nearest_neighbor_listingids": neighbors,
                 "differenceinfairvalue": _sanitize(row.get("differenceinfairvalue")),
+                **{name: _sanitize(row.get(name)) for name in calculate_amenity_score.CANONICAL_AMENITY_COLUMNS},
                 **{
                     dest: _sanitize(row.get(src))
                     for src, dest in insert_into_postgredb.MODEL_FEATURE_COLUMN_MAP.items()
@@ -346,7 +423,8 @@ def update_predictions_in_db(df: pd.DataFrame, batch_size: int = 100) -> int:
 
     feature_assignments = ",\n            ".join(
         f"{dest} = :{dest}"
-        for dest in insert_into_postgredb.MODEL_FEATURE_COLUMN_MAP.values()
+        for dest in list(insert_into_postgredb.MODEL_FEATURE_COLUMN_MAP.values())
+        + list(calculate_amenity_score.CANONICAL_AMENITY_COLUMNS)
     )
     update_sql = text(
         f"""
