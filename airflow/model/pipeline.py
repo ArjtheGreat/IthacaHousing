@@ -129,7 +129,12 @@ def get_existing_calculated_data():
                 'transit_time_to_arts_quad', 'transit_time_to_eng_quad'
             ]
             
-            columns_to_select = [col for col in base_columns + new_travel_columns + transit_columns if col in existing_columns]
+            poi_columns = [
+                f"{kind}_{suffix}"
+                for kind in ("food", "attractions", "shopping", "grocery")
+                for suffix in ("count_200m", "nearest_dist")
+            ]
+            columns_to_select = [col for col in base_columns + new_travel_columns + transit_columns + poi_columns if col in existing_columns]
             if "iso15" in existing_columns and "iso15" not in columns_to_select:
                 columns_to_select.append("iso15")
             
@@ -287,6 +292,7 @@ def housing_data_pipeline():
     # neighborhood lookups. These values will be replaced by the latest
     # source listing contact fields, which are fetched fresh above.
     existing_listings_df = get_existing_listings_dataframe()
+    existing_calculated = get_existing_calculated_data()
 
     print("🛡️ Adding safety features (once per PropertyId)...")
     apartments_for_rent = property_level.apply_per_property(
@@ -338,16 +344,24 @@ def housing_data_pipeline():
     apartments_for_rent = extract_land_assessment_features.extract_land_assessment_features(apartments_for_rent)
 
     print("📍 Extracting POI features (once per PropertyId)...")
-    apartments_for_rent = property_level.apply_per_property(
-        apartments_for_rent,
+    poi_fields = [
+        f"{kind}_{suffix}"
+        for kind in ("food", "attractions", "shopping", "grocery")
+        for suffix in ("count_200m", "nearest_dist")
+    ]
+    apartments_for_rent = property_level.apply_cached_property_enrichment(
+        apartments_for_rent, existing_calculated,
         extract_poi_features.extract_poi_features,
+        fields=poi_fields,
+        required=[f"{kind}_count_200m" for kind in
+                  ("food", "attractions", "shopping", "grocery")],
         label="poi",
     )
 
     # ============================================================
     # 3) FETCH EXISTING DATA FROM DB
     # ============================================================
-    existing_calculated = get_existing_calculated_data()
+    # Previously persisted values were loaded before enrichment.
 
     # ============================================================
     # 4) TRACK REMOVED LISTINGS (still by ListingId / unit)
