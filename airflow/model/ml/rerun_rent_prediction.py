@@ -242,6 +242,14 @@ def run_ml_and_cma(apartments_for_rent: pd.DataFrame):
     """Property-grouped OOF XGBoost fair rent + CMA."""
     apartments_for_rent = apartments_for_rent.reset_index(drop=True).copy()
     X, dollars = model_training.define_X_Y_variables(apartments_for_rent)
+    # The DB-only rerun does not scrape Cornell. An empty area column means
+    # the full housing-data DAG/backfill must run before SQFT can improve ML.
+    if "unit_sqft" not in X.columns:
+        raise ValueError("unit_sqft missing from rent-model features")
+    area_n = int(pd.to_numeric(X["unit_sqft"], errors="coerce").gt(0).sum())
+    print(f"📐 Unit SQFT available in database for {area_n}/{len(X)} trainable listings")
+    if area_n == 0:
+        print("⚠️ All unit_sqft values are missing. Run retrain_rental_model (full Cornell ingest), not just the database-only rerun.")
     # Missing values are handled natively by XGBoost, within each training fold.
     X = X.apply(pd.to_numeric, errors="coerce").replace(
         [np.inf, -np.inf], np.nan
