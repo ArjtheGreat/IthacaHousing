@@ -1,4 +1,4 @@
-"""Post-normalization rent anomaly audit.
+"""Rent anomaly diagnostics before and after OpenAI price-basis classification.
 
 The LLM determines what the advertised amount covers. This independent
 lower-tail log-IQR audit only *flags* suspect values; it NEVER edits rents.
@@ -13,6 +13,48 @@ import pandas as pd
 
 LOG_IQR_MULTIPLIER = 1.2
 MIN_REFERENCE_COUNT = 20
+
+
+def pre_classification_iqr_context(frame: pd.DataFrame) -> pd.DataFrame:
+    """Supply a *symmetric* IQR diagnostic before the LLM sees floorplans.
+
+    Compute a provisional lower-tail log-IQR bound from the initial source-
+    normalized rents. Show BOTH interpretations (advertised total / bedrooms
+    and advertised per person), so we don't anchor the model to one hypothesis.
+    This does not change amounts or create source verification.
+    """
+    out = frame.copy()
+    baseline = pd.to_numeric(out["rent_per_person"], errors="coerce")
+    original = pd.to_numeric(out["RentAmount"], errors="coerce")
+    people = pd.to_numeric(out["num_people"], errors="coerce")
+    reference = baseline.loc[baseline.notna() & np.isfinite(baseline) & baseline.gt(0)]
+    if len(reference) >= 4:
+        logged = np.log(reference)
+        q25, q75 = logged.quantile([.25, .75])
+        cutoff = float(np.exp(logged.median() - LOG_IQR_MULTIPLIER * (q75 - q25)))
+    else:
+        cutoff = np.nan
+
+    candidate_unit = original.div(people.where(people.gt(0)))
+    candidate_person = original.where(original.gt(0))
+    for name, values in (
+        ("pre_iqr_per_unit_candidate", candidate_unit),
+        ("pre_iqr_per_person_candidate", candidate_person),
+    ):
+        out[name] = values.where(values.gt(0))
+        out[name + "_below_cutoff"] = (
+            (values.notna() & values.gt(0) & values.lt(cutoff))
+            if np.isfinite(cutoff)
+            else pd.Series(False, index=out.index)
+        ).astype(bool)
+    out["pre_iqr_lower_cutoff"] = cutoff if np.isfinite(cutoff) else np.nan
+    print(
+        "📊 Pre-LLM log-IQR (diagnostic only): "
+        f"cutoff=${cutoff:,.0f}, "
+        f"unit hypothesis low={int(out['pre_iqr_per_unit_candidate_below_cutoff'].sum())}, "
+        f"person hypothesis low={int(out['pre_iqr_per_person_candidate_below_cutoff'].sum())}"
+    )
+    return out
 
 
 def _quoted_amount(evidence):
