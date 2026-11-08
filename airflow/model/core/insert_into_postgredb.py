@@ -10,6 +10,42 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError, DBAPIError
 
+# Predictors that are built in memory for the rent model. Spaced amenity
+# names are renamed here so the insert sanitizer does not collapse them
+# into names like "electricityincluded".
+MODEL_FEATURE_COLUMN_MAP = {
+    "combined_bedrooms_bathrooms": "combined_bedrooms_bathrooms",
+    "YR_BUILT_ENCODED": "yr_built_encoded",
+    "Electricity Included": "electricity_included",
+    "Heat Included": "heat_included",
+    "Water Included": "water_included",
+    "Internet Included": "internet_included",
+    "Laundry Facilities": "laundry_facilities",
+    "Air Conditioning": "air_conditioning",
+    "Furnished": "furnished",
+}
+
+
+def ensure_model_feature_columns(engine):
+    """Add rent-model predictor columns to an existing housing_listings table."""
+    _execute_with_retry(
+        engine,
+        text("""
+            ALTER TABLE housing_listings
+                ADD COLUMN IF NOT EXISTS combined_bedrooms_bathrooms numeric,
+                ADD COLUMN IF NOT EXISTS yr_built_encoded integer,
+                ADD COLUMN IF NOT EXISTS electricity_included integer,
+                ADD COLUMN IF NOT EXISTS heat_included integer,
+                ADD COLUMN IF NOT EXISTS water_included integer,
+                ADD COLUMN IF NOT EXISTS internet_included integer,
+                ADD COLUMN IF NOT EXISTS laundry_facilities integer,
+                ADD COLUMN IF NOT EXISTS air_conditioning integer,
+                ADD COLUMN IF NOT EXISTS furnished integer;
+        """),
+        label="model feature columns",
+    )
+
+
 def clean_json_field(x):
     """
     Clean and standardize JSON-like values for SQL insertion.
@@ -214,6 +250,7 @@ def psql_insert_copy(df):
             "connect_timeout": 30,
         },
     )
+    ensure_model_feature_columns(engine)
 
     for col in ["Amenities", "ListingPhotos"]:
         if col in df.columns:
@@ -231,7 +268,13 @@ def psql_insert_copy(df):
     if "nearest_neighbor_listingIds" in df.columns:
         df["nearest_neighbor_listingIds"] = df["nearest_neighbor_listingIds"].apply(
             lambda x: json.dumps(x) if isinstance(x, (list, dict)) else x
-        )    
+        )
+    for src, dest in MODEL_FEATURE_COLUMN_MAP.items():
+        if src in df.columns and src != dest:
+            if dest in df.columns:
+                df = df.drop(columns=[src])
+            else:
+                df = df.rename(columns={src: dest})
     df.columns = (
         df.columns.str.strip()
         .str.lower()
@@ -274,6 +317,10 @@ def psql_insert_copy(df):
         "attractions_count_200m", "attractions_nearest_dist",
         "shopping_count_200m", "shopping_nearest_dist",
         "grocery_count_200m", "grocery_nearest_dist",
+        "combined_bedrooms_bathrooms", "yr_built_encoded",
+        "electricity_included", "heat_included", "water_included",
+        "internet_included", "laundry_facilities", "air_conditioning",
+        "furnished",
     ]
 
     travel_time_cols = [

@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "model"))
-from ml.model_training import compute_fair_rent_oof_spatial
-from ml.spatial_features import add_spatial_fold_features
+from ml.archive.spatial_oof import compute_fair_rent_oof_spatial
+from ml.archive.spatial_features import add_spatial_fold_features
 
 
 class SpatialOOFTests(unittest.TestCase):
@@ -50,8 +50,8 @@ class SpatialOOFTests(unittest.TestCase):
         features = set(importance["feature"])
         self.assertIn("knn_rent_log", features)
         self.assertIn("h3_7_te", features)
-        self.assertNotIn("latitude", features)
-        self.assertNotIn("longitude", features)
+        self.assertIn("latitude", features)
+        self.assertIn("longitude", features)
         self.assertNotIn("x_meters", features)
         self.assertNotIn("y_meters", features)
 

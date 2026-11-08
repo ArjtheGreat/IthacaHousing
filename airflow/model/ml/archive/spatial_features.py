@@ -14,8 +14,8 @@ from h3 import latlng_to_cell
 def add_spatial_fold_features(train, test, y_train, k=10, h3_reses=(6, 7)):
     """Return feature frames with out-of-property H3 and KNN spatial signals.
 
-    Coordinates are used for feature creation only; the caller drops raw
-    latitude/longitude and projected x/y coordinates before model.fit.
+    Coordinates are used to build the H3 and KNN columns and are left on the
+    returned frames so the model can also use latitude and longitude directly.
     Property-level averages prevent large buildings dominating comparisons.
     """
     tr = train.copy()

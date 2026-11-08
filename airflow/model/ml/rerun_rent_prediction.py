@@ -2,8 +2,8 @@
 Rerun fair-rent / CMA predictions from existing housing_listings rows.
 
 Does NOT scrape or re-geocode. Rebuilds ML features that can be derived from
-DB columns (amenity one-hots, bed/bath combo, year encoding), runs spatial CV
-+ property-grouped OOF fair rent + CMA, then UPDATEs prediction columns only.
+DB columns (amenity one-hots, bed/bath combo, year encoding), runs
+property-grouped OOF fair rent + CMA, then UPDATEs prediction columns only.
 """
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError, DBAPIError
 
 import calculators.calculate_amenity_score as calculate_amenity_score
+import core.insert_into_postgredb as insert_into_postgredb
 import core.pipeline_metrics as pipeline_metrics
 import ml.comparative_market_analysis as comparative_market_analysis
 import ml.data_preprocessing as data_preprocessing
@@ -117,6 +118,10 @@ def fetch_listings_for_retrain() -> pd.DataFrame:
         "attractions_count_200m", "attractions_nearest_dist",
         "shopping_count_200m", "shopping_nearest_dist",
         "grocery_count_200m", "grocery_nearest_dist",
+        "combined_bedrooms_bathrooms", "yr_built_encoded",
+        "electricity_included", "heat_included", "water_included",
+        "internet_included", "laundry_facilities", "air_conditioning",
+        "furnished",
     ]
 
     engine = _engine()
@@ -234,11 +239,7 @@ def prepare_features_from_db(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def run_ml_and_cma(apartments_for_rent: pd.DataFrame):
-    """Compare baseline versus spatial XGBoost using identical property OOF folds.
-
-    Both methods predict the same listings. Keep BASELINE predictions as the
-    stored website values until the spatial challenger is explicitly selected.
-    """
+    """Property-grouped OOF XGBoost fair rent + CMA."""
     apartments_for_rent = apartments_for_rent.reset_index(drop=True).copy()
     X, dollars = model_training.define_X_Y_variables(apartments_for_rent)
     # Missing values are handled natively by XGBoost, within each training fold.
@@ -249,51 +250,17 @@ def run_ml_and_cma(apartments_for_rent: pd.DataFrame):
         apartments_for_rent[col] = X[col].to_numpy()
     y = np.log(pd.to_numeric(dollars, errors="coerce").to_numpy(dtype=float))
 
-    print("🏢 Running baseline XGBoost OOF...")
-    baseline_df, base_folds, base_overall, base_features = (
+    print("🏢 Running XGBoost OOF...")
+    apartments_for_rent, fold_metrics, overall, feature_importance = (
         model_training.compute_fair_rent_oof(
             apartments_for_rent=apartments_for_rent, y=y,
             x_cols=list(X.columns), n_splits=5,
             n_estimators=100, max_depth=6,
         )
     )
-    print("🗺️ Running spatial XGBoost OOF (H3 + other-property KNN; no coordinates)...")
-    spatial_df, spatial_folds, spatial_overall, spatial_features = (
-        model_training.compute_fair_rent_oof_spatial(
-            apartments_for_rent=apartments_for_rent, y=y,
-            x_cols=list(X.columns), h3_reses=(6, 7), k_knn=10,
-            n_splits=5, n_estimators=100, max_depth=6,
-        )
-    )
+    print("⭐ Top features:")
+    print(feature_importance.head(12).to_string(index=False))
 
-    print("\\n📊 Fold-by-fold comparison ($/person/month):")
-    comparison = base_folds[["fold", "test_properties", "test_listings",
-                            "r2", "rmse", "mae", "bias"]].merge(
-        spatial_folds[["fold", "r2", "rmse", "mae", "bias"]],
-        on="fold", suffixes=("_baseline", "_spatial"),
-        validate="one_to_one",
-    )
-    print(comparison.to_string(index=False, float_format=lambda v: f"{v:,.2f}"))
-    rows = []
-    for name, metrics in (("Baseline", base_overall), ("Spatial", spatial_overall)):
-        rows.append({"model": name, **metrics})
-    overview = pd.DataFrame(rows).set_index("model")
-    print("\\n🏆 Pooled grouped OOF performance:")
-    print(overview[["r2", "rmse", "mae", "bias", "p90_abs_error"]].to_string(
-        float_format=lambda v: f"{v:,.2f}"
-    ))
-    print(f"Δ RMSE (spatial - baseline): "
-          f"${spatial_overall['rmse'] - base_overall['rmse']:+,.2f}")
-    print(f"Δ MAE (spatial - baseline): "
-          f"${spatial_overall['mae'] - base_overall['mae']:+,.2f}")
-    print("\\n⭐ Baseline top features:")
-    print(base_features.head(12).to_string(index=False))
-    print("\\n⭐ Spatial top features:")
-    print(spatial_features.head(12).to_string(index=False))
-    print("ℹ️ Feature gains measure predictive contribution, not causal effects.")
-    print("ℹ️ Baseline OOF predictions remain the DB output; spatial runs as challenger.")
-
-    apartments_for_rent = baseline_df
     apartments_for_rent["predictedrent"] = apartments_for_rent["fair_rent"]
     apartments_for_rent["PredictedRent"] = apartments_for_rent["fair_rent"]
     apartments_for_rent["differenceinfairvalue"] = (
@@ -301,7 +268,7 @@ def run_ml_and_cma(apartments_for_rent: pd.DataFrame):
     )
     apartments_for_rent["DifferenceinFairValue"] = apartments_for_rent["differenceinfairvalue"]
 
-    print("📈 Running CMA for baseline predictions...")
+    print("📈 Running CMA...")
     X_cma = comparative_market_analysis.define_X_for_cma(apartments_for_rent)
     apartments_for_rent = comparative_market_analysis.perform_cma(
         X_cma, apartments_for_rent
@@ -309,19 +276,24 @@ def run_ml_and_cma(apartments_for_rent: pd.DataFrame):
 
     results_df = pd.DataFrame(
         {
-            "R2": [base_overall["r2"], spatial_overall["r2"]],
-            "RMSE": [base_overall["rmse"], spatial_overall["rmse"]],
-            "MAE": [base_overall["mae"], spatial_overall["mae"]],
-            "MAPE": [None, None],
-            "flagged": [False, False],
+            "R2": [overall["r2"]],
+            "RMSE": [overall["rmse"]],
+            "MAE": [overall["mae"]],
+            "MAPE": [None],
+            "flagged": [False],
         },
-        index=["Baseline Property OOF XGBoost", "Spatial Property OOF XGBoost"],
+        index=["Property-Grouped OOF XGBoost"],
     )
-    results = {
-        "baseline": {"folds": base_folds, "overall": base_overall, "features": base_features},
-        "spatial": {"folds": spatial_folds, "overall": spatial_overall, "features": spatial_features},
-    }
-    return apartments_for_rent, results_df, X, X, y, results
+    return (
+        apartments_for_rent,
+        results_df,
+        X,
+        X.copy(),
+        y,
+        overall,
+        fold_metrics,
+        feature_importance,
+    )
 
 def _sanitize(v):
     if v is None:
@@ -340,6 +312,7 @@ def _sanitize(v):
 def update_predictions_in_db(df: pd.DataFrame, batch_size: int = 100) -> int:
     """UPDATE prediction columns for ListingIds present in df."""
     engine = _engine()
+    insert_into_postgredb.ensure_model_feature_columns(engine)
 
     records = []
     for _, row in df.iterrows():
@@ -356,16 +329,25 @@ def update_predictions_in_db(df: pd.DataFrame, batch_size: int = 100) -> int:
                 "predicted_rent_cma": _sanitize(row.get("predicted_rent_cma")),
                 "nearest_neighbor_listingids": neighbors,
                 "differenceinfairvalue": _sanitize(row.get("differenceinfairvalue")),
+                **{
+                    dest: _sanitize(row.get(src))
+                    for src, dest in insert_into_postgredb.MODEL_FEATURE_COLUMN_MAP.items()
+                },
             }
         )
 
+    feature_assignments = ",\n            ".join(
+        f"{dest} = :{dest}"
+        for dest in insert_into_postgredb.MODEL_FEATURE_COLUMN_MAP.values()
+    )
     update_sql = text(
-        """
+        f"""
         UPDATE housing_listings
         SET predictedrent = :predictedrent,
             predicted_rent_cma = :predicted_rent_cma,
             nearest_neighbor_listingids = :nearest_neighbor_listingids,
-            differenceinfairvalue = :differenceinfairvalue
+            differenceinfairvalue = :differenceinfairvalue,
+            {feature_assignments}
         WHERE listingid = :listingid
         """
     )
@@ -404,7 +386,16 @@ def rerun_rent_prediction_pipeline():
     raw = fetch_listings_for_retrain()
     apartments = prepare_features_from_db(raw)
 
-    apartments, results_df, X, X_spatial, y_clean, evaluations = run_ml_and_cma(apartments)
+    (
+        apartments,
+        results_df,
+        X,
+        X_spatial,
+        y_clean,
+        overall,
+        fold_metrics,
+        feature_importance,
+    ) = run_ml_and_cma(apartments)
 
     update_predictions_in_db(apartments)
 
@@ -416,17 +407,10 @@ def rerun_rent_prediction_pipeline():
             X,
             X_spatial,
             y_clean,
-            "Baseline Property OOF XGBoost",
-            oof_feature_importance=evaluations["baseline"]["features"],
-            oof_fold_metrics=evaluations["baseline"]["folds"],
-            oof_overall_metrics=evaluations["baseline"]["overall"],
-        )
-        metrics["model_performance"]["spatial_challenger"] = {
-            "fold_metrics": evaluations["spatial"]["folds"].to_dict("records"),
-            "overall_oof": evaluations["spatial"]["overall"],
-        }
-        metrics["model_performance"]["spatial_feature_importance"] = (
-            evaluations["spatial"]["features"].set_index("feature")["mean_normalized_gain"].to_dict()
+            "Property-Grouped OOF XGBoost",
+            oof_feature_importance=feature_importance,
+            oof_fold_metrics=fold_metrics,
+            oof_overall_metrics=overall,
         )
         pipeline_metrics.insert_pipeline_metrics(metrics)
     except Exception as e:
@@ -435,14 +419,12 @@ def rerun_rent_prediction_pipeline():
 
         traceback.print_exc()
 
-    base = evaluations["baseline"]["overall"]
-    spatial = evaluations["spatial"]["overall"]
-    print(f"✅ Rent prediction re-run complete: baseline RMSE=${base['rmse']:,.2f}, "
-          f"spatial RMSE=${spatial['rmse']:,.2f} ({len(apartments)} listings)")
+    print(
+        f"✅ Rent prediction re-run complete "
+        f"(RMSE=${overall['rmse']:,.2f}, R²={overall['r2']:.4f}, n={len(apartments)})"
+    )
     return {
         "n_listings": int(len(apartments)),
-        "rmse": float(base["rmse"]),
-        "r2": float(base["r2"]),
-        "baseline": dict(base),
-        "spatial": dict(spatial),
+        "rmse": float(overall["rmse"]),
+        "r2": float(overall["r2"]),
     }

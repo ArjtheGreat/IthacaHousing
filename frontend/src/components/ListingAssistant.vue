@@ -68,7 +68,7 @@
         <textarea
           v-model="draft"
           rows="2"
-          maxlength="1000"
+          maxlength="500"
           placeholder="e.g. 2 bed under $1,200, walk to the Arts Quad, pets OK"
           :disabled="loading"
           @keydown.enter.exact.prevent="send()"
