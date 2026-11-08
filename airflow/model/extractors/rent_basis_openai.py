@@ -200,6 +200,17 @@ def _explicit_basis(quote, basis):
     import re
 
     phrase = " ".join((quote or "").casefold().split())
+    # A marketing claim about optional individual leasing is not a statement
+    # that THIS advertised dollar amount represents a per-person price.
+    if ("leasing" in phrase or "lease" in phrase) and any(
+        marker in phrase for marker in (
+            "available", "offered", "optional", "option", "may choose",
+        )
+    ) and not any(marker in phrase for marker in (
+        "rent is", "rent per", "price is", "pricing is", "price per",
+        "pricing per", "listed by bed", "by the bed rent",
+    )):
+        return False
     if basis == "per_person":
         # 'Rent by the bed' is price-specific; 'individual leases offered'
         # is not. Require a reference to rent/pricing for isolated 'by the bed'.
