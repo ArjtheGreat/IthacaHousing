@@ -9,7 +9,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "model"))
 
-from extractors.rent_iqr_audit import audit_normalized_rents, check_quote_amounts
+from extractors.rent_iqr_audit import audit_normalized_rents, check_quote_amounts, pre_classification_iqr_context
+from extractors.rent_basis_openai import _source_records, _fingerprint
 from extractors.extract_rental_data import extract_rental_data
 
 
@@ -26,6 +27,45 @@ def base_rows():
 
 
 class RentAuditTests(unittest.TestCase):
+    def test_pre_iqr_provides_both_interpretations_without_changing_rent(self):
+        frame = pd.DataFrame({
+            "ListingId": [str(i) for i in range(50)] + ["candidate"],
+            "PropertyId": [str(i) for i in range(50)] + ["candidate"],
+            "RentAmount": [1100.0] * 50 + [1200.0],
+            "num_people": [1.0] * 50 + [2.0],
+            "rent_per_person": [1100.0] * 50 + [600.0],
+            "Bedrooms": [1] * 50 + [2],
+        })
+        out = pre_classification_iqr_context(frame)
+        self.assertEqual(out["rent_per_person"].tolist(), frame["rent_per_person"].tolist())
+        candidate = out.iloc[-1]
+        self.assertEqual(float(candidate["pre_iqr_per_unit_candidate"]), 600.0)
+        self.assertEqual(float(candidate["pre_iqr_per_person_candidate"]), 1200.0)
+        self.assertTrue(bool(candidate["pre_iqr_per_unit_candidate_below_cutoff"]))
+        self.assertFalse(bool(candidate["pre_iqr_per_person_candidate_below_cutoff"]))
+
+        records = _source_records(out.iloc[[-1]])
+        diagnostics = records["floorplans"][0]["pre_iqr"]
+        self.assertEqual(diagnostics["per_unit_candidate"], 600.0)
+        self.assertEqual(diagnostics["per_person_candidate"], 1200.0)
+        self.assertNotIn("renttype", str(records).lower())
+
+    def test_diagnostic_changes_invalidate_cache_fingerprint(self):
+        base = pd.DataFrame([{
+            "ListingId": "one-1", "PropertyId": "one",
+            "RentAmount": 1200, "Bedrooms": 2,
+            "pre_iqr_lower_cutoff": 700.0,
+            "pre_iqr_per_unit_candidate": 600,
+            "pre_iqr_per_person_candidate": 1200,
+            "pre_iqr_per_unit_candidate_below_cutoff": True,
+            "pre_iqr_per_person_candidate_below_cutoff": False,
+        }])
+        changed = base.copy()
+        changed["pre_iqr_lower_cutoff"] = 550.0
+        changed["pre_iqr_per_unit_candidate_below_cutoff"] = False
+        self.assertNotEqual(_fingerprint(_source_records(base)),
+                            _fingerprint(_source_records(changed)))
+
     def test_low_tail_flags_without_changing_target(self):
         original = base_rows()
         result = audit_normalized_rents(original)
