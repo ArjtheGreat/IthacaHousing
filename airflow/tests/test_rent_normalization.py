@@ -70,6 +70,41 @@ class RentalNormalizationTests(unittest.TestCase):
         self.assertEqual(result.loc[0, "rent_per_person"], 2355)
         self.assertEqual(result.loc[0, "total_rent_amount"], 2355)
 
+    def test_lower_tail_unit_prices_are_adjusted_and_auditable(self):
+        rows = pd.DataFrame([
+            {"ListingId": "low", "Bedrooms": 5, "Bathrooms": 2,
+             "RentAmount": 1000, "RentType": "Price Per Unit"},
+            {"ListingId": "mid1", "Bedrooms": 1, "RentAmount": 1000,
+             "RentType": "Price Per Unit"},
+            {"ListingId": "mid2", "Bedrooms": 1, "RentAmount": 1200,
+             "RentType": "Price Per Unit"},
+            {"ListingId": "mid3", "Bedrooms": 1, "RentAmount": 1400,
+             "RentType": "Price Per Unit"},
+            {"ListingId": "high", "Bedrooms": 1, "RentAmount": 10000,
+             "RentType": "Price Per Unit"},
+        ])
+        result = extract_rental_data(rows).set_index("ListingId")
+        self.assertEqual(result.loc["low", "rent_per_person_original"], 200)
+        self.assertEqual(result.loc["low", "rent_per_person"], 1000)
+        self.assertEqual(result.loc["low", "total_rent_amount"], 5000)
+        self.assertTrue(result.loc["low", "ithaca_insights_adjustment"])
+        self.assertTrue(result.loc["low", "suspected_landlord_pricing_error"])
+        self.assertEqual(result.loc["low", "RentType"], "Price Per Unit")
+        self.assertFalse(result.loc["high", "ithaca_insights_adjustment"])
+        self.assertEqual(result.loc["high", "rent_per_person"], 10000)
+        self.assertNotIn("log_rent_per_person", result.columns)
+
+    def test_lower_tail_per_person_source_is_never_adjusted(self):
+        rows = pd.DataFrame([
+            {"Bedrooms": 6, "RentAmount": 100, "RentType": "Price per Person"},
+            {"Bedrooms": 1, "RentAmount": 1200, "RentType": "Price Per Unit"},
+            {"Bedrooms": 1, "RentAmount": 1300, "RentType": "Price Per Unit"},
+            {"Bedrooms": 1, "RentAmount": 1400, "RentType": "Price Per Unit"},
+        ])
+        result = extract_rental_data(rows)
+        self.assertEqual(result.loc[0, "rent_per_person"], 100)
+        self.assertFalse(result.loc[0, "ithaca_insights_adjustment"])
+
     def test_full_floorplan_scrape_reconciles_named_siblings(self):
         data = {"43979": {
             "id": 43979, "title": "301 Dryden Road",
