@@ -93,3 +93,54 @@ def apply_per_property(df: pd.DataFrame, fn, label: str = "") -> pd.DataFrame:
     )
     merge_frame = computed[prop_cols].drop_duplicates(subset=["PropertyId"], keep="first")
     return base.merge(merge_frame, on="PropertyId", how="left")
+
+
+def apply_cached_property_enrichment(
+    df: pd.DataFrame,
+    existing: pd.DataFrame,
+    fn,
+    fields: list[str],
+    label: str = "",
+    required: list[str] | None = None,
+) -> pd.DataFrame:
+    """Reuse previously persisted property-level fields, compute only misses.
+
+    Only rows with a usable cached value for every required field are reused.
+    Fields not stored in housing_listings must continue to be recomputed.
+    New Cornell source fields (such as contact details) are never overwritten.
+    """
+    df = ensure_property_id(df)
+    if df.empty:
+        return df
+    if existing is None or existing.empty or "listingid" not in existing.columns:
+        return apply_per_property(df, fn, label=label)
+
+    available = [field for field in fields if field in existing.columns]
+    required = required or available
+    if not available or any(field not in existing.columns for field in required):
+        return apply_per_property(df, fn, label=label)
+
+    cached = existing.copy()
+    cached["PropertyId"] = property_id_from_listing_id(cached["listingid"])
+    for field in required:
+        cached[field] = cached[field].replace(["", "Not Found", "nan"], pd.NA)
+    cached["_completeness"] = cached[available].notna().sum(axis=1)
+    cached = cached.sort_values("_completeness", ascending=False).drop_duplicates("PropertyId")
+    cached = cached.loc[cached[required].notna().all(axis=1), ["PropertyId"] + available]
+
+    # A new property's rows are processed once, and cached data is broadcast
+    # to all its units without filtering out the actual rental floor plans.
+    known_ids = set(cached["PropertyId"].astype(str))
+    known = df.loc[df["PropertyId"].isin(known_ids)].copy()
+    new = df.loc[~df["PropertyId"].isin(known_ids)].copy()
+    print(f"♻️ {label}: {len(known_ids & set(df['PropertyId']))} cached properties, "
+          f"{new['PropertyId'].nunique()} to compute")
+
+    if not known.empty:
+        known = known.drop(columns=available, errors="ignore").merge(
+            cached, on="PropertyId", how="left", validate="many_to_one",
+        )
+    if not new.empty:
+        new = apply_per_property(new, fn, label=label)
+
+    return pd.concat([known, new], ignore_index=True, sort=False)
