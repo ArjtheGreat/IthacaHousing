@@ -52,6 +52,47 @@ def ensure_model_feature_columns(engine):
     _execute_with_retry(engine, text(f"ALTER TABLE housing_listings {additions}"), label="canonical amenity columns")
 
 
+
+
+# These legacy fields are deliberately hidden from the curated browsing view,
+# not dropped: other services still read them or rely on the baseline model.
+# The underlying housing_listings table remains the stable API contract.
+CLEAN_VIEW_NAME = "housing_listings_clean"
+CLEAN_VIEW_EXCLUDE = {"amenities_score"}
+
+
+def create_clean_listing_view(engine, preferred_order):
+    """Expose cleaned, logically ordered listing columns in Supabase's table UI.
+
+    No destructive table rebuild or DROP COLUMN. On each full ingest the view is
+    recreated from the columns that actually exist. Query the underlying table
+    for legacy consumers.
+    """
+    with engine.connect() as conn:
+        available = {
+            row[0] for row in conn.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'housing_listings'"
+            ))
+        }
+    columns = [name for name in preferred_order
+               if name in available and name not in CLEAN_VIEW_EXCLUDE]
+    if not columns:
+        raise ValueError("Cannot build housing_listings_clean: no recognized columns")
+    # Every identifier comes from a static trusted whitelist, not user input.
+    projection = ", ".join(f'"{name}"' for name in columns)
+    # CREATE OR REPLACE can fail when existing view order changes, so DROP
+    # without CASCADE. If dependent objects exist, fail explicitly rather
+    # than destroying them.
+    _execute_with_retry(
+        engine,
+        text(f'DROP VIEW IF EXISTS public."{CLEAN_VIEW_NAME}"; '
+             f'CREATE VIEW public."{CLEAN_VIEW_NAME}" AS '
+             f'SELECT {projection} FROM public.housing_listings'),
+        label="refresh organized housing listings view",
+    )
+    print(f"🧾 Refreshed {CLEAN_VIEW_NAME}: {len(columns)} ordered columns")
+
 def clean_json_field(x):
     """
     Clean and standardize JSON-like values for SQL insertion.
@@ -300,44 +341,70 @@ def psql_insert_copy(df):
         area = pd.to_numeric(df["unit_sqft"], errors="coerce")
         df["unit_sqft"] = area.where(area > 0)
 
-    base_columns = [
-        "listingid", "listingaddress", "listingcity", "listingzip", "createdate",
-        "shortdescription", "rentamount", "renttype", "dateavailable", "unitnumber",
-        "listingtypes", "listingexpirationdate", "lengthavailable", "pets", "amenities",
-        "bedrooms", "bathrooms", "available_bedrooms", "available_bathrooms",
-        "housingtype", "latitude", "longitude", "listingphotos", "transit_score",
-        "amenities_score", "predictedrent", "differenceinfairvalue",
-        "predicted_rent_cma", "nearest_neighbor_listingids", "rent_per_person",
-        "num_people", "total_rent_amount", "rent_per_person_original",
-        "ithaca_insights_adjustment", "suspected_landlord_pricing_error",
-        "pricing_adjustment_reason", "owner_name", "landlord_email",
-        "landlord_name", "landlord_full_name", "landlord_username",
-        "contact_number", "nearest_stop_name",
-        "walk_time_to_nearest_stop", "transit_time_to_ag_quad",
-        "transit_time_to_arts_quad", "transit_time_to_eng_quad",
-        "iso15", "neighborhood", "neighborhood_assessment", "property_depth",
-        "property_frontage", "property_acres", "property_pc", "water_access",
-        "sewer_access", "sewer_name", "year_built", "assessment_sqft", "unit_sqft", "sale_price",
-        "valid_certificate_of_compliance",
-        "food_count_200m", "food_nearest_dist",
-        "attractions_count_200m", "attractions_nearest_dist",
-        "shopping_count_200m", "shopping_nearest_dist",
-        "grocery_count_200m", "grocery_nearest_dist",
-        "combined_bedrooms_bathrooms", "yr_built_encoded",
-        "electricity_included", "heat_included", "water_included",
-        "internet_included", "laundry_facilities", "air_conditioning",
-        "furnished",
-    ]
-
-    base_columns.extend(CANONICAL_AMENITY_COLUMNS)
-
-    travel_time_cols = [
-        "walk_time_urishall", "walk_time_agriculturequad", "walk_time_artsquad", "walk_time_engineeringquad",
-        "bike_time_urishall", "bike_time_agriculturequad", "bike_time_artsquad", "bike_time_engineeringquad",
-        "drive_time_urishall", "drive_time_agriculturequad", "drive_time_artsquad", "drive_time_engineeringquad",
-    ]
-
-    available_columns = [c for c in base_columns + travel_time_cols if c in df.columns]
+    # One explicit insertion contract. Groups also define the friendly column
+    # order in housing_listings_clean; don't rely on physical ALTER TABLE order.
+    # Keep legacy fields consumed by the API/frontend until those clients migrate.
+    listing_groups = {
+        "identity": [
+            "listingid", "listingaddress", "listingcity", "listingzip",
+            "housingtype", "unitnumber", "listingtypes", "shortdescription",
+            "listingphotos", "createdate", "dateavailable",
+            "listingexpirationdate", "lengthavailable",
+        ],
+        "pricing": [
+            "rentamount", "renttype", "rent_per_person",
+            "rent_per_person_original", "num_people", "total_rent_amount",
+            "predictedrent", "differenceinfairvalue", "predicted_rent_cma",
+            "nearest_neighbor_listingids", "ithaca_insights_adjustment",
+            "suspected_landlord_pricing_error", "pricing_adjustment_reason",
+        ],
+        "floorplan": [
+            "bedrooms", "bathrooms", "available_bedrooms",
+            "available_bathrooms", "combined_bedrooms_bathrooms",
+            "unit_sqft",
+        ],
+        "location": [
+            "latitude", "longitude", "neighborhood", "iso15",
+            "walk_time_urishall", "walk_time_agriculturequad",
+            "walk_time_artsquad", "walk_time_engineeringquad",
+            "bike_time_urishall", "bike_time_agriculturequad",
+            "bike_time_artsquad", "bike_time_engineeringquad",
+            "drive_time_urishall", "drive_time_agriculturequad",
+            "drive_time_artsquad", "drive_time_engineeringquad",
+            "nearest_stop_name", "walk_time_to_nearest_stop",
+            "transit_time_to_ag_quad", "transit_time_to_arts_quad",
+            "transit_time_to_eng_quad", "transit_score",
+            "food_count_200m", "food_nearest_dist",
+            "attractions_count_200m", "attractions_nearest_dist",
+            "shopping_count_200m", "shopping_nearest_dist",
+            "grocery_count_200m", "grocery_nearest_dist",
+        ],
+        "property": [
+            "year_built", "yr_built_encoded",
+            "valid_certificate_of_compliance", "owner_name",
+            "landlord_email", "landlord_name", "landlord_full_name",
+            "landlord_username", "contact_number",
+            "neighborhood_assessment", "assessment_sqft", "sale_price",
+            "property_depth", "property_frontage", "property_acres",
+            "property_pc", "water_access", "sewer_access", "sewer_name",
+        ],
+        "amenities": [
+            "amenities", "pets",
+            # Legacy exact-match values retained while frontend and baseline
+            # still consume them; the normalized flags are independent.
+            "amenities_score", "electricity_included", "heat_included",
+            "water_included", "internet_included", "laundry_facilities",
+            "air_conditioning", "furnished",
+            *CANONICAL_AMENITY_COLUMNS,
+        ],
+    }
+    ordered_columns = list(dict.fromkeys(
+        col for group in listing_groups.values() for col in group
+    ))
+    available_columns = [col for col in ordered_columns if col in df.columns]
+    ignored_columns = sorted(set(df.columns) - set(ordered_columns))
+    if ignored_columns:
+        print(f"ℹ️ Skipping {len(ignored_columns)} non-contract columns: {ignored_columns}")
 
     df = df[available_columns].copy() if available_columns else df.copy()
 
@@ -468,6 +535,11 @@ def psql_insert_copy(df):
             print(f"💾 Inserted {inserted}/{len(records)} rows...")
 
     print(f"✅ Inserted {inserted} rows into housing_listings")
+    # A sorted, narrower browsing surface without dropping live API columns.
+    # Created after the full ingest so the view always reflects the latest schema.
+    # ALTER TABLE ADD COLUMN cannot reorder a PostgreSQL table's existing columns.
+    create_clean_listing_view(engine, ordered_columns)
+
 
 def confirmation(): 
     print("Confirmed Pipeline Complete!")
