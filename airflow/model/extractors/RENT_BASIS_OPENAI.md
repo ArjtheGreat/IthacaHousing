@@ -57,9 +57,42 @@ The database-only rent-model rerun does not scrape source data and does **not**
 rerun the classifier; it uses the last saved `rent_per_person` values.
 The Airflow DAG ID is `retrain_rental_model` (`airflow/dags/housing_data_training.py`). Its schedule is `0 12 * * *` in Airflow's configured timezone. No change is made to live Supabase until that DAG runs.
 
+
+## Post-LLM IQR audit
+
+After the model classifies source price bases and Python calculates rents,
+`extractors.rent_iqr_audit.audit_normalized_rents` applies the original
+**lower-tail log-IQR** rule, `exp(median(log(r)) - 1.2 * IQR(log(r)))`.
+The reference distribution favors explicitly verified listings when at least
+20 are available; otherwise it uses the full priced sample and records that
+cutoff as provisional. This is an **audit only**, not another rent correction.
+
+The following fields are persisted to Supabase:
+`rent_iqr_lower_cutoff`, `rent_iqr_reference_provisional`,
+`rent_iqr_low_outlier`, `rent_quote_amount_conflict`,
+`rent_review_flag`, `rent_review_reason`, `rent_verification_status`.
+The status is `source_verified`, `plausible_unverified`, or `review`.
+Outliers with strong source evidence can remain `source_verified` while also
+having `rent_review_flag=true`; IQR does not overrule the quoted price.
+
+A dollar amount quoted as e.g. `$925 per bedroom` when the original
+advertisement is `$1,850` is treated as a numeric inconsistency. It prevents
+a naive automatic `per_person` override of the full $1,850 amount and
+flags the unit for review. Neither an IQR flag nor LLM confidence alone
+can supply a corrected rent. Rows marked `review` are still retained in
+the base table and current model-training path; the review status is **not**
+yet a training exclusion filter.
+
+The canonical `housing_listings` table retains its physical PostgreSQL
+column order (PostgreSQL does not support column moves). For a readable
+Supabase column layout use **`housing_listings_clean`**, whose pricing,
+classification and IQR audit fields are contiguous immediately before
+`amenities` in the refreshed view. Recreating the base table only to
+change UI column order is intentionally avoided.
+
 ## Validation
 
-Run `python -m unittest discover -s airflow/tests -p 'test_openai_rent_basis*.py'`
+Run `python -m unittest discover -s airflow/tests -p 'test_openai_rent_basis*.py'` and\n`python -m unittest discover -s airflow/tests -p 'test_rent_iqr_audit.py'`
 from the repo root with the Airflow dependencies installed. Tests mock the
 classifier; they do not spend API credits.
 
