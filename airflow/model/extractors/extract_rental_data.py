@@ -257,7 +257,49 @@ def extract_rental_data(apartments_for_rent):
     )
     for col in extracted.columns:
         out[col] = extracted[col]
-    out["extracted_rental_data"] = extracted.to_dict(orient="records")
+    # Apply the requested lower-tail-only log-IQR adjustment to the ORIGINAL
+    # normalized rent, once per scrape (not iteratively on adjusted values).
+    # This is a heuristic Ithaca Insights correction, not a verified landlord error.
+    out["rent_per_person_original"] = out["rent_per_person"].copy()
+    out["ithaca_insights_adjustment"] = False
+    out["suspected_landlord_pricing_error"] = False
+    out["pricing_adjustment_reason"] = None
+
+    original = pd.to_numeric(out["rent_per_person_original"], errors="coerce")
+    valid = original.notna() & np.isfinite(original) & (original > 0)
+    log_rent = np.log(original.loc[valid])
+    if not log_rent.empty:
+        log_p25, log_p75 = log_rent.quantile([0.25, 0.75])
+        log_iqr = log_p75 - log_p25
+        log_median = log_rent.median()
+        lower_cutoff = np.exp(log_median - 1.2 * log_iqr)
+        is_unit = out["RentType"].fillna("").astype(str).str.strip().str.casefold().eq("price per unit")
+        advertised = pd.to_numeric(out["RentAmount"], errors="coerce")
+        occupants = pd.to_numeric(out["num_people"], errors="coerce")
+        adjust = (
+            valid & is_unit & (original < lower_cutoff)
+            & advertised.notna() & (advertised > 0)
+            & occupants.notna() & (occupants > 0)
+        )
+        out.loc[adjust, "rent_per_person"] = advertised.loc[adjust].astype(float)
+        # Per-person interpretation implies an estimated total for the
+        # full occupancy, not the scraped original whole-unit asking rent.
+        out.loc[adjust, "total_rent_amount"] = (
+            advertised.loc[adjust] * occupants.loc[adjust]
+        ).astype(float)
+        out.loc[adjust, "ithaca_insights_adjustment"] = True
+        out.loc[adjust, "suspected_landlord_pricing_error"] = True
+        out.loc[adjust, "pricing_adjustment_reason"] = "lower_log_iqr_1_2_unit_to_person"
+        print(
+            f"⚠️ Ithaca Insights lower-tail pricing-basis adjustments: {int(adjust.sum())}; "
+            f"cutoff ${lower_cutoff:,.2f} per person"
+        )
+
+    # Include adjusted amounts in the per-listing extraction payload.
+    out["extracted_rental_data"] = out[[
+        "available_bedrooms", "available_bathrooms", "rent_per_person",
+        "num_people", "total_rent_amount",
+    ]].to_dict(orient="records")
     unresolved = int(out["rent_per_person"].isna().sum())
     print(f"✅ Rent normalization: {len(out) - unresolved} priced, {unresolved} unresolved (excluded from rent model)")
     return out
