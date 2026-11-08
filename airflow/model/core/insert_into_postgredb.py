@@ -363,6 +363,10 @@ def psql_insert_copy(df):
             "rent_basis_evidence_type", "rent_basis_source",
             "rent_basis_evidence_field",
             "rent_basis_fingerprint",
+            "rent_quote_amount_conflict", "rent_iqr_lower_cutoff",
+            "rent_iqr_reference_provisional", "rent_iqr_low_outlier",
+            "rent_review_flag", "rent_review_reason",
+            "rent_verification_status",
         ],
         "floorplan": [
             "bedrooms", "bathrooms", "available_bedrooms",
@@ -404,8 +408,14 @@ def psql_insert_copy(df):
             *CANONICAL_AMENITY_COLUMNS,
         ],
     }
+    # Put the entire pricing / LLM / anomaly-audit block immediately before
+    # amenities in housing_listings_clean. PostgreSQL's base-table physical
+    # order is fixed; the view is the intentionally ordered browsing surface.
+    browsing_group_order = (
+        "identity", "floorplan", "location", "property", "pricing", "amenities"
+    )
     ordered_columns = list(dict.fromkeys(
-        col for group in listing_groups.values() for col in group
+        col for name in browsing_group_order for col in listing_groups[name]
     ))
     available_columns = [col for col in ordered_columns if col in df.columns]
     ignored_columns = sorted(set(df.columns) - set(ordered_columns))
@@ -475,6 +485,13 @@ def psql_insert_copy(df):
                 ADD COLUMN IF NOT EXISTS rent_basis_source text,
                 ADD COLUMN IF NOT EXISTS rent_basis_evidence_field text,
                 ADD COLUMN IF NOT EXISTS rent_basis_fingerprint text,
+                ADD COLUMN IF NOT EXISTS rent_quote_amount_conflict boolean,
+                ADD COLUMN IF NOT EXISTS rent_iqr_lower_cutoff numeric,
+                ADD COLUMN IF NOT EXISTS rent_iqr_reference_provisional boolean,
+                ADD COLUMN IF NOT EXISTS rent_iqr_low_outlier boolean,
+                ADD COLUMN IF NOT EXISTS rent_review_flag boolean,
+                ADD COLUMN IF NOT EXISTS rent_review_reason text,
+                ADD COLUMN IF NOT EXISTS rent_verification_status text,
                 ADD COLUMN IF NOT EXISTS landlord_email text,
                 ADD COLUMN IF NOT EXISTS landlord_name text,
                 ADD COLUMN IF NOT EXISTS landlord_full_name text,
