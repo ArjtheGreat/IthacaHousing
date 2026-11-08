@@ -1,7 +1,11 @@
 """Checks unit-size propagation without confusing it with parcel acreage."""
 import unittest
+import sys
+from pathlib import Path
 
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "model"))
 
 from core.fetch_housing_data import COLUMNS, rows_from_data
 from ml.backfill_unit_sqft import build_backfill_rows
