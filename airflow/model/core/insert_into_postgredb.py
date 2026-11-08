@@ -11,6 +11,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError, DBAPIError
 
 from calculators.calculate_amenity_score import CANONICAL_AMENITY_COLUMNS
+from core.excluded_listing_unit_ids import exclude_listing_units
 
 # Predictors that are built in memory for the rent model. Spaced amenity
 # names are renamed here so the insert sanitizer does not collapse them
@@ -283,6 +284,7 @@ def psql_insert_copy(df):
     Insert cleaned housing listing data into Supabase (PostgreSQL).
     Batches rows to avoid SSL EOF on large single executemany payloads.
     """
+    df = exclude_listing_units(df)
     engine = create_engine(
         os.getenv("DB_URI"),
         pool_pre_ping=True,
