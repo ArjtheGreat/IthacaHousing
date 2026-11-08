@@ -251,7 +251,9 @@ def psql_insert_copy(df):
         "housingtype", "latitude", "longitude", "listingphotos", "transit_score",
         "amenities_score", "predictedrent", "differenceinfairvalue",
         "predicted_rent_cma", "nearest_neighbor_listingids", "rent_per_person",
-        "num_people", "total_rent_amount", "owner_name", "nearest_stop_name",
+        "num_people", "total_rent_amount", "rent_per_person_original",
+        "ithaca_insights_adjustment", "suspected_landlord_pricing_error",
+        "pricing_adjustment_reason", "owner_name", "nearest_stop_name",
         "walk_time_to_nearest_stop", "transit_time_to_ag_quad",
         "transit_time_to_arts_quad", "transit_time_to_eng_quad",
         "iso15", "neighborhood", "neighborhood_assessment", "property_depth",
@@ -312,6 +314,20 @@ def psql_insert_copy(df):
             END $$;
         """),
         label="schema migrate",
+    )
+
+    # Add adjustment audit fields to existing databases before inserting rows.
+    # These flags indicate a heuristic correction, not a proven landlord error.
+    _execute_with_retry(
+        engine,
+        text("""
+            ALTER TABLE housing_listings
+                ADD COLUMN IF NOT EXISTS rent_per_person_original numeric,
+                ADD COLUMN IF NOT EXISTS ithaca_insights_adjustment boolean NOT NULL DEFAULT false,
+                ADD COLUMN IF NOT EXISTS suspected_landlord_pricing_error boolean NOT NULL DEFAULT false,
+                ADD COLUMN IF NOT EXISTS pricing_adjustment_reason text;
+        """),
+        label="rent adjustment schema migrate",
     )
 
     print(f"📋 Columns being inserted: {list(df.columns)}")
