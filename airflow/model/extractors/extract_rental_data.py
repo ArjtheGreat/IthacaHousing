@@ -6,7 +6,9 @@ from shapely.geometry import Point
 import geopandas as gpd
 from pathlib import Path
 from extractors.rent_basis_openai import classify_rent_bases
-from extractors.rent_iqr_audit import (\n    pre_classification_iqr_context, audit_normalized_rents, check_quote_amounts\n)
+from extractors.rent_iqr_audit import (
+    pre_classification_iqr_context, audit_normalized_rents, check_quote_amounts
+)
 
 
 def get_existing_rental_data():
