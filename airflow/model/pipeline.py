@@ -67,7 +67,9 @@ def get_existing_listings_dataframe():
                        rentamount, rent_per_person, available_bedrooms, available_bathrooms,
                        year_built, createdate, listingexpirationdate, lengthavailable,
                        housingtype, owner_name, listingtypes, sale_price, property_acres,
-                       assessment_sqft, latitude, longitude, drive_time_urishall,
+                       assessment_sqft, neighborhood_assessment, property_depth,
+                       property_frontage, property_pc, water_access, sewer_access,
+                       sewer_name, year_built, latitude, longitude, drive_time_urishall,
                        drive_time_agriculturequad, drive_time_artsquad, drive_time_engineeringquad
                 FROM housing_listings
             """)
@@ -281,6 +283,11 @@ def housing_data_pipeline():
 
     apartments_for_rent = property_level.ensure_property_id(apartments_for_rent)
 
+    # Load preserved enrichment BEFORE re-running owner, parcel and
+    # neighborhood lookups. These values will be replaced by the latest
+    # source listing contact fields, which are fetched fresh above.
+    existing_listings_df = get_existing_listings_dataframe()
+
     print("🛡️ Adding safety features (once per PropertyId)...")
     apartments_for_rent = property_level.apply_per_property(
         apartments_for_rent,
@@ -289,14 +296,39 @@ def housing_data_pipeline():
     )
 
     print("👤 Extracting landlord + property info...")
-    apartments_for_rent = landlord_extraction.extract_landlord_names(apartments_for_rent)
-    apartments_for_rent = landlord_extraction.add_property_details(apartments_for_rent)
+    apartments_for_rent = property_level.apply_cached_property_enrichment(
+        apartments_for_rent, existing_listings_df,
+        landlord_extraction.extract_landlord_names,
+        fields=["owner_name"], required=["owner_name"], label="owner names",
+    )
+    parcel_fields = [
+        "neighborhood_assessment", "property_depth", "property_frontage",
+        "property_acres", "property_pc", "water_access", "sewer_access",
+        "sewer_name", "year_built", "sale_price", "assessment_sqft",
+    ]
+    # Cache parcel lookup only where a substantive value was previously saved.
+    parcel_cache = existing_listings_df.copy()
+    if not parcel_cache.empty:
+        have_parcel = parcel_cache[
+            [c for c in parcel_fields if c in parcel_cache.columns]
+        ].notna().any(axis=1)
+        parcel_cache = parcel_cache.loc[have_parcel].copy()
+        parcel_cache["_parcel_cached"] = True
+    # Use an explicit cache marker so rows with legitimate NULL parcel
+    # attributes can still be reused if at least one detail was matched.
+    apartments_for_rent = property_level.apply_cached_property_enrichment(
+        apartments_for_rent, parcel_cache,
+        landlord_extraction.add_property_details,
+        fields=parcel_fields + ["_parcel_cached"],
+        required=["_parcel_cached"], label="parcel details",
+    )
+    apartments_for_rent = apartments_for_rent.drop(columns=["_parcel_cached"], errors="ignore")
 
     print("📍 Extracting neighborhoods (once per PropertyId)...")
-    apartments_for_rent = property_level.apply_per_property(
-        apartments_for_rent,
+    apartments_for_rent = property_level.apply_cached_property_enrichment(
+        apartments_for_rent, existing_listings_df,
         extract_rental_data.extract_neighborhood,
-        label="neighborhood",
+        fields=["neighborhood"], required=["neighborhood"], label="neighborhood",
     )
 
     print("🏗️ Adding property/structural features...")
@@ -315,8 +347,7 @@ def housing_data_pipeline():
     # ============================================================
     # 3) FETCH EXISTING DATA FROM DB
     # ============================================================
-    existing_listings_df   = get_existing_listings_dataframe()
-    existing_calculated    = get_existing_calculated_data()
+    existing_calculated = get_existing_calculated_data()
 
     # ============================================================
     # 4) TRACK REMOVED LISTINGS (still by ListingId / unit)
