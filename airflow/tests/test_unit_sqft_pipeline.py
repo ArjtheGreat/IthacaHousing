@@ -19,6 +19,11 @@ class UnitSquareFootageTests(unittest.TestCase):
             "100": {
                 "id": "100",
                 "address": "1 Example St, Ithaca, NY 14850",
+                "landlord_email": "leasing@example.com",
+                "landlord_name": "Example Leasing",
+                "full_name": "Example Leasing Agent",
+                "landlord_username": "leasing-team",
+                "contact_number": "607-555-0144",
                 "floorplans": [
                     {"id": 11, "bed": 1, "bath": 1, "min_rent": 1250, "sq_footage": "746"},
                     {"id": 12, "bed": 3, "bath": 2, "min_rent": 3300, "sq_footage": "1,204"},
@@ -31,7 +36,14 @@ class UnitSquareFootageTests(unittest.TestCase):
     def test_source_export_keeps_unit_sqft(self):
         rows = rows_from_data(self.source_data())
         self.assertIn("unit_sqft", COLUMNS)
+        for contact in (
+            "landlord_email", "landlord_name", "landlord_full_name",
+            "landlord_username", "contact_number"
+        ):
+            self.assertIn(contact, COLUMNS, f"{contact} would be dropped from the CSV")
         self.assertEqual(rows[0]["unit_sqft"], 746)
+        self.assertEqual(rows[0]["landlord_email"], "leasing@example.com")
+        self.assertEqual(rows[0]["contact_number"], "607-555-0144")
         self.assertEqual(rows[1]["unit_sqft"], 1204)
         self.assertIsNone(rows[2]["unit_sqft"])
 
