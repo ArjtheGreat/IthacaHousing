@@ -223,6 +223,19 @@ def prepare_features_from_db(df: pd.DataFrame) -> pd.DataFrame:
     # Reuse persisted reviewed flags; infer only when the source is explicit.
     out = add_unit_configuration_features(out)
 
+    # Reuse persisted, per-unit facility classifications during DB-only retrains;
+    # never replace an unknown classification with False.
+    if "shared_facilities" not in out.columns:
+        out["shared_facilities"] = np.nan
+    out["shared_facilities"] = out["shared_facilities"].map(
+        lambda value: np.nan if pd.isna(value) else int(bool(value))
+    )
+    if "model_bedrooms" not in out.columns:
+        out["model_bedrooms"] = pd.to_numeric(out["Bedrooms"], errors="coerce")
+    out["model_bedrooms"] = pd.to_numeric(
+        out["model_bedrooms"], errors="coerce"
+    ).clip(lower=0)
+
     out = data_preprocessing.add_property_features(out)
 
     # Preserve actual Cornell floor-plan area; missing/zero means unknown.
