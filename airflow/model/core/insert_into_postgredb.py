@@ -572,29 +572,37 @@ def psql_insert_copy(df):
         for k, v in list(record.items()):
             record[k] = _sanitize_record_value(v)
 
-    # Truncate first (own txn). Then insert in small batches so a pooler
-    # SSL drop doesn't wipe a multi-MB single statement.
-    _execute_with_retry(
-        engine,
-        text("TRUNCATE TABLE housing_listings RESTART IDENTITY CASCADE;"),
-        label="truncate",
-    )
-    print("🧹 Table truncated successfully")
+    # Each model feature can be float 0.0/1.0 after numeric preprocessing,
+    # but PostgreSQL's shared_facilities column is BOOLEAN, not NUMERIC.
+    # Convert only that storage field; leave unknown as NULL.
+    if "shared_facilities" in df.columns:
+        for record in records:
+            value = record.get("shared_facilities")
+            if value is None or pd.isna(value):
+                record["shared_facilities"] = None
+            elif value in (0, 0.0, False):
+                record["shared_facilities"] = False
+            elif value in (1, 1.0, True):
+                record["shared_facilities"] = True
+            else:
+                raise ValueError(
+                    f"Invalid shared_facilities value: {value!r} "
+                    f"for listing {record.get('listingid')}"
+                )
 
+    # Transactional full refresh: TRUNCATE and every insert batch COMMIT
+    # together. A bad row, schema mismatch or dropped connection must roll
+    # back the whole refresh, never leave the live listings table empty.
     batch_size = 50
     inserted = 0
-    for batch_num, batch in enumerate(_chunked(records, batch_size), start=1):
-        _execute_with_retry(
-            engine,
-            insert_query,
-            params=batch,
-            label=f"insert batch {batch_num}",
-        )
-        inserted += len(batch)
-        if batch_num == 1 or batch_num % 5 == 0 or inserted == len(records):
-            print(f"💾 Inserted {inserted}/{len(records)} rows...")
-
-    print(f"✅ Inserted {inserted} rows into housing_listings")
+    with engine.begin() as conn:
+        conn.execute(text("TRUNCATE TABLE housing_listings RESTART IDENTITY CASCADE;"))
+        for batch_num, batch in enumerate(_chunked(records, batch_size), start=1):
+            conn.execute(insert_query, batch)
+            inserted += len(batch)
+            if batch_num == 1 or batch_num % 5 == 0 or inserted == len(records):
+                print(f"💾 Staged {inserted}/{len(records)} rows in transaction...")
+    print(f"✅ Atomically replaced housing_listings with {inserted} rows")
     # A sorted, narrower browsing surface without dropping live API columns.
     # Created after the full ingest so the view always reflects the latest schema.
     # ALTER TABLE ADD COLUMN cannot reorder a PostgreSQL table's existing columns.
