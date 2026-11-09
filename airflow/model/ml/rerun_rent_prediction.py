@@ -105,6 +105,7 @@ def fetch_listings_for_retrain() -> pd.DataFrame:
         "rent_per_person",
         "physical_bedrooms",
         "shared_facilities",
+        "model_bedrooms",
         "shortdescription",
         "num_people",
         "total_rent_amount",
@@ -236,6 +237,7 @@ def prepare_features_from_db(df: pd.DataFrame) -> pd.DataFrame:
         out["model_bedrooms"], errors="coerce"
     ).clip(lower=0)
 
+    out["physical_bedrooms"] = out["model_bedrooms"]
     out = data_preprocessing.add_property_features(out)
 
     # Preserve actual Cornell floor-plan area; missing/zero means unknown.
