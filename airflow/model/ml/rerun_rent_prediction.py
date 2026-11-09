@@ -25,6 +25,7 @@ import core.pipeline_metrics as pipeline_metrics
 import ml.comparative_market_analysis as comparative_market_analysis
 import ml.data_preprocessing as data_preprocessing
 import ml.model_training as model_training
+from ml.unit_configuration import add_unit_configuration_features
 from sklearn.linear_model import LinearRegression
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import make_pipeline
@@ -102,6 +103,9 @@ def fetch_listings_for_retrain() -> pd.DataFrame:
         "rentamount",
         "renttype",
         "rent_per_person",
+        "physical_bedrooms",
+        "shared_facilities",
+        "shortdescription",
         "num_people",
         "total_rent_amount",
         "bedrooms",
@@ -215,6 +219,9 @@ def prepare_features_from_db(df: pd.DataFrame) -> pd.DataFrame:
         out["available_bathrooms"] = out["Bathrooms"]
     if "Bedrooms" in out.columns:
         out = data_preprocessing.calc_adjusted_bed_bath_values(out)
+
+    # Reuse persisted reviewed flags; infer only when the source is explicit.
+    out = add_unit_configuration_features(out)
 
     out = data_preprocessing.add_property_features(out)
 
