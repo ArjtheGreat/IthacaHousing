@@ -1,9 +1,8 @@
 # OpenAI rent-basis classification
 
-The full Cornell Airflow ingest runs `extractors.rent_basis_openai.classify_rent_bases`
-inside `extractors.extract_rental_data.extract_rental_data`, before the
-`rent_per_person` training target is used. This replaces the earlier automatic
-lower-tail log-IQR conversion. It does **not** call external landlord sites.
+The full Cornell Airflow ingest runs deterministic normalization, source-text
+OpenAI classification, bedroom-group 1.5× log-IQR selection, and unresolved-
+basis review flags inside `extractors.extract_rental_data.extract_rental_data`. It does **not** call external landlord sites.
 
 ## Configuration
 
@@ -58,58 +57,58 @@ rerun the classifier; it uses the last saved `rent_per_person` values.
 The Airflow DAG ID is `retrain_rental_model` (`airflow/dags/housing_data_training.py`). Its schedule is `0 12 * * *` in Airflow's configured timezone. No change is made to live Supabase until that DAG runs.
 
 
-## IQR context before OpenAI
+## Four-step rent normalization
 
-The full-ingest extractor runs `pre_classification_iqr_context` **before**
-`classify_rent_bases`. It uses the existing source-normalized per-person
-values to calculate the original 1.2× lower log-IQR cutoff. For every
-floorplan it sends the OpenAI model BOTH possible interpretations:
-`RentAmount / num_people` (per-unit hypothesis) and `RentAmount`
-(per-person hypothesis), and whether each falls below that provisional
-cutoff. The raw `RentType` is still withheld from the AI.
+1. **Deterministic:** Normalize the advertised `RentAmount` using Cornell's
+   `RentType` as an *unverified fallback*. Preserve `rent_per_person_original`.
+2. **LLM from details:** OpenAI classifies ONLY what the displayed dollar amount
+   represents using the source listing text. It **does not receive** IQR values,
+   Cornell's `RentType`, market estimates, or the normalized baseline.
+   Distinguish advertised per-bed **pricing** from whole-unit **lease structure**.
+   A source-verified, numerically consistent explicit quote can override fallback.
+3. **Bedroom-specific log-IQR:** For studio/1BR, 2BR, 3BR, 4BR, and 5+BR,
+   take the median rent per property so large buildings don't dominate.
+   Require at least **20 distinct properties** in each group. Compute traditional
+   lower and upper Tukey fences in log-rent space:
+   `exp(Q1 - 1.5 * (Q3-Q1))`, `exp(Q3 + 1.5 * (Q3-Q1))`.
+   Compare *both* potential prices, `RentAmount / num_people` and `RentAmount`.
+   If exactly one is in the interval, use that interpretation and update
+   `rent_per_person` and `rent_final_basis` — **unless verified original
+   source evidence or a contradictory dollar quote vetoes the change**.
+   A statistical choice is marked `iqr_selected_unverified`, **not verified**.
+   For both plausible, neither plausible, or too few reference properties:
+   preserve the existing price and flag for review (where applicable).
+   Numerically identical interpretations (1BR) cannot be resolved by IQR.
+4. **Flag unknown:** Unresolved bases are stored in `rent_final_basis='unknown'`
+   with `rent_review_flag` / `rent_review_reason`; the raw `rent_basis`
+   remains the separate original OpenAI response for auditing and cache reuse.
 
-These IQR diagnostics are deliberately **not** verification. A suspicious
-value must not become `explicit` or `high` confidence solely because its
-alternative looks statistically plausible. Automatic changes still require
-independent literal source evidence. The provisional benchmark may itself be
-contaminated by incorrectly normalized listings.
+The existing `rent_quote_amount_conflict` protects against treating, e.g.,
+a quoted `$925/bedroom` as meaning that a displayed `$1,850` amount is also
+per-person. An actual quote inconsistent with the advertised amount blocks
+automatic LLM/IQR overrides.
 
-The classifier cache fingerprint includes these diagnostics and the v4
-prompt version. **The first run after this change reclassifies existing
-properties**; identical later runs reuse their cached results. Changes to
-the global cutoff may invalidate more property groups.
+New persisted fields: `rent_final_basis`, `rent_iqr_lower_cutoff`,
+`rent_iqr_upper_cutoff`, `rent_iqr_reference_provisional`,
+`rent_iqr_low_outlier`, `rent_review_flag`, `rent_review_reason`,
+`rent_verification_status`.
 
-## Post-LLM IQR audit
+The curated Supabase view `housing_listings_clean` groups all pricing, AI
+source-evidence, and IQR fields immediately before amenities. The base table's
+physical PostgreSQL column order remains unchanged.
 
-After the model classifies source price bases and Python calculates rents,
-`extractors.rent_iqr_audit.audit_normalized_rents` applies the original
-**lower-tail log-IQR** rule, `exp(median(log(r)) - 1.2 * IQR(log(r)))`.
-The reference distribution favors explicitly verified listings when at least
-20 are available; otherwise it uses the full priced sample and records that
-cutoff as provisional. This is an **audit only**, not another rent correction.
+**Caching:** The change to the text-only v5 prompt invalidates earlier model
+cache entries once. Subsequent unchanged source listing descriptions can reuse
+cached OpenAI results: statistical final-basis decisions do not overwrite the
+raw `rent_basis` fields that are used by the cache. Changing a bedroom-group
+reference distribution updates IQR decisions on every full ingest without
+forcing an OpenAI reclassification.
 
-The following fields are persisted to Supabase:
-`rent_iqr_lower_cutoff`, `rent_iqr_reference_provisional`,
-`rent_iqr_low_outlier`, `rent_quote_amount_conflict`,
-`rent_review_flag`, `rent_review_reason`, `rent_verification_status`.
-The status is `source_verified`, `plausible_unverified`, or `review`.
-Outliers with strong source evidence can remain `source_verified` while also
-having `rent_review_flag=true`; IQR does not overrule the quoted price.
-
-A dollar amount quoted as e.g. `$925 per bedroom` when the original
-advertisement is `$1,850` is treated as a numeric inconsistency. It prevents
-a naive automatic `per_person` override of the full $1,850 amount and
-flags the unit for review. Neither an IQR flag nor LLM confidence alone
-can supply a corrected rent. Rows marked `review` are still retained in
-the base table and current model-training path; the review status is **not**
-yet a training exclusion filter.
-
-The canonical `housing_listings` table retains its physical PostgreSQL
-column order (PostgreSQL does not support column moves). For a readable
-Supabase column layout use **`housing_listings_clean`**, whose pricing,
-classification and IQR audit fields are contiguous immediately before
-`amenities` in the refreshed view. Recreating the base table only to
-change UI column order is intentionally avoided.
+**Caveat:** IQR decisions rely on a possibly contaminated baseline, even
+though the median and IQR are robust to minority outliers. Source-verified
+prices therefore override contradictory IQR decisions. Unverified but
+statistically plausible observations are still in the current ML training
+path; the flags are not automatically training exclusions.
 
 ## Validation
 
