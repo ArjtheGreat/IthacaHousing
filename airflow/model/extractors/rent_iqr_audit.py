@@ -86,6 +86,15 @@ def check_quote_amounts(frame: pd.DataFrame) -> pd.Series:
             & ~np.isclose(raw, quoted, rtol=0, atol=0.51))
 
 
+def both_candidates_unresolved_mask(unit_in, person_in, has_bounds, valid, same):
+    """Both plausible, neither plausible, or no reference: unresolved basis."""
+    return valid & ~same & (
+        (unit_in & person_in)
+        | (has_bounds & ~unit_in & ~person_in)
+        | ~has_bounds
+    )
+
+
 def audit_normalized_rents(frame: pd.DataFrame) -> pd.DataFrame:
     """Bedroom-stratified log-Tukey fences for both advertised-price hypotheses.
 
@@ -193,12 +202,23 @@ def audit_normalized_rents(frame: pd.DataFrame) -> pd.DataFrame:
     out.loc[changed_person, "pricing_adjustment_reason"] = "iqr_unique_per_person"
     out.loc[changed_unit, "pricing_adjustment_reason"] = "iqr_unique_per_unit"
 
+    # Label IQR-selected hypotheses as statistical, not source-verified.
+    # A unique candidate already matching the baseline also establishes a
+    # statistical basis without changing the stored numeric rent.
+    out.loc[choice_person, "rent_basis"] = "per_person"
+    out.loc[choice_unit, "rent_basis"] = "per_unit"
+    out.loc[supported, "rent_basis_source"] = "iqr"
+    out.loc[supported, "rent_basis_confidence"] = "medium"
+    out.loc[supported, "rent_basis_evidence_type"] = "inferred"
+    out.loc[supported, "rent_basis_evidence"] = ""
+    out.loc[supported, "rent_basis_evidence_field"] = "none"
+
     # The final interpreted basis is tracked separately from what OpenAI said.
     # Existing rent_basis remains the LLM audit result, unchanged.
     out["rent_final_basis"] = np.where(current_person, "per_person", "per_unit")
     out.loc[choice_person, "rent_final_basis"] = "per_person"
     out.loc[choice_unit, "rent_final_basis"] = "per_unit"
-    out.loc[~valid_candidates, "rent_final_basis"] = "unknown"
+    out.loc[~valid_candidates | both_candidates_unresolved_mask(unit_in, person_in, has_bounds, valid_candidates, same_candidate), "rent_final_basis"] = "unknown"
     out["rent_iqr_lower_cutoff"] = lower
     out["rent_iqr_upper_cutoff"] = upper
     out["rent_iqr_reference_provisional"] = ~has_bounds
