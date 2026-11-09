@@ -219,7 +219,11 @@ def audit_normalized_rents(frame: pd.DataFrame) -> pd.DataFrame:
     both_in = valid_candidates & ~same_candidate & unit_in & person_in
     neither_in = valid_candidates & has_bounds & ~unit_in & ~person_in
     insufficient = valid_candidates & ~has_bounds
-    veto = one_in & (explicit | conflict)
+    evidence_disagrees = explicit & (
+        (person_in & out["rent_basis"].eq("per_unit"))
+        | (unit_in & out["rent_basis"].eq("per_person"))
+    )
+    veto = one_in & (evidence_disagrees | conflict)
     # A unique statistical decision changes the rent and basis but remains
     # unverified without source evidence; expose the provenance in the reason.
     review = both_in | neither_in | insufficient | veto | conflict | ~valid_candidates
