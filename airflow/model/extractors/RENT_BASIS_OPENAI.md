@@ -23,9 +23,10 @@ For each listing the response is:
 `rent_basis_evidence`, `rent_basis_evidence_field`, `rent_basis_source`,
 and `rent_basis_fingerprint`.
 
-Only **high-confidence, explicit, quoted source evidence** that corroborates
-an AI classification can override the original Cornell `RentType`
-normalization. OpenAI must return an **exact contiguous quote** and the precise
+At the **LLM stage**, only high-confidence explicit source quotations can
+override Cornell's initial normalization. The **following IQR stage** may
+independently select the only statistically plausible price interpretation,
+but marks it unverified and preserves the raw AI response. OpenAI must return an **exact contiguous quote** and the precise
 source field (`unit_name`, `source_description`, `floorplan_rent_style`,
 `floorplan_per_person`, or `property_description`). Python validates that
 field/quote pairing and checks for rent-basis language such as `per person`,
@@ -44,9 +45,10 @@ The source-normalized amount is preserved in
 `ithaca_insights_adjustment` with the `pricing_adjustment_reason`. The
 classification and supporting evidence are saved as columns in Supabase.
 
-**Unknown/inferred basis, failed API call, or missing key:**
-The pipeline retains the existing Cornell `RentType` normalization, without
-claiming it is verified. Do not treat `unknown` as an audited label. Log and
+**Unknown/inferred LLM basis, failed API call, or missing key:**
+The source-text stage retains Cornell's initial normalization without claiming
+verification. The subsequent bedroom-specific IQR may still select the unique
+plausible interpretation, unless contradicted by stronger source evidence. Do not treat `unknown` as an audited label. Log and
 review ambiguous units against original landlord pages.
 
 **Caching:** Before the full ingest replaces the listings table, the classifier reads prior decisions from Supabase. It computes a SHA-256 fingerprint of the full relevant property/chunk source payload, the prompt version, and the configured model. It skips the API whenever every floorplan in the chunk already has a saved `rent_basis_confidence` and a matching fingerprint. `unknown`/low-confidence results are cached too (they stay unverified); failed calls are not cached. If a floorplan, property description, model ID, or prompt changes, that chunk is audited again. The v3 prompt and evidence-schema update intentionally invalidates the v2 cache **once**; budget for reclassification of all properties on the first new run. A new floorplan in the same chunk may require rechecking existing units to retain property context. The first run will call the API because existing rows lack fingerprints. A full refresh still rewrites the table, but it retains the cached decisions through the in-memory dataframe. The cache is not dependent on prior `rent_per_person` values.
