@@ -7,7 +7,7 @@ import geopandas as gpd
 from pathlib import Path
 from extractors.rent_basis_openai import classify_rent_bases
 from extractors.rent_iqr_audit import (
-    pre_classification_iqr_context, audit_normalized_rents, check_quote_amounts
+    audit_normalized_rents, check_quote_amounts
 )
 
 
@@ -115,9 +115,7 @@ def extract_rental_data(apartments_for_rent):
     out["suspected_landlord_pricing_error"] = False
     out["pricing_adjustment_reason"] = None
 
-    # IQR first: show BOTH competing rent interpretations to the AI.
-    # Statistical plausibility is context, not source evidence or a correction.
-    out = pre_classification_iqr_context(out)
+    # First extract the advertised price basis from listing details only.
     out = classify_rent_bases(out)
     # A model can quote "$925 per bedroom" for a $1,850 whole-unit ad.
     # Such evidence describes the per-person SHARE, not the raw price basis:
@@ -162,8 +160,9 @@ def extract_rental_data(apartments_for_rent):
         f"{int(out['rent_basis'].eq('unknown').sum())} ambiguous"
     )
 
-    # Independent statistical audit (original lower-tail log-IQR threshold).
-    # Flags anomalous rows but NEVER silently overwrites source-backed rents.
+    # Bedroom-specific 1.5x log-IQR compares both pricing interpretations.
+    # A unique in-fence candidate can replace an unverified fallback;
+    # verified source quotations still have priority.
     out = audit_normalized_rents(out)
 
     # Include adjusted amounts in the per-listing extraction payload.
