@@ -1,4 +1,5 @@
-"""Regression tests for the four-step rent basis pipeline."""
+"""Regression tests for persisted rent reviews and IQR-only reconciliation."""
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -8,145 +9,116 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "model"))
-from extractors.rent_iqr_audit import audit_normalized_rents, check_quote_amounts
-from extractors.rent_basis_openai import _source_records
+from extractors.rent_iqr_audit import audit_normalized_rents
 from extractors.extract_rental_data import extract_rental_data
 
 
-def reference_frame():
+def base_reference():
     rows = []
-    # Property-independent, credible 2BR rent/person reference distribution.
-    for i in range(30):
-        value = 950.0 + (i % 10) * 25.0
+    for i in range(24):
+        price = 900 + i * 13
         rows.append({
-            "ListingId": f"ref-{i}", "PropertyId": f"ref-{i}",
-            "RentAmount": value, "RentType": "Price Per Person",
-            "num_people": 2, "rent_per_person": value,
-            "rent_basis": "per_person", "rent_basis_confidence": "medium",
-            "rent_basis_evidence_type": "inferred",
-            "rent_quote_amount_conflict": False,
+            "ListingId": f"ref{i}-1", "RentAmount": price,
+            "Bedrooms": 2, "num_people": 2,
+            "rent_per_person": price, "total_rent_amount": price * 2,
+            "rent_basis": "per_person",
+            "rent_verification_status": "source_verified",
+            "RentType": "Price Per Unit", "ithaca_insights_adjustment": True,
+            "pricing_adjustment_reason": "reviewed_source_verified_per_person",
+            "suspected_landlord_pricing_error": False,
         })
     return pd.DataFrame(rows)
 
 
-def add_listing(frame, advertised, bedrooms=2, rent_type="Price Per Unit",
-                basis="unknown", evidence_type="none", evidence=""):
-    row = {
-        "ListingId": "candidate-1", "PropertyId": "candidate",
-        "RentAmount": advertised, "RentType": rent_type,
-        "num_people": bedrooms,
-        "rent_per_person": advertised / bedrooms
-        if rent_type == "Price Per Unit" else advertised,
-        "rent_basis": basis, "rent_basis_confidence":
-        "high" if evidence_type == "explicit" else "low",
-        "rent_basis_evidence_type": evidence_type,
-        "rent_basis_evidence": evidence,
-        "rent_quote_amount_conflict": False,
-        "ithaca_insights_adjustment": False,
-        "pricing_adjustment_reason": None,
-        "total_rent_amount": advertised,
-        "suspected_landlord_pricing_error": False,
-    }
-    return pd.concat([frame, pd.DataFrame([row])], ignore_index=True)
-
-
-class BedroomIQRTests(unittest.TestCase):
-    def test_one_plausible_person_corrects_rent_and_sets_final_basis(self):
-        df = add_listing(reference_frame(), advertised=1050)
-        out = audit_normalized_rents(df)
-        candidate = out.iloc[-1]
-        self.assertEqual(float(candidate["rent_per_person"]), 1050.0)
-        self.assertEqual(candidate["rent_final_basis"], "per_person")
-        self.assertEqual(candidate["pricing_adjustment_reason"], "iqr_unique_per_person")
-        self.assertTrue(candidate["ithaca_insights_adjustment"])
-        self.assertEqual(candidate["rent_verification_status"], "iqr_selected_unverified")
-        self.assertEqual(candidate["rent_basis"], "unknown")  # preserve actual LLM cache
-
-    def test_one_plausible_unit_keeps_correct_baseline_and_sets_basis(self):
-        df = add_listing(reference_frame(), advertised=2100)
-        out = audit_normalized_rents(df)
-        candidate = out.iloc[-1]
-        self.assertEqual(float(candidate["rent_per_person"]), 1050.0)
-        self.assertEqual(candidate["rent_final_basis"], "per_unit")
-        self.assertFalse(candidate["ithaca_insights_adjustment"])
-        self.assertEqual(candidate["rent_verification_status"], "iqr_selected_unverified")
-
-    def test_source_verified_price_overrides_iqr(self):
-        df = add_listing(
-            reference_frame(), advertised=1050, rent_type="Price Per Person",
-            basis="per_person", evidence_type="explicit", evidence="pricing is per bed",
-        )
-        out = audit_normalized_rents(df)
-        candidate = out.iloc[-1]
-        self.assertEqual(float(candidate["rent_per_person"]), 1050.0)
-        self.assertEqual(candidate["rent_verification_status"], "source_verified")
-        self.assertFalse(candidate["ithaca_insights_adjustment"])
-
-    def test_both_plausible_keep_original_and_flag_unknown(self):
-        # Extremely broad reference quartiles make both 600 and 1200 plausible.
-        df = reference_frame()
-        df.loc[df.index[:10], "rent_per_person"] = 550.0
-        df.loc[df.index[20:], "rent_per_person"] = 1550.0
-        df = add_listing(df, advertised=1200)
-        result = audit_normalized_rents(df).iloc[-1]
-        self.assertEqual(float(result["rent_per_person"]), 600.0)
-        self.assertEqual(result["rent_final_basis"], "unknown")
-        self.assertTrue(result["rent_review_flag"])
-        self.assertEqual(result["rent_review_reason"], "iqr_both_plausible")
-        self.assertFalse(result["ithaca_insights_adjustment"])
-
-    def test_neither_plausible_remains_for_review(self):
-        df = add_listing(reference_frame(), advertised=10000)
-        result = audit_normalized_rents(df).iloc[-1]
-        self.assertEqual(float(result["rent_per_person"]), 5000.0)
-        self.assertTrue(result["rent_review_flag"])
-        self.assertEqual(result["rent_final_basis"], "unknown")
-
-    def test_insufficient_properties_cannot_force_conversion(self):
-        df = add_listing(reference_frame().iloc[:5], advertised=1000)
-        result = audit_normalized_rents(df).iloc[-1]
-        self.assertFalse(result["ithaca_insights_adjustment"])
-        self.assertTrue(result["rent_iqr_reference_provisional"])
-        self.assertEqual(result["rent_review_reason"], "iqr_insufficient_bedroom_reference")
-
-    def test_111_blair_dollar_quote_prevents_wrong_override(self):
-        row = pd.DataFrame([{
-            "ListingId": "241613-30747112", "PropertyId": "241613",
-            "RentAmount": 1850, "RentType": "Price Per Unit",
-            "Bedrooms": 2, "Bathrooms": 1,
+class IQRTests(unittest.TestCase):
+    def test_confirmed_reference_resolves_bad_unit_fallback(self):
+        df = base_reference()
+        candidate = pd.DataFrame([{
+            "ListingId": "candidate-1", "RentAmount": 1050,
+            "Bedrooms": 2, "num_people": 2,
+            "rent_per_person": 525, "total_rent_amount": 1050,
+            "rent_basis": "unknown", "rent_verification_status": "review",
+            "RentType": "Price Per Unit", "ithaca_insights_adjustment": False,
+            "pricing_adjustment_reason": None,
+            "suspected_landlord_pricing_error": False,
         }])
-        def classifier(df):
-            result = df.copy()
-            result["rent_basis"] = "per_person"
-            result["rent_basis_confidence"] = "high"
-            result["rent_basis_evidence_type"] = "explicit"
-            result["rent_basis_evidence"] = "only $925 per bedroom"
-            result["rent_basis_source"] = "openai"
-            return result
-        with patch("extractors.extract_rental_data.classify_rent_bases", classifier):
-            result = extract_rental_data(row).iloc[0]
-        self.assertEqual(float(result["rent_per_person"]), 925.0)
-        self.assertTrue(result["rent_quote_amount_conflict"])
-        self.assertTrue(result["rent_review_flag"])
-        self.assertFalse(result["ithaca_insights_adjustment"])
+        out = audit_normalized_rents(pd.concat([df, candidate], ignore_index=True))
+        row = out.iloc[-1]
+        self.assertEqual(float(row["rent_per_person"]), 1050)
+        self.assertEqual(row["rent_final_basis"], "per_person")
+        self.assertEqual(row["rent_verification_status"], "iqr_selected_unverified")
 
-    def test_quotes_matching_advertised_amount_are_consistent(self):
-        df = pd.DataFrame([{
-            "RentAmount": 1000, "rent_basis_evidence_type": "explicit",
-            "rent_basis_confidence": "high",
-            "rent_basis_evidence": "Rent is $1,000 per room",
-        }])
-        self.assertFalse(bool(check_quote_amounts(df).iloc[0]))
+    def test_confirmed_is_never_demoted_to_unknown(self):
+        df = base_reference()
+        result = audit_normalized_rents(df)
+        self.assertTrue(result["rent_final_basis"].eq("per_person").all())
+        self.assertTrue(result["rent_verification_status"].eq("source_verified").all())
 
-    def test_llm_only_sees_original_listing_details(self):
-        df = pd.DataFrame([{
-            "ListingId": "1-2", "PropertyId": "1",
-            "RentAmount": 1200, "Bedrooms": 2,
-            "RentType": "Price Per Unit", "pre_iqr_lower_cutoff": 700,
+    def test_reference_count_is_unique_properties_not_listings(self):
+        df = base_reference().copy()
+        df["ListingId"] = [f"one-{i}" for i in range(len(df))]
+        unknown = pd.DataFrame([{
+            "ListingId": "candidate-1", "RentAmount": 1100,
+            "Bedrooms": 2, "num_people": 2,
+            "rent_per_person": 550, "total_rent_amount": 1100,
+            "rent_basis": "unknown", "rent_verification_status": "review",
+            "RentType": "Price Per Unit", "ithaca_insights_adjustment": False,
+            "pricing_adjustment_reason": None,
+            "suspected_landlord_pricing_error": False,
         }])
-        rec = _source_records(df)
-        self.assertNotIn("pre_iqr", str(rec))
-        self.assertNotIn("property_rent_type", str(rec))
+        out = audit_normalized_rents(pd.concat([df, unknown], ignore_index=True))
+        row = out.iloc[-1]
+        self.assertEqual(row["rent_final_basis"], "unknown")
+        self.assertEqual(row["rent_review_reason"], "iqr_insufficient_verified_reference")
+        self.assertEqual(float(row["rent_per_person"]), 550)
+
+    def test_persistent_review_survives_without_llm(self):
+        frame = pd.DataFrame([{
+            "ListingId": "239596-30712107",
+            "RentAmount": 900, "Bedrooms": 6,
+            "Bathrooms": 2, "RentType": "Price Per Unit",
+        }, {
+            "ListingId": "building-1",
+            "RentAmount": 1150, "Bedrooms": 16,
+            "Bathrooms": 8, "RentType": "Price Per Unit",
+        }])
+        reviews = {
+            "239596-30712107": {
+                "source_rentamount": 900, "source_bedrooms": 6,
+                "confirmed_basis": "per_person", "review_status": "confirmed",
+                "evidence": "By-The-Bed 6 Bed $900",
+            },
+            "building-1": {
+                "source_rentamount": 1150, "source_bedrooms": 16,
+                "confirmed_basis": None, "review_status": "needs_review",
+                "evidence": "building-wide total",
+            },
+        }
+        with patch("extractors.extract_rental_data.load_rent_basis_reviews",
+                   return_value=reviews):
+            result = extract_rental_data(frame)
+        self.assertEqual(float(result.iloc[0]["rent_per_person"]), 900)
+        self.assertEqual(result.iloc[0]["rent_final_basis"], "per_person")
+        self.assertEqual(result.iloc[0]["rent_verification_status"], "source_verified")
+        self.assertTrue(pd.isna(result.iloc[1]["rent_per_person"]))
+        self.assertEqual(result.iloc[1]["rent_review_reason"], "bedrooms_may_be_building_total")
+
+    def test_price_change_invalidates_review(self):
+        frame = pd.DataFrame([{
+            "ListingId": "review-1", "RentAmount": 1250,
+            "Bedrooms": 2, "Bathrooms": 1, "RentType": "Price Per Unit",
+        }])
+        with patch("extractors.extract_rental_data.load_rent_basis_reviews",
+                   return_value={
+                    "review-1": {"source_rentamount": 1000,
+                                 "source_bedrooms": 2,
+                                 "review_status": "confirmed",
+                                 "confirmed_basis": "per_person",
+                                 "evidence": "by bed"}
+                   }):
+            result = extract_rental_data(frame)
+        self.assertNotEqual(result.iloc[0]["rent_verification_status"], "source_verified")
+        self.assertEqual(result.iloc[0]["rent_per_person"], 625)
 
 
 if __name__ == "__main__":

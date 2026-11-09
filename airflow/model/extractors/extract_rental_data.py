@@ -5,10 +5,8 @@ import numpy as np
 from shapely.geometry import Point
 import geopandas as gpd
 from pathlib import Path
-from extractors.rent_basis_openai import classify_rent_bases
-from extractors.rent_iqr_audit import (
-    audit_normalized_rents, check_quote_amounts
-)
+from extractors.rent_iqr_audit import audit_normalized_rents
+from sqlalchemy import create_engine, text
 
 
 def get_existing_rental_data():
@@ -49,6 +47,29 @@ def get_existing_rental_data():
     except Exception as e:
         print(f"⚠️ Error fetching existing rental data: {e}")
         return {}
+
+def load_rent_basis_reviews():
+    """Read durable human/source-verified classifications before the refresh.
+
+    Fail closed on an actual DB outage: losing reviewed corrections silently
+    would corrupt the training targets on the next full-table replacement.
+    """
+    uri = os.getenv("DB_URI")
+    if not uri:
+        raise RuntimeError("DB_URI is required for persistent rent reviews")
+    engine = create_engine(uri, pool_pre_ping=True)
+    try:
+        with engine.connect() as connection:
+            rows = connection.execute(text("""
+                SELECT listingid, source_rentamount, source_bedrooms,
+                       confirmed_basis, review_status, evidence
+                FROM public.rent_basis_reviews
+                WHERE review_status IN ('confirmed','needs_review')
+            """)).mappings().all()
+            return {str(row["listingid"]): dict(row) for row in rows}
+    finally:
+        engine.dispose()
+
 
 def deterministic_extract(row):
     """Normalize current structured rents without guessing a missing unit size.
@@ -115,55 +136,81 @@ def extract_rental_data(apartments_for_rent):
     out["suspected_landlord_pricing_error"] = False
     out["pricing_adjustment_reason"] = None
 
-    # First extract the advertised price basis from listing details only.
-    out = classify_rent_bases(out)
-    # A model can quote "$925 per bedroom" for a $1,850 whole-unit ad.
-    # Such evidence describes the per-person SHARE, not the raw price basis:
-    # refuse to flip the underlying amount, and flag the contradiction.
-    out["rent_quote_amount_conflict"] = check_quote_amounts(out)
-    explicit = (
-        out["rent_basis_confidence"].eq("high")
-        & out["rent_basis_evidence_type"].eq("explicit")
-        & ~out["rent_quote_amount_conflict"]
-    )
-    # Only act on evidence-backed overrides. A model saying "this seems
-    # cheap" is NOT sufficient to change the target labels.
-    current_type = out["RentType"].fillna("").astype(str).str.casefold()
-    new_person = explicit & out["rent_basis"].eq("per_person")
-    new_unit = explicit & out["rent_basis"].eq("per_unit")
-    to_person = new_person & ~current_type.str.contains("person")
-    to_unit = new_unit & current_type.str.contains("person")
+    # Persisted reviews survive the housing_listings TRUNCATE on every ingest.
+    # Only source-price + bedroom-count matches qualify as confirmations.
+    reviews = load_rent_basis_reviews()
+    out["rent_basis"] = "unknown"
+    out["rent_final_basis"] = "unknown"
+    out["rent_basis_confidence"] = "low"
+    out["rent_basis_evidence"] = ""
+    out["rent_basis_evidence_type"] = "none"
+    out["rent_basis_source"] = "iqr_only"
+    out["rent_basis_evidence_field"] = "none"
+    out["rent_basis_fingerprint"] = None
+    out["rent_quote_amount_conflict"] = False
+    out["rent_verification_status"] = "review"
+    out["rent_basis_review_status"] = "unverified"
 
-    advertised = pd.to_numeric(out["RentAmount"], errors="coerce")
-    occupants = pd.to_numeric(out["num_people"], errors="coerce")
-    valid = advertised.gt(0) & occupants.gt(0)
-    to_person &= valid
-    to_unit &= valid
+    raw = pd.to_numeric(out["RentAmount"], errors="coerce")
+    bedrooms = pd.to_numeric(out["Bedrooms"], errors="coerce")
+    for i, row in out.iterrows():
+        review = reviews.get(str(row["ListingId"]))
+        if not review:
+            continue
+        if pd.isna(raw[i]) or pd.isna(bedrooms[i]):
+            continue
+        if abs(float(raw[i]) - float(review["source_rentamount"])) > .51:
+            continue
+        if abs(float(bedrooms[i]) - float(review["source_bedrooms"])) > .01:
+            continue
 
-    out.loc[to_person, "rent_per_person"] = advertised[to_person].astype(float)
-    out.loc[to_person, "total_rent_amount"] = (
-        advertised[to_person] * occupants[to_person]
-    ).astype(float)
-    out.loc[to_unit, "rent_per_person"] = (
-        advertised[to_unit] / occupants[to_unit]
-    ).astype(float)
-    out.loc[to_unit, "total_rent_amount"] = advertised[to_unit].astype(float)
+        if review["review_status"] == "needs_review":
+            # Advertised "bedrooms" may be an entire complex rather than a unit.
+            out.at[i, "rent_per_person"] = np.nan
+            out.at[i, "total_rent_amount"] = np.nan
+            out.at[i, "rent_basis_review_status"] = "needs_review"
+            continue
+        if review["review_status"] != "confirmed":
+            continue
+        basis = review["confirmed_basis"]
+        if basis not in ("per_person", "per_unit") or bedrooms[i] <= 0:
+            continue
+        expected = (
+            float(raw[i]) if basis == "per_person"
+            else float(raw[i] / bedrooms[i])
+        )
+        out.at[i, "rent_per_person"] = expected
+        out.at[i, "total_rent_amount"] = (
+            float(raw[i] * bedrooms[i]) if basis == "per_person"
+            else float(raw[i])
+        )
+        out.at[i, "rent_basis"] = basis
+        out.at[i, "rent_final_basis"] = basis
+        out.at[i, "rent_basis_confidence"] = "high"
+        out.at[i, "rent_basis_evidence"] = review.get("evidence") or ""
+        out.at[i, "rent_basis_evidence_type"] = "explicit"
+        out.at[i, "rent_basis_source"] = "persistent_review"
+        out.at[i, "rent_verification_status"] = "source_verified"
+        out.at[i, "rent_basis_review_status"] = "confirmed"
+        old = pd.to_numeric(out.at[i, "rent_per_person_original"], errors="coerce")
+        if pd.isna(old) or abs(float(old) - expected) > .51:
+            out.at[i, "ithaca_insights_adjustment"] = True
+            out.at[i, "suspected_landlord_pricing_error"] = True
+            out.at[i, "pricing_adjustment_reason"] = (
+                "reviewed_source_verified_" + basis
+            )
 
-    adjusted = to_person | to_unit
-    out.loc[adjusted, "ithaca_insights_adjustment"] = True
-    out.loc[adjusted, "suspected_landlord_pricing_error"] = True
-    out.loc[to_person, "pricing_adjustment_reason"] = "openai_source_verified_per_person"
-    out.loc[to_unit, "pricing_adjustment_reason"] = "openai_source_verified_per_unit"
-    print(
-        f"🤖 Rent-basis source-evidenced overrides: {int(to_person.sum())} "
-        f"unit→person, {int(to_unit.sum())} person→unit; "
-        f"{int(out['rent_basis'].eq('unknown').sum())} ambiguous"
-    )
-
-    # Bedroom-specific 1.5x log-IQR compares both pricing interpretations.
-    # A unique in-fence candidate can replace an unverified fallback;
-    # verified source quotations still have priority.
+    # No model calls. Only a bedroom-specific IQR from reviewed reference rents.
     out = audit_normalized_rents(out)
+    blocked = out["rent_basis_review_status"].eq("needs_review")
+    out.loc[blocked, "rent_per_person"] = np.nan
+    out.loc[blocked, "total_rent_amount"] = np.nan
+    out.loc[blocked, "rent_final_basis"] = "unknown"
+    out.loc[blocked, "rent_review_flag"] = True
+    out.loc[blocked, "rent_review_reason"] = "bedrooms_may_be_building_total"
+    out.loc[blocked, "rent_verification_status"] = "review"
+    # Transient review status is not a persisted housing_listings column.
+    out.drop(columns=["rent_basis_review_status"], inplace=True)
 
     # Include adjusted amounts in the per-listing extraction payload.
     out["extracted_rental_data"] = out[[
