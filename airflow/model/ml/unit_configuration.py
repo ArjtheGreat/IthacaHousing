@@ -91,7 +91,9 @@ def add_unit_configuration_features(frame: pd.DataFrame) -> pd.DataFrame:
             if _SHARED.search(unit_text):
                 out.at[i, "shared_facilities"] = 1.0
                 continue
-            if (_SELF_CONTAINED.search(unit_text) or\n                    (_PRIVATE_KITCHEN.search(unit_text) and\n                     _PRIVATE_BATH.search(unit_text))):
+            if (_SELF_CONTAINED.search(unit_text) or
+                    (_PRIVATE_KITCHEN.search(unit_text) and
+                     _PRIVATE_BATH.search(unit_text))):
                 out.at[i, "shared_facilities"] = 0.0
                 continue
 
