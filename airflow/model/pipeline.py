@@ -28,6 +28,7 @@ import core.landlord_extraction as landlord_extraction
 
 import ml.data_preprocessing as data_preprocessing
 import ml.model_training as model_training
+from ml.unit_configuration import add_unit_configuration_features
 import ml.comparative_market_analysis as comparative_market_analysis
 from sqlalchemy import create_engine, text
 import os
@@ -491,6 +492,7 @@ def housing_data_pipeline():
     print("📄 Extracting rental features...")
     apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)
     apartments_for_rent = data_preprocessing.calc_adjusted_bed_bath_values(apartments_for_rent)
+    apartments_for_rent = add_unit_configuration_features(apartments_for_rent)
 
     # A listing without a valid rent per person is neither a training sample
     # nor a publishable housing listing. Never add it back before DB insertion.
