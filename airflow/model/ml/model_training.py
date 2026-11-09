@@ -118,7 +118,6 @@ def define_X_Y_variables(apartments_for_rent):
         selected.extend(UTILITY_AMENITIES)
     if USE_LEASING_AMENITIES:
         selected.extend(LEASING_AMENITIES)
-    selected.extend(("model_bedrooms", "shared_facilities"))
     selected.extend(INCLUDE_FEATURES)
     selected = [c for c in dict.fromkeys(selected) if c not in EXCLUDE_FEATURES]
 
