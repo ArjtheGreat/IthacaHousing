@@ -46,7 +46,6 @@ def ensure_model_feature_columns(engine):
                 ADD COLUMN IF NOT EXISTS model_bedrooms numeric,
                 ADD COLUMN IF NOT EXISTS combined_bedrooms_bathrooms numeric,
                 ADD COLUMN IF NOT EXISTS physical_bedrooms numeric,
-                ADD COLUMN IF NOT EXISTS shared_facilities numeric,
                 ADD COLUMN IF NOT EXISTS yr_built_encoded integer,
                 ADD COLUMN IF NOT EXISTS electricity_included integer,
                 ADD COLUMN IF NOT EXISTS heat_included integer,
@@ -395,7 +394,7 @@ def psql_insert_copy(df):
         ],
         "floorplan": [
             "bedrooms", "bathrooms", "physical_bedrooms",
-            "shared_facilities", "available_bedrooms",
+            "available_bedrooms",
             "available_bathrooms", "combined_bedrooms_bathrooms",
             "unit_sqft", "model_bedrooms", "shared_facilities",
             "shared_facilities_classification", "shared_facilities_confidence",
