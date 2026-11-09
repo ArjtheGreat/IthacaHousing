@@ -107,7 +107,9 @@ def define_X_Y_variables(apartments_for_rent):
     if USE_SQFT:
         selected.append("unit_sqft")
     if USE_SEPARATE_BEDS_BATHS:
-        selected.extend(("available_bedrooms", "available_bathrooms"))
+        selected.extend(("physical_bedrooms", "available_bedrooms", "available_bathrooms"))
+    # Nullable: XGBoost routes unknown shared-facility status natively.
+    selected.append("shared_facilities")
     if USE_UNIT_AMENITIES:
         selected.extend(UNIT_AMENITIES)
     if USE_BUILDING_AMENITIES:
