@@ -492,19 +492,15 @@ def housing_data_pipeline():
     apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)
     apartments_for_rent = data_preprocessing.calc_adjusted_bed_bath_values(apartments_for_rent)
 
-    # Do not train on invented per-person rents for units with unknown bedroom counts.
-    # Keep unpriced units for the listings table and map after predictions are computed.
-    unresolved_rent_listings = apartments_for_rent.loc[
-        apartments_for_rent["rent_per_person"].isna()
-        | (apartments_for_rent["rent_per_person"] <= 0)
-    ].copy()
-    apartments_for_rent = apartments_for_rent.loc[
-        apartments_for_rent["rent_per_person"].notna()
-        & (apartments_for_rent["rent_per_person"] > 0)
-    ].copy().reset_index(drop=True)
+    # A listing without a valid rent per person is neither a training sample
+    # nor a publishable housing listing. Never add it back before DB insertion.
+    rent_values = pd.to_numeric(apartments_for_rent["rent_per_person"], errors="coerce")
+    priced = rent_values.notna() & np.isfinite(rent_values) & rent_values.gt(0)
+    excluded_unpriced = int((~priced).sum())
+    apartments_for_rent = apartments_for_rent.loc[priced].copy().reset_index(drop=True)
     print(
-        f"📊 Listings ready for ML: {len(apartments_for_rent)}; "
-        f"{len(unresolved_rent_listings)} retained as unpriced listings"
+        f"📊 Listings ready for ML and database: {len(apartments_for_rent)}; "
+        f"{excluded_unpriced} unpriced listings excluded from both"
     )
     if apartments_for_rent.empty:
         raise ValueError("No listings with reliable per-person rents to train on")
@@ -584,17 +580,10 @@ def housing_data_pipeline():
     # ============================================================
     # 12) INSERT INTO DB
     # ============================================================
-    # Keep model metrics restricted to priced observations, but store all scraped
-    # units in the database. Unknown rents must not acquire fabricated predictions.
+    # Store only listings with a valid positive rent/person in Supabase.
+    # An independent guard in psql_insert_copy enforces this policy too.
     priced_listings_for_metrics = apartments_for_rent
-    if not unresolved_rent_listings.empty:
-        apartments_for_rent = pd.concat(
-            [apartments_for_rent, unresolved_rent_listings],
-            ignore_index=True,
-            sort=False,
-        )
-
-    print("💾 Inserting into database...")
+    print("💾 Inserting priced listings into database...")
     insert_into_postgredb.psql_insert_copy(apartments_for_rent)
     insert_into_postgredb.confirmation()
 
