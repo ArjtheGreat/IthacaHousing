@@ -366,7 +366,7 @@ def psql_insert_copy(df):
             "rent_quote_amount_conflict", "rent_iqr_lower_cutoff",
             "rent_iqr_reference_provisional", "rent_iqr_low_outlier",
             "rent_review_flag", "rent_review_reason",
-            "rent_verification_status",
+            "rent_verification_status", "rent_final_basis", "rent_iqr_upper_cutoff",
         ],
         "floorplan": [
             "bedrooms", "bathrooms", "available_bedrooms",
@@ -492,6 +492,8 @@ def psql_insert_copy(df):
                 ADD COLUMN IF NOT EXISTS rent_review_flag boolean,
                 ADD COLUMN IF NOT EXISTS rent_review_reason text,
                 ADD COLUMN IF NOT EXISTS rent_verification_status text,
+                ADD COLUMN IF NOT EXISTS rent_final_basis text,
+                ADD COLUMN IF NOT EXISTS rent_iqr_upper_cutoff numeric,
                 ADD COLUMN IF NOT EXISTS landlord_email text,
                 ADD COLUMN IF NOT EXISTS landlord_name text,
                 ADD COLUMN IF NOT EXISTS landlord_full_name text,
