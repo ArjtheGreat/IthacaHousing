@@ -284,7 +284,21 @@ def psql_insert_copy(df):
     Insert cleaned housing listing data into Supabase (PostgreSQL).
     Batches rows to avoid SSL EOF on large single executemany payloads.
     """
-    df = exclude_listing_units(df)
+    # Last-line guard: unpriced/nonpositive rent listings must never be
+    # published, even if a caller bypasses pipeline.py's training filter.
+    df = exclude_listing_units(df).copy()
+    if "rent_per_person" not in df.columns:
+        raise ValueError("Cannot publish listings without rent_per_person")
+    rents = pd.to_numeric(df["rent_per_person"], errors="coerce")
+    keep = rents.notna() & rents.gt(0) & rents.lt(float("inf"))
+    removed = int((~keep).sum())
+    if removed:
+        print(f"🧹 Excluded {removed} unpriced listings before database insertion")
+    df = df.loc[keep].copy()
+    if df.empty:
+        raise ValueError(
+            "No listings have valid positive rent_per_person; refusing to truncate housing_listings"
+        )
     engine = create_engine(
         os.getenv("DB_URI"),
         pool_pre_ping=True,
