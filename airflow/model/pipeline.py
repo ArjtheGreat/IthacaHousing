@@ -29,7 +29,6 @@ import core.landlord_extraction as landlord_extraction
 
 import ml.data_preprocessing as data_preprocessing
 import ml.model_training as model_training
-from ml.unit_configuration import add_unit_configuration_features
 import ml.comparative_market_analysis as comparative_market_analysis
 from sqlalchemy import create_engine, text
 import os
