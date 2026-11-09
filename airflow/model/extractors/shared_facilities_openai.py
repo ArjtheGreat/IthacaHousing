@@ -161,7 +161,7 @@ def classify_shared_facilities(frame: pd.DataFrame) -> pd.DataFrame:
     if out["ListingId"].astype(str).duplicated().any():
         raise ValueError("Duplicate ListingId; refusing ambiguous shared-facility cache")
 
-    out["shared_facilities"] = pd.Series(pd.NA, index=out.index, dtype="boolean")
+    out["shared_facilities"] = pd.Series([None] * len(out), dtype=object)
     out["shared_facilities_classification"] = "unknown"
     out["shared_facilities_confidence"] = "low"
     out["shared_facilities_evidence"] = ""
