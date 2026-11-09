@@ -22,10 +22,17 @@ _SHARED = re.compile(
     r"(?:kitchen|bathroom|bath|shower)\b",
     flags=re.IGNORECASE,
 )
-_PRIVATE = re.compile(
-    r"\b(?:private|own|dedicated|self[- ]contained|in[- ]unit)\s+"
-    r"(?:kitchen(?:ette)?s?|bath(?:room)?s?|shower)\b"
-    r"|\b(?:entire|whole)\s+(?:apartment|unit)\b",
+_SELF_CONTAINED = re.compile(
+    r"\b(?:self[- ]contained|entire|whole)\s+(?:apartment|unit|studio)\b"
+    r"|\b(?:private|own|dedicated)\s+(?:apartment|unit)\b",
+    flags=re.IGNORECASE,
+)
+_PRIVATE_KITCHEN = re.compile(
+    r"\b(?:private|own|in[- ]unit|dedicated)\s+kitchen(?:ette)?\b",
+    flags=re.IGNORECASE,
+)
+_PRIVATE_BATH = re.compile(
+    r"\b(?:private|own|in[- ]unit|dedicated)\s+(?:bath(?:room)?|shower)\b",
     flags=re.IGNORECASE,
 )
 _ROOM_OFFER = re.compile(
@@ -80,7 +87,7 @@ def add_unit_configuration_features(frame: pd.DataFrame) -> pd.DataFrame:
             if _SHARED.search(unit_text):
                 out.at[i, "shared_facilities"] = 1.0
                 continue
-            if _PRIVATE.search(unit_text):
+            if (_SELF_CONTAINED.search(unit_text) or\n                    (_PRIVATE_KITCHEN.search(unit_text) and\n                     _PRIVATE_BATH.search(unit_text))):
                 out.at[i, "shared_facilities"] = 0.0
                 continue
 
