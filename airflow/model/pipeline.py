@@ -22,6 +22,7 @@ import calculators.calculate_transit_score as calculate_transit_score
 
 import extractors.extract_safety_features as extract_safety_features
 import extractors.extract_rental_data as extract_rental_data
+import extractors.shared_facilities_openai as shared_facilities_openai
 import extractors.extract_land_assessment_features as extract_land_assessment_features
 import extractors.extract_poi_features as extract_poi_features
 import core.landlord_extraction as landlord_extraction
@@ -492,6 +493,14 @@ def housing_data_pipeline():
     print("📄 Extracting rental features...")
     apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)
     apartments_for_rent = data_preprocessing.calc_adjusted_bed_bath_values(apartments_for_rent)
+
+    # Preserve 0=studio in ML, separately from occupants used for rent math.
+    apartments_for_rent["model_bedrooms"] = pd.to_numeric(
+        apartments_for_rent["Bedrooms"], errors="coerce"
+    ).clip(lower=0)
+    apartments_for_rent = shared_facilities_openai.classify_shared_facilities(
+        apartments_for_rent
+    )
     apartments_for_rent = add_unit_configuration_features(apartments_for_rent)
 
     # A listing without a valid rent per person is neither a training sample
