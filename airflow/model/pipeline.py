@@ -501,7 +501,7 @@ def housing_data_pipeline():
     apartments_for_rent = shared_facilities_openai.classify_shared_facilities(
         apartments_for_rent
     )
-    apartments_for_rent = add_unit_configuration_features(apartments_for_rent)
+    apartments_for_rent["physical_bedrooms"] = apartments_for_rent["model_bedrooms"]
 
     # A listing without a valid rent per person is neither a training sample
     # nor a publishable housing listing. Never add it back before DB insertion.
