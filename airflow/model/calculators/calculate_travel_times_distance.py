@@ -95,8 +95,21 @@ def make_isochronic_map(apartments_for_rent):
     """
     Makes 15 and 30 minute isochronic maps for apartment listings
     """
-    G_city = ox.graph_from_place("City of Ithaca, New York, USA", network_type="walk")
-    G_town = ox.graph_from_place("Town of Ithaca, New York, USA", network_type="walk")
+    # Isochrones are optional enrichment. Overpass outages must not abort
+    # the entire rental ingest or prevent previously computed travel fields
+    # from reaching Supabase.
+    try:
+        G_city = ox.graph_from_place(
+            "City of Ithaca, New York, USA", network_type="walk"
+        )
+        G_town = ox.graph_from_place(
+            "Town of Ithaca, New York, USA", network_type="walk"
+        )
+    except Exception as exc:
+        print(f"⚠️ Isochrone graph unavailable; preserving listings with null iso15: {exc}")
+        apartments_for_rent = apartments_for_rent.copy()
+        apartments_for_rent["iso15"] = None
+        return apartments_for_rent
 
     G_walk = nx.compose(G_city, G_town)
 
