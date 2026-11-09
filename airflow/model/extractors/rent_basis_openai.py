@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, text
 
 MODEL = os.getenv("RENT_BASIS_OPENAI_MODEL", "gpt-4.1-mini")
 MAX_PROPERTY_FLOORPLANS = 60
-CLASSIFIER_VERSION = "rent-basis-v4-pre-iqr-context-2026-11"
+CLASSIFIER_VERSION = "rent-basis-v5-text-only-2026-11"
 SYSTEM_PROMPT = """Classify the basis of the ORIGINAL advertised rental price.
 For each floorplan, return per_person, per_unit, or unknown.
 
@@ -23,12 +23,12 @@ Crucial: The input deliberately excludes Cornell's property-level RentType.
 That field is sometimes INCORRECT. Do not assume that a low rent is per person
 or a high rent is per unit. Do not use market estimates or fair rent predictions.
 
-The provided pre_iqr diagnostics compare BOTH possible price interpretations
-against a preliminary lower-tail log-IQR cutoff. They are potentially
-contaminated statistical clues, NOT evidence of pricing basis.
-NEVER mark evidence_type explicit from an IQR flag; NEVER give high confidence
-solely because one interpretation looks statistically plausible. Low rents
-may be legitimate. Inspect source wording and choose unknown if ambiguous.
+Classify only what the LISTED dollar amount refers to, not how the lease
+is signed. A landlord may rent a unit jointly while advertising per-bed
+prices. For example: "2 and 3 bedroom unit pricing is listed by bed,
+however, ... we rent by unit" means advertised_price_basis=per_person.
+Do not use statistical IQR outputs, market plausibility, rent estimates, or
+previous normalized rents; this stage reads original listing details only.
 
 Evidence hierarchy:
 1. Explicit price-basis language in the floorplan's unit_name,
@@ -68,19 +68,6 @@ def _clean(value, max_len=1200):
     return text[:max_len] if text and text.lower() != "nan" else None
 
 
-def _numeric_diagnostic(value):
-    value = pd.to_numeric(value, errors="coerce")
-    if pd.isna(value):
-        return None
-    return round(float(value), 2)
-
-
-def _bool_diagnostic(value):
-    if value is None or pd.isna(value):
-        return None
-    return bool(value)
-
-
 def _source_records(group):
     prop = group.iloc[0]
     property_info = {
@@ -102,13 +89,6 @@ def _source_records(group):
             "floorplan_rent_style": _clean(row.get("FloorplanRentStyle")),
             "floorplan_per_person": _clean(row.get("FloorplanPerPerson")),
             "source_description": _clean(row.get("ShortDescription"), 1000),
-            "pre_iqr": {
-                "lower_cutoff": _numeric_diagnostic(row.get("pre_iqr_lower_cutoff")),
-                "per_unit_candidate": _numeric_diagnostic(row.get("pre_iqr_per_unit_candidate")),
-                "per_unit_candidate_low": _bool_diagnostic(row.get("pre_iqr_per_unit_candidate_below_cutoff")),
-                "per_person_candidate": _numeric_diagnostic(row.get("pre_iqr_per_person_candidate")),
-                "per_person_candidate_low": _bool_diagnostic(row.get("pre_iqr_per_person_candidate_below_cutoff")),
-            },
         })
     return {"property": property_info, "floorplans": floorplans}
 
