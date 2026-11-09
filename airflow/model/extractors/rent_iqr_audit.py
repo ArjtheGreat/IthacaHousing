@@ -11,7 +11,7 @@ import re
 import numpy as np
 import pandas as pd
 
-LOG_IQR_MULTIPLIER = 1.2
+LOG_IQR_MULTIPLIER = 1.5
 MIN_REFERENCE_COUNT = 20
 
 
@@ -87,61 +87,152 @@ def check_quote_amounts(frame: pd.DataFrame) -> pd.Series:
 
 
 def audit_normalized_rents(frame: pd.DataFrame) -> pd.DataFrame:
-    """Audit after AI corrections, without overriding evidence-backed rents.
+    """Bedroom-stratified log-Tukey fences for both advertised-price hypotheses.
 
-    The reference distribution prioritizes explicitly verified examples so
-    misnormalized fallback rows do not determine their own cutoff. When fewer
-    than MIN_REFERENCE_COUNT verified examples exist, use all valid rents as
-    the reference and mark the bound as provisional.
-
-    A low IQR rent is 'review' unless the LLM supplied an independently
-    validated, numerically consistent direct source quote. The flag remains
-    visible even for verified anomalies.
+    This stage follows deterministic normalization and source-text LLM decisions.
+    When exactly one candidate is within the IQR fence, prefer it unless
+    independently verified source evidence contradicts the proposal.
+    Both candidates within => keep the current value and flag as ambiguous.
+    Neither within => preserve the price and flag review. Never treat IQR
+    plausibility as source verification.
     """
     out = frame.copy()
     rents = pd.to_numeric(out["rent_per_person"], errors="coerce")
-    valid = rents.notna() & np.isfinite(rents) & rents.gt(0)
-    verified = (
+    advertised = pd.to_numeric(out["RentAmount"], errors="coerce")
+    bedrooms = pd.to_numeric(out["num_people"], errors="coerce")
+    valid = rents.gt(0) & np.isfinite(rents)
+    explicit = (
         out["rent_basis_evidence_type"].eq("explicit")
         & out["rent_basis_confidence"].eq("high")
         & out["rent_basis"].isin(["per_person", "per_unit"])
     )
+    conflict = out.get(
+        "rent_quote_amount_conflict", pd.Series(False, index=out.index)
+    ).fillna(False).astype(bool)
 
-    ref = np.log(rents.loc[valid & verified])
-    provisional = len(ref) < MIN_REFERENCE_COUNT
-    if provisional:
-        ref = np.log(rents.loc[valid])
-    if len(ref) >= 4:
-        p25, p75 = ref.quantile([0.25, 0.75])
-        cutoff = float(np.exp(ref.median() - LOG_IQR_MULTIPLIER * (p75 - p25)))
-    else:
-        cutoff = np.nan
-
-    low = valid & rents.lt(cutoff) if np.isfinite(cutoff) else pd.Series(False, index=out.index)
-    contradiction = out.get("rent_quote_amount_conflict", pd.Series(False, index=out.index))
-    contradiction = contradiction.fillna(False).astype(bool)
-    out["rent_iqr_lower_cutoff"] = cutoff if np.isfinite(cutoff) else np.nan
-    out["rent_iqr_reference_provisional"] = bool(provisional)
-    out["rent_iqr_low_outlier"] = low.astype(bool)
-    out["rent_review_flag"] = (low | contradiction).astype(bool)
-    out["rent_review_reason"] = None
-
-    out.loc[low, "rent_review_reason"] = "lower_log_iqr_1_2"
-    out.loc[contradiction, "rent_review_reason"] = "explicit_quote_amount_conflict"
-    out.loc[low & contradiction, "rent_review_reason"] = (
-        "lower_log_iqr_1_2;explicit_quote_amount_conflict"
+    # Property-level weighting prevents a 40-floorplan complex overwhelming
+    # a five-property bedroom bucket. No source-verified-only restriction:
+    # median/IQR are intentionally robust to limited contamination.
+    property_ids = (
+        out["PropertyId"].astype(str)
+        if "PropertyId" in out.columns
+        else out["ListingId"].astype(str).str.rsplit("-", n=1).str[0]
+        if "ListingId" in out.columns
+        else pd.Series(out.index.astype(str), index=out.index)
     )
+    bedroom_group = bedrooms.clip(lower=1, upper=5).fillna(0).astype(int)
+    refs = pd.DataFrame({
+        "group": bedroom_group, "property": property_ids, "rent": rents,
+    })
+    refs = refs.loc[valid & bedroom_group.gt(0)].copy()
+
+    bounds = {}
+    for group, records in refs.groupby("group"):
+        per_property = records.groupby("property")["rent"].median()
+        if len(per_property) < MIN_REFERENCE_COUNT:
+            continue
+        logged = np.log(per_property)
+        q1, q3 = logged.quantile([0.25, 0.75])
+        iqr = q3 - q1
+        bounds[group] = (
+            float(np.exp(q1 - 1.5 * iqr)),
+            float(np.exp(q3 + 1.5 * iqr)),
+        )
+
+    lower = bedroom_group.map({k: v[0] for k, v in bounds})
+    upper = bedroom_group.map({k: v[1] for k, v in bounds})
+    has_bounds = lower.notna() & upper.notna()
+    unit_candidate = advertised.div(bedrooms.where(bedrooms.gt(0)))
+    person_candidate = advertised.where(advertised.gt(0))
+
+    def inside(candidate):
+        return (
+            has_bounds & candidate.notna() & np.isfinite(candidate)
+            & candidate.ge(lower) & candidate.le(upper)
+        )
+
+    unit_in = inside(unit_candidate)
+    person_in = inside(person_candidate)
+    valid_candidates = (
+        advertised.gt(0) & bedrooms.gt(0)
+        & unit_candidate.notna() & person_candidate.notna()
+    )
+    same_candidate = np.isclose(
+        unit_candidate.fillna(-1), person_candidate.fillna(-2),
+        rtol=0, atol=0.01,
+    )
+    one_in = valid_candidates & ~same_candidate & (unit_in ^ person_in)
+
+    # The LLM is an evidence extractor, not a market-price oracle. Explicit
+    # verified price-basis quotes are stronger than population statistics.
+    # A conflicting dollar quote also vetoes IQR auto-flips.
+    supported = one_in & ~explicit & ~conflict
+    choice_person = supported & person_in
+    choice_unit = supported & unit_in
+
+    raw_basis = out["RentType"].fillna("").astype(str).str.casefold()
+    current_person = raw_basis.str.contains("person")
+    current_person |= (
+        out["ithaca_insights_adjustment"].fillna(False).astype(bool)
+        & out["pricing_adjustment_reason"].eq("openai_source_verified_per_person")
+    )
+    current_person &= ~out["pricing_adjustment_reason"].eq("openai_source_verified_per_unit")
+
+    # Do not label a statistic as "openai" or fabricate source evidence.
+    changed_person = choice_person & ~current_person
+    changed_unit = choice_unit & current_person
+    out.loc[changed_person, "rent_per_person"] = person_candidate[changed_person]
+    out.loc[changed_person, "total_rent_amount"] = (
+        advertised[changed_person] * bedrooms[changed_person]
+    )
+    out.loc[changed_unit, "rent_per_person"] = unit_candidate[changed_unit]
+    out.loc[changed_unit, "total_rent_amount"] = advertised[changed_unit]
+    changed = changed_person | changed_unit
+    out.loc[changed, "ithaca_insights_adjustment"] = True
+    out.loc[changed, "suspected_landlord_pricing_error"] = True
+    out.loc[changed_person, "pricing_adjustment_reason"] = "iqr_unique_per_person"
+    out.loc[changed_unit, "pricing_adjustment_reason"] = "iqr_unique_per_unit"
+
+    # The final interpreted basis is tracked separately from what OpenAI said.
+    # Existing rent_basis remains the LLM audit result, unchanged.
+    out["rent_final_basis"] = np.where(current_person, "per_person", "per_unit")
+    out.loc[choice_person, "rent_final_basis"] = "per_person"
+    out.loc[choice_unit, "rent_final_basis"] = "per_unit"
+    out.loc[~valid_candidates, "rent_final_basis"] = "unknown"
+    out["rent_iqr_lower_cutoff"] = lower
+    out["rent_iqr_upper_cutoff"] = upper
+    out["rent_iqr_reference_provisional"] = ~has_bounds
+    final_rents = pd.to_numeric(out["rent_per_person"], errors="coerce")
+    out["rent_iqr_low_outlier"] = has_bounds & final_rents.gt(0) & final_rents.lt(lower)
+
+    both_in = valid_candidates & ~same_candidate & unit_in & person_in
+    neither_in = valid_candidates & has_bounds & ~unit_in & ~person_in
+    insufficient = valid_candidates & ~has_bounds
+    veto = one_in & (explicit | conflict)
+    # A unique statistical decision changes the rent and basis but remains
+    # unverified without source evidence; expose the provenance in the reason.
+    review = both_in | neither_in | insufficient | veto | conflict | ~valid_candidates
+    out["rent_review_flag"] = review.astype(bool)
+    out["rent_review_reason"] = None
+    out.loc[both_in, "rent_review_reason"] = "iqr_both_plausible"
+    out.loc[neither_in, "rent_review_reason"] = "iqr_neither_plausible"
+    out.loc[insufficient, "rent_review_reason"] = "iqr_insufficient_bedroom_reference"
+    out.loc[veto, "rent_review_reason"] = "iqr_conflicts_with_source_evidence"
+    out.loc[conflict, "rent_review_reason"] = "explicit_quote_amount_conflict"
+    out.loc[~valid_candidates, "rent_review_reason"] = "missing_rent_or_bedrooms"
 
     out["rent_verification_status"] = "plausible_unverified"
-    out.loc[verified & ~contradiction, "rent_verification_status"] = "source_verified"
-    out.loc[~valid, "rent_verification_status"] = "review"
-    out.loc[(low & ~verified) | contradiction, "rent_verification_status"] = "review"
+    out.loc[explicit & ~conflict, "rent_verification_status"] = "source_verified"
+    out.loc[review, "rent_verification_status"] = "review"
+    out.loc[changed, "rent_verification_status"] = "iqr_selected_unverified"
 
     print(
-        "📊 Post-LLM rent audit: "
-        f"cutoff=${cutoff:,.0f} ({'provisional' if provisional else 'verified reference'}), "
-        f"{int(low.sum())} low outliers, {int(contradiction.sum())} quote conflicts, "
-        f"{int(out['rent_review_flag'].sum())} flagged for review; "
-        "no IQR rent corrections"
+        f"📊 Bedroom-stratified IQR (20 distinct properties minimum): "
+        f"{len(bounds)} supported bedroom groups; "
+        f"{int(changed.sum())} automatic basis corrections, "
+        f"{int(both_in.sum())} both plausible, "
+        f"{int(neither_in.sum())} neither plausible, "
+        f"{int(insufficient.sum())} insufficient reference, "
+        f"{int(review.sum())} review flags"
     )
     return out
