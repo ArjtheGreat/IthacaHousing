@@ -202,17 +202,8 @@ def audit_normalized_rents(frame: pd.DataFrame) -> pd.DataFrame:
     out.loc[changed_person, "pricing_adjustment_reason"] = "iqr_unique_per_person"
     out.loc[changed_unit, "pricing_adjustment_reason"] = "iqr_unique_per_unit"
 
-    # Label IQR-selected hypotheses as statistical, not source-verified.
-    # A unique candidate already matching the baseline also establishes a
-    # statistical basis without changing the stored numeric rent.
-    out.loc[choice_person, "rent_basis"] = "per_person"
-    out.loc[choice_unit, "rent_basis"] = "per_unit"
-    out.loc[supported, "rent_basis_source"] = "iqr"
-    out.loc[supported, "rent_basis_confidence"] = "medium"
-    out.loc[supported, "rent_basis_evidence_type"] = "inferred"
-    out.loc[supported, "rent_basis_evidence"] = ""
-    out.loc[supported, "rent_basis_evidence_field"] = "none"
-
+    # Keep the raw LLM classification untouched so the fingerprint cache can
+    # reuse genuine model outputs; rent_final_basis stores the reconciled result.
     # The final interpreted basis is tracked separately from what OpenAI said.
     # Existing rent_basis remains the LLM audit result, unchanged.
     out["rent_final_basis"] = np.where(current_person, "per_person", "per_unit")
@@ -244,7 +235,7 @@ def audit_normalized_rents(frame: pd.DataFrame) -> pd.DataFrame:
     out["rent_verification_status"] = "plausible_unverified"
     out.loc[explicit & ~conflict, "rent_verification_status"] = "source_verified"
     out.loc[review, "rent_verification_status"] = "review"
-    out.loc[changed, "rent_verification_status"] = "iqr_selected_unverified"
+    out.loc[supported, "rent_verification_status"] = "iqr_selected_unverified"
 
     print(
         f"📊 Bedroom-stratified IQR (20 distinct properties minimum): "
