@@ -37,6 +37,13 @@ def ensure_model_feature_columns(engine):
         engine,
         text("""
             ALTER TABLE housing_listings
+                ADD COLUMN IF NOT EXISTS shared_facilities boolean,
+                ADD COLUMN IF NOT EXISTS shared_facilities_classification text,
+                ADD COLUMN IF NOT EXISTS shared_facilities_confidence text,
+                ADD COLUMN IF NOT EXISTS shared_facilities_evidence text,
+                ADD COLUMN IF NOT EXISTS shared_facilities_evidence_field text,
+                ADD COLUMN IF NOT EXISTS shared_facilities_fingerprint text,
+                ADD COLUMN IF NOT EXISTS model_bedrooms numeric,
                 ADD COLUMN IF NOT EXISTS combined_bedrooms_bathrooms numeric,
                 ADD COLUMN IF NOT EXISTS physical_bedrooms numeric,
                 ADD COLUMN IF NOT EXISTS shared_facilities numeric,
@@ -390,7 +397,10 @@ def psql_insert_copy(df):
             "bedrooms", "bathrooms", "physical_bedrooms",
             "shared_facilities", "available_bedrooms",
             "available_bathrooms", "combined_bedrooms_bathrooms",
-            "unit_sqft",
+            "unit_sqft", "model_bedrooms", "shared_facilities",
+            "shared_facilities_classification", "shared_facilities_confidence",
+            "shared_facilities_evidence", "shared_facilities_evidence_field",
+            "shared_facilities_fingerprint",
         ],
         "location": [
             "latitude", "longitude", "neighborhood", "iso15",
