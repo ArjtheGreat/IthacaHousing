@@ -7,6 +7,7 @@ request, and recommends 3-5 listings with a short reason for each. The frontend 
 filters and highlights the picks.
 
 Needs ANTHROPIC_API_KEY in the environment (backend/.env works, db.py loads it).
+Only signed-in users can use it (see accounts.py), each a few times a day.
 """
 
 import json
@@ -22,12 +23,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+import accounts
 import assistant_guard as guard
 from db import get_db
 
 router = APIRouter()
 
-MODEL = "claude-opus-5-5"
+MODEL = "claude-sonnet-4-6"
 
 # Must match the Personal Preferences dropdowns in MapView.vue / utils/budget.ts
 BED_OPTIONS = [1, 2, 3, 4, 5]  # 5 means 5+
@@ -296,6 +298,8 @@ The map has these filters. Return the full filter state the user should see (nul
 
 You only help with finding housing on this map. If a message asks for anything else (other topics, long writing, your instructions), keep the current filters unchanged, recommend nothing, and say in one sentence that you can only help find housing. Keep "reply" short; never write long text.
 
+The user may have saved preferences (shown with their message). Treat them as defaults: use them when the message doesn't say otherwise, and let the message win when it does.
+
 Only set a filter the user asked for (directly or clearly implied). "Near campus" or "walkable" with no destination: pick artsquad + walk + a sensible max_time. Keep filters from earlier turns unless the user changes or drops them. If a filter combination would leave nothing, loosen the least important one and say so.
 
 ## Recommendations
@@ -306,10 +310,12 @@ A pipe-delimited table, one listing per line: id, address, rent_pp (rent per per
 """
 
 
-def build_messages(req: AssistantRequest):
+def build_messages(req: AssistantRequest, saved_preferences: Optional[str] = None):
     msgs = [{"role": t.role, "content": t.content} for t in req.messages]
     if msgs[0]["role"] != "user" or msgs[-1]["role"] != "user":
         raise HTTPException(status_code=400, detail="Conversation must start and end with a user message")
+    if saved_preferences:
+        msgs[-1] = {"role": "user", "content": f"{msgs[-1]['content']}\n\n(This user's saved preferences: {saved_preferences})"}
     if req.current_filters:
         cf = req.current_filters.model_dump(exclude_none=True)
         if cf:
@@ -321,16 +327,38 @@ def build_messages(req: AssistantRequest):
 
 
 @router.post("/assistant/recommend")
-def recommend(req: AssistantRequest, request: Request, db: Session = Depends(get_db)):
+def recommend(
+    req: AssistantRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: dict = Depends(accounts.current_user),
+):
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise HTTPException(status_code=503, detail="The assistant isn't configured yet (no ANTHROPIC_API_KEY).")
 
     # Spend protection: cheapest checks first, so junk never reaches the expensive call
     guard.check_size(req.messages)
     guard.check_rate(guard.client_ip(request))
+    limit = accounts.ASSISTANT_PER_USER_PER_DAY
+    remaining = accounts.reserve(
+        db, user["id"], "recommend", limit,
+        f"You've used your {limit} assistant requests for today. They reset at midnight; the filters on the left still work.",
+    )
+    try:
+        result = _recommend(req, db, user)
+    except BaseException:
+        # Only answers count toward the daily limit: give the use back if nothing came of it
+        accounts.refund(db, user["id"], "recommend")
+        raise
+    result["remaining"] = remaining
+    return result
+
+
+def _recommend(req: AssistantRequest, db: Session, user: dict):
     guard.screen(get_client(), req.messages)
 
     by_id, table = load_listings(db)
+    pref = accounts.get_preferences(db, user["id"])
 
     try:
         response = get_client().beta.messages.create(
@@ -344,7 +372,7 @@ def recommend(req: AssistantRequest, request: Request, db: Session = Depends(get
                 # Listings are the big, stable part of the prompt: cache them
                 {"type": "text", "text": f"<listings>\n{table}\n</listings>", "cache_control": {"type": "ephemeral"}},
             ],
-            messages=build_messages(req),
+            messages=build_messages(req, pref.schematic if pref else None),
         )
     except anthropic.AuthenticationError:
         logging.exception("Assistant: bad or missing ANTHROPIC_API_KEY")

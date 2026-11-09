@@ -1,7 +1,7 @@
 <template>
   <div class="assistant-root">
     <!-- Launcher -->
-    <button v-if="!open" class="assistant-launcher" @click="open = true" aria-label="Open listing assistant">
+    <button v-if="!open" class="assistant-launcher" @click="reopen" aria-label="Open listing assistant">
       <i class="fa-solid fa-wand-magic-sparkles"></i>
       <span>Ask AI</span>
     </button>
@@ -14,19 +14,86 @@
           <div class="assistant-sub">Describe what you want; I'll set the filters and pick listings.</div>
         </div>
         <div class="assistant-head-actions">
-          <button v-if="turns.length" class="assistant-icon-btn" @click="clearChat" title="New search">
+          <button
+            v-if="auth.user"
+            class="assistant-icon-btn"
+            :class="{ on: view === 'prefs' }"
+            @click="togglePrefs"
+            title="Your preferences"
+          >
+            <i class="fa-solid fa-sliders"></i>
+          </button>
+          <button v-if="auth.user && view === 'chat' && turns.length" class="assistant-icon-btn" @click="clearChat" title="New search">
             <i class="fa-solid fa-rotate-left"></i>
           </button>
-          <button class="assistant-icon-btn" @click="open = false" title="Minimize">
+          <button class="assistant-icon-btn" @click="minimize" title="Minimize">
             <i class="fa-solid fa-minus"></i>
           </button>
         </div>
       </div>
 
-      <div ref="scroller" class="assistant-body">
+      <!-- Signed out (only when Supabase sign-in is configured) -->
+      <div v-if="!auth.user" class="assistant-body assistant-gate">
+        <template v-if="!auth.ready">
+          <p>Loading…</p>
+        </template>
+        <template v-else-if="linkSentTo">
+          <i class="fa-solid fa-envelope-circle-check gate-icon"></i>
+          <p>We sent a sign-in link to <strong>{{ linkSentTo }}</strong>. Open it on this device to start using the assistant.</p>
+          <button class="gate-link" @click="linkSentTo = null">Use a different email</button>
+        </template>
+        <form v-else class="gate-form" @submit.prevent="sendLink">
+          <i class="fa-solid fa-lock gate-icon"></i>
+          <p>Sign in to use the AI assistant. Each account gets {{ dailyLimit }} requests a day.</p>
+          <input v-model="email" type="email" required autocomplete="email" placeholder="you@cornell.edu" :disabled="authBusy" />
+          <button type="submit" class="gate-btn" :disabled="authBusy || !email.trim()">
+            {{ authBusy ? 'Sending…' : 'Email me a sign-in link' }}
+          </button>
+          <div v-if="authError" class="msg msg-error">{{ authError }}</div>
+        </form>
+      </div>
+
+      <!-- Saved preferences -->
+      <div v-else-if="view === 'prefs'" class="assistant-body">
+        <div class="prefs">
+          <label for="prefs-text">What are you looking for?</label>
+          <p class="prefs-hint">The assistant uses this every time you ask, so you don't have to repeat yourself.</p>
+          <textarea
+            id="prefs-text"
+            v-model="prefsDraft"
+            rows="4"
+            maxlength="500"
+            placeholder="e.g. 3 bedrooms in Collegetown, under $1,200 each, laundry in unit, walk to the Arts Quad, I have a cat"
+            :disabled="prefsBusy"
+          ></textarea>
+          <div class="prefs-actions">
+            <button
+              class="gate-btn"
+              :disabled="prefsBusy || !prefsDraft.trim() || prefsDraft.trim() === account?.preferences?.text || account?.preferences_remaining === 0"
+              @click="savePrefs"
+            >
+              {{ prefsBusy ? 'Saving…' : 'Save' }}
+            </button>
+            <button v-if="account?.preferences" class="gate-link" :disabled="prefsBusy" @click="clearPrefs">Clear</button>
+            <span v-if="account" class="prefs-count">{{ account.preferences_remaining }} update{{ account.preferences_remaining === 1 ? '' : 's' }} left today</span>
+          </div>
+          <div v-if="prefsError" class="msg msg-error">{{ prefsError }}</div>
+          <div v-if="account?.preferences" class="prefs-saved">
+            <div class="prefs-saved-label">Saved as</div>
+            <div class="prefs-chips">
+              <span v-for="part in account.preferences.schematic.split(' | ')" :key="part" class="filter-chip">{{ part }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else ref="scroller" class="assistant-body">
+        <div v-if="account?.preferences && !turns.length" class="prefs-banner" @click="togglePrefs">
+          <i class="fa-solid fa-sliders"></i> Using your preferences: {{ account.preferences.schematic }}
+        </div>
         <div v-if="!turns.length" class="assistant-empty">
           <p>Try:</p>
-          <button v-for="ex in examples" :key="ex" class="assistant-example" @click="send(ex)">{{ ex }}</button>
+          <button v-for="ex in examples" :key="ex" class="assistant-example" :disabled="outOfRequests" @click="send(ex)">{{ ex }}</button>
         </div>
 
         <template v-for="(turn, i) in turns" :key="i">
@@ -64,16 +131,24 @@
         <div v-if="error" class="msg msg-error">{{ error }}</div>
       </div>
 
-      <form class="assistant-input" @submit.prevent="send()">
+      <div v-if="auth.user" class="assistant-status">
+        <span v-if="account">{{ account.remaining }} of {{ account.limit }} requests left today</span>
+        <span v-else>&nbsp;</span>
+        <span v-if="auth.email" class="assistant-who">
+          {{ auth.email }} · <button class="gate-link" @click="signOut">Sign out</button>
+        </span>
+      </div>
+
+      <form v-if="auth.user && view === 'chat'" class="assistant-input" @submit.prevent="send()">
         <textarea
           v-model="draft"
           rows="2"
           maxlength="500"
-          placeholder="e.g. 2 bed under $1,200, walk to the Arts Quad, pets OK"
-          :disabled="loading"
+          :placeholder="outOfRequests ? 'No requests left today. They reset at midnight.' : 'e.g. 2 bed under $1,200, walk to the Arts Quad, pets OK'"
+          :disabled="loading || outOfRequests"
           @keydown.enter.exact.prevent="send()"
         ></textarea>
-        <button type="submit" :disabled="loading || !draft.trim()" aria-label="Send">
+        <button type="submit" :disabled="loading || outOfRequests || !draft.trim()" aria-label="Send">
           <i class="fa-solid fa-paper-plane"></i>
         </button>
       </form>
@@ -82,9 +157,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
+import { ref, computed, nextTick, onMounted, watch } from 'vue';
+import { useAuthStore } from '@/stores/auth';
 import {
   fetchAssistantRecommendations,
+  fetchAssistantAccount,
+  saveAssistantPreferences,
+  deleteAssistantPreferences,
+  type AssistantAccount,
   type AssistantResponse,
   type AssistantRecommendation,
   type AssistantFilters,
@@ -102,8 +182,10 @@ const emit = defineEmits<{
   (e: 'result', value: AssistantResponse): void;
   /** User clicked a recommendation card */
   (e: 'select', listingid: string): void;
-  /** User started over: remove the highlights */
+  /** User started over, minimized, or sent a new prompt: remove the highlights */
   (e: 'clear'): void;
+  /** Panel reopened: put the last answer's pins back on the map */
+  (e: 'restore', recommendations: AssistantRecommendation[]): void;
 }>();
 
 interface Turn {
@@ -125,6 +207,118 @@ const turns = ref<Turn[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const scroller = ref<HTMLElement | null>(null);
+
+// ---------- Sign-in, daily limit, saved preferences ----------
+const auth = useAuthStore();
+const dailyLimit = 3;
+const view = ref<'chat' | 'prefs'>('chat');
+const email = ref('');
+const linkSentTo = ref<string | null>(null);
+const authBusy = ref(false);
+const authError = ref<string | null>(null);
+const account = ref<AssistantAccount | null>(null);
+const prefsDraft = ref('');
+const prefsBusy = ref(false);
+const prefsError = ref<string | null>(null);
+
+const outOfRequests = computed(() => account.value?.remaining === 0);
+
+onMounted(() => auth.init());
+
+watch(
+  () => auth.user?.id,
+  id => {
+    account.value = null;
+    turns.value = [];
+    view.value = 'chat';
+    if (id) {
+      linkSentTo.value = null;
+      loadAccount();
+    }
+  },
+  { immediate: true },
+);
+
+async function withToken<T>(fn: (token: string) => Promise<T>): Promise<T> {
+  const token = (await auth.accessToken()) ?? '';
+  if (!token && auth.configured) {
+    await auth.signOut();
+    throw new Error('Your sign-in expired. Sign in again.');
+  }
+  try {
+    return await fn(token);
+  } catch (e) {
+    if ((e as { status?: number }).status === 401) await auth.signOut();
+    throw e;
+  }
+}
+
+async function loadAccount() {
+  try {
+    account.value = await withToken(fetchAssistantAccount);
+    prefsDraft.value = account.value.preferences?.text ?? '';
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Couldn't load your account.";
+  }
+}
+
+async function sendLink() {
+  const address = email.value.trim();
+  if (!address) return;
+  authBusy.value = true;
+  authError.value = null;
+  try {
+    await auth.sendMagicLink(address);
+    linkSentTo.value = address;
+  } catch (e) {
+    authError.value = e instanceof Error ? e.message : "Couldn't send the link. Try again.";
+  } finally {
+    authBusy.value = false;
+  }
+}
+
+async function signOut() {
+  emit('clear');
+  await auth.signOut();
+}
+
+function togglePrefs() {
+  view.value = view.value === 'prefs' ? 'chat' : 'prefs';
+  prefsError.value = null;
+  if (view.value === 'prefs') prefsDraft.value = account.value?.preferences?.text ?? prefsDraft.value;
+}
+
+async function savePrefs() {
+  const text = prefsDraft.value.trim();
+  if (!text) return;
+  prefsBusy.value = true;
+  prefsError.value = null;
+  try {
+    const res = await withToken(token => saveAssistantPreferences(text, token));
+    if (account.value) {
+      account.value.preferences = res.preferences;
+      account.value.preferences_remaining = res.preferences_remaining;
+    }
+  } catch (e) {
+    prefsError.value = e instanceof Error ? e.message : "Couldn't save your preferences.";
+  } finally {
+    prefsBusy.value = false;
+  }
+}
+
+async function clearPrefs() {
+  prefsBusy.value = true;
+  prefsError.value = null;
+  try {
+    await withToken(deleteAssistantPreferences);
+    if (account.value) account.value.preferences = null;
+    prefsDraft.value = '';
+  } catch (e) {
+    prefsError.value = e instanceof Error ? e.message : "Couldn't clear your preferences.";
+  } finally {
+    prefsBusy.value = false;
+  }
+}
 
 const DEST_LABELS: Record<string, string> = { agriculturequad: 'Ag Quad', artsquad: 'Arts Quad', engineeringquad: 'Eng Quad' };
 const MODE_LABELS: Record<string, string> = { walk: 'walk', bike: 'bike', drive: 'drive' };
@@ -152,11 +346,25 @@ async function scrollToEnd() {
   scroller.value?.scrollTo({ top: scroller.value.scrollHeight, behavior: 'smooth' });
 }
 
+function minimize() {
+  open.value = false;
+  emit('clear');
+}
+
+function reopen() {
+  open.value = true;
+  const last = turns.value[turns.value.length - 1];
+  if (last?.role === 'assistant' && last.recommendations?.length) {
+    emit('restore', last.recommendations);
+  }
+}
+
 async function send(text?: string) {
   const content = (text ?? draft.value).trim();
-  if (!content || loading.value) return;
+  if (!content || loading.value || outOfRequests.value) return;
   draft.value = '';
   error.value = null;
+  emit('clear');
   turns.value.push({ role: 'user', content });
   loading.value = true;
   scrollToEnd();
@@ -169,7 +377,8 @@ async function send(text?: string) {
         ? `${t.content}\nRecommended: ${t.recommendations.map(r => `${r.listingid} (${r.address})`).join('; ')}`
         : t.content,
     }));
-    const res = await fetchAssistantRecommendations(history, props.currentFilters);
+    const res = await withToken(token => fetchAssistantRecommendations(history, props.currentFilters, token));
+    if (account.value && res.remaining != null) account.value.remaining = res.remaining;
     turns.value.push({
       role: 'assistant',
       content: res.reply,
@@ -181,6 +390,9 @@ async function send(text?: string) {
     turns.value.pop(); // let them edit and resend
     draft.value = content;
     error.value = e instanceof Error ? e.message : 'Something went wrong.';
+    if ((e as { status?: number }).status === 429 && account.value && /requests for today/.test(error.value)) {
+      account.value.remaining = 0;
+    }
   } finally {
     loading.value = false;
     scrollToEnd();
@@ -257,7 +469,82 @@ function clearChat() {
   border-radius: 6px;
   cursor: pointer;
 }
-.assistant-icon-btn:hover { background: rgba(255, 255, 255, 0.3); }
+.assistant-icon-btn:hover, .assistant-icon-btn.on { background: rgba(255, 255, 255, 0.3); }
+
+.assistant-gate { align-items: center; justify-content: center; text-align: center; }
+.assistant-gate p { font-size: 0.86rem; color: #374151; margin: 0; }
+.gate-form { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+.gate-form input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.88rem;
+}
+.gate-form input:focus { outline: 2px solid #355C7D; outline-offset: -1px; }
+.gate-icon { font-size: 1.6rem; color: #355C7D; }
+.gate-btn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #355C7D;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.gate-btn:disabled { opacity: 0.45; cursor: default; }
+.gate-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #355C7D;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.gate-link:disabled { opacity: 0.5; cursor: default; }
+
+.prefs { display: flex; flex-direction: column; gap: 8px; }
+.prefs label { font-weight: 600; font-size: 0.9rem; color: #1f2937; }
+.prefs-hint { font-size: 0.78rem; color: #6b7280; margin: -4px 0 0; }
+.prefs textarea {
+  resize: vertical;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.86rem;
+}
+.prefs textarea:focus { outline: 2px solid #355C7D; outline-offset: -1px; }
+.prefs-actions { display: flex; align-items: center; gap: 12px; font-size: 0.82rem; }
+.prefs-count { margin-left: auto; font-size: 0.75rem; color: #6b7280; }
+.prefs-saved { margin-top: 4px; }
+.prefs-saved-label { font-size: 0.75rem; color: #6b7280; margin-bottom: 4px; }
+.prefs-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.prefs-chips .filter-chip { margin-top: 0; }
+.prefs-banner {
+  font-size: 0.75rem;
+  color: #1e3a8a;
+  background: #eff6ff;
+  border-radius: 8px;
+  padding: 6px 9px;
+  cursor: pointer;
+}
+
+.assistant-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  color: #6b7280;
+  border-top: 1px solid #e5e7eb;
+  background: #fff;
+}
+.assistant-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assistant-example:disabled { opacity: 0.5; cursor: default; }
 
 .assistant-body {
   flex: 1;
@@ -339,7 +626,7 @@ function clearChat() {
 .dot:nth-child(3) { animation-delay: 0.4s; }
 @keyframes blink { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
 
-.assistant-input { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #e5e7eb; background: #fff; }
+.assistant-input { display: flex; gap: 8px; padding: 0 10px 10px; background: #fff; }
 .assistant-input textarea {
   flex: 1;
   resize: none;

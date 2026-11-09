@@ -291,6 +291,7 @@
         @result="applyAssistantResult"
         @select="openRecommendedListing"
         @clear="clearRecommendations"
+        @restore="showRecommendations"
       />
     </div>
   </div>

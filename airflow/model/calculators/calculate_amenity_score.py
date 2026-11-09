@@ -1,5 +1,7 @@
-import numpy as np
 import ast
+
+import numpy as np
+import pandas as pd
 
 AMENITY_WEIGHTS = {
     "Electricity Included": 15,

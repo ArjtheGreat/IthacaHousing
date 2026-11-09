@@ -390,28 +390,84 @@ export interface AssistantRecommendation {
 
 export interface AssistantResponse {
     reply: string;
+    remaining?: number;
     filters: AssistantFilters | null;
     recommendations: AssistantRecommendation[];
 }
+
+export interface AssistantPreferences {
+    text: string;
+    schematic: string;
+    updated_at: string | null;
+}
+
+export interface AssistantAccount {
+    email: string | null;
+    limit: number;
+    remaining: number;
+    preferences_remaining: number;
+    preferences: AssistantPreferences | null;
+}
+
+function assistantError(error: unknown, fallback: string): Error {
+    const detail = axios.isAxiosError(error) ? error.response?.data?.detail : null;
+    const err = new Error(typeof detail === 'string' ? detail : fallback) as Error & { status?: number };
+    if (axios.isAxiosError(error)) err.status = error.response?.status;
+    return err;
+}
+
+const authHeader = (token: string) => ({ Authorization: `Bearer ${token}` });
 
 /**
  * Asks the listing assistant (Claude, via the backend) to set filters and recommend listings
  * @param messages - The chat so far, ending with the user's newest message
  * @param currentFilters - What the Personal Preferences panel has set right now
+ * @param token - The signed-in user's Supabase access token
  */
 export const fetchAssistantRecommendations = async (
     messages: { role: 'user' | 'assistant'; content: string }[],
     currentFilters: Record<string, string | number | null>,
+    token: string,
 ): Promise<AssistantResponse> => {
     try {
         const response: AxiosResponse<AssistantResponse> = await axios.post(
             `${baseURL}/assistant/recommend`,
             { messages, current_filters: currentFilters },
-            { timeout: 120_000 },
+            { timeout: 120_000, headers: authHeader(token) },
         );
         return response.data;
     } catch (error) {
-        const detail = axios.isAxiosError(error) ? error.response?.data?.detail : null;
-        throw new Error(typeof detail === 'string' ? detail : "Couldn't reach the assistant. Try again.");
+        throw assistantError(error, "Couldn't reach the assistant. Try again.");
+    }
+};
+
+/** Who's signed in, how many assistant requests they have left today, and their saved preferences */
+export const fetchAssistantAccount = async (token: string): Promise<AssistantAccount> => {
+    try {
+        const response = await axios.get<AssistantAccount>(`${baseURL}/assistant/me`, { headers: authHeader(token) });
+        return response.data;
+    } catch (error) {
+        throw assistantError(error, "Couldn't load your account. Try again.");
+    }
+};
+
+/** Saves what the user is looking for; the backend turns it into a compact preference string */
+export const saveAssistantPreferences = async (
+    text: string,
+    token: string,
+): Promise<{ preferences: AssistantPreferences; preferences_remaining: number }> => {
+    try {
+        const response = await axios.put(`${baseURL}/assistant/preferences`, { text }, { timeout: 60_000, headers: authHeader(token) });
+        return response.data;
+    } catch (error) {
+        throw assistantError(error, "Couldn't save your preferences. Try again.");
+    }
+};
+
+export const deleteAssistantPreferences = async (token: string): Promise<void> => {
+    try {
+        await axios.delete(`${baseURL}/assistant/preferences`, { headers: authHeader(token) });
+    } catch (error) {
+        throw assistantError(error, "Couldn't clear your preferences. Try again.");
     }
 };

@@ -148,8 +148,8 @@ def audit_normalized_rents(frame: pd.DataFrame) -> pd.DataFrame:
             float(np.exp(q3 + 1.5 * iqr)),
         )
 
-    lower = bedroom_group.map({k: v[0] for k, v in bounds})
-    upper = bedroom_group.map({k: v[1] for k, v in bounds})
+    lower = bedroom_group.map({k: v[0] for k, v in bounds.items()})
+    upper = bedroom_group.map({k: v[1] for k, v in bounds.items()})
     has_bounds = lower.notna() & upper.notna()
     unit_candidate = advertised.div(bedrooms.where(bedrooms.gt(0)))
     person_candidate = advertised.where(advertised.gt(0))

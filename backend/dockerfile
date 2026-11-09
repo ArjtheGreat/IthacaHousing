@@ -10,6 +10,8 @@ COPY db.py .
 COPY serializers.py .
 COPY assistant.py .
 COPY assistant_guard.py .
+COPY accounts.py .
+COPY preferences.py .
 COPY site_selector/ ./site_selector/
 
 EXPOSE 80

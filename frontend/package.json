@@ -16,6 +16,7 @@
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@fortawesome/vue-fontawesome": "^3.0.8",
     "@headlessui/vue": "^1.7.23",
+    "@supabase/supabase-js": "^2.119.0",
     "@types/leaflet.heat": "^0.2.4",
     "@vueuse/head": "^2.0.0",
     "axios": "^1.7.9",

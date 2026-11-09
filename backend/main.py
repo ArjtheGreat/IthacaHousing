@@ -52,7 +52,11 @@ app.add_middleware(
 )
 
 from assistant import router as assistant_router
+from preferences import router as preferences_router
+import accounts
 app.include_router(assistant_router)
+app.include_router(preferences_router)
+accounts.create_tables()
 
 instrumentator = Instrumentator().instrument(app)
 instrumentator.expose(app)
