@@ -121,7 +121,7 @@ def _load_cache(engine):
     with engine.connect() as conn:
         rows = conn.execute(text("""
             SELECT listingid, evidence_fingerprint, classification, confidence,
-                   evidence, evidence_field
+                   evidence, evidence_field, physical_bedrooms
             FROM public.shared_facilities_classifications
         """)).mappings().all()
     return {str(row["listingid"]): dict(row) for row in rows}
@@ -134,16 +134,17 @@ def _save_batch(engine, entries):
         conn.execute(text("""
             INSERT INTO public.shared_facilities_classifications
                 (listingid, evidence_fingerprint, classification,
-                 confidence, evidence, evidence_field, model_name, reviewed_at)
+                 confidence, evidence, evidence_field, physical_bedrooms, model_name, reviewed_at)
             VALUES
                 (:listingid, :evidence_fingerprint, :classification,
-                 :confidence, :evidence, :evidence_field, :model_name, now())
+                 :confidence, :evidence, :evidence_field, :physical_bedrooms, :model_name, now())
             ON CONFLICT (listingid) DO UPDATE SET
                 evidence_fingerprint = EXCLUDED.evidence_fingerprint,
                 classification = EXCLUDED.classification,
                 confidence = EXCLUDED.confidence,
                 evidence = EXCLUDED.evidence,
                 evidence_field = EXCLUDED.evidence_field,
+                physical_bedrooms = EXCLUDED.physical_bedrooms,
                 model_name = EXCLUDED.model_name,
                 reviewed_at = now()
         """), entries)
@@ -161,6 +162,8 @@ def classify_shared_facilities(frame: pd.DataFrame) -> pd.DataFrame:
     if out["ListingId"].astype(str).duplicated().any():
         raise ValueError("Duplicate ListingId; refusing ambiguous shared-facility cache")
 
+    raw_bedrooms = pd.to_numeric(out.get("Bedrooms"), errors="coerce")
+    out["physical_bedrooms"] = raw_bedrooms.where(raw_bedrooms.ge(0))
     out["shared_facilities"] = pd.Series([None] * len(out), dtype=object)
     out["shared_facilities_classification"] = "unknown"
     out["shared_facilities_confidence"] = "low"
@@ -184,6 +187,10 @@ def classify_shared_facilities(frame: pd.DataFrame) -> pd.DataFrame:
             prior = cached.get(listingid)
             if prior and prior["evidence_fingerprint"] == fingerprints[i]:
                 _apply(out, i, prior)
+                # The source bedroom count is fingerprinted too; only trust
+                # cached counts for matching source evidence.
+                if prior.get("physical_bedrooms") is not None:
+                    out.at[i, "physical_bedrooms"] = float(prior["physical_bedrooms"])
             else:
                 pending.append(i)
 
@@ -232,6 +239,7 @@ def classify_shared_facilities(frame: pd.DataFrame) -> pd.DataFrame:
                             "confidence": x["confidence"],
                             "evidence": x["evidence"][:1200],
                             "evidence_field": x["evidence_field"][:100],
+                            "physical_bedrooms": None if pd.isna(out.at[i, "physical_bedrooms"]) else float(out.at[i, "physical_bedrooms"]),
                             "model_name": MODEL,
                         }
                         cache_entries.append(result)
