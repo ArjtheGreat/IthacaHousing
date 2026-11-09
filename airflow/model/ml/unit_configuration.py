@@ -70,6 +70,10 @@ def add_unit_configuration_features(frame: pd.DataFrame) -> pd.DataFrame:
         out["shared_facilities"] = np.nan
 
     for i, row in out.iterrows():
+        # If the unit-level source classifier already ran, preserve ALL three
+        # states (shared, private, unknown), not just non-null flags.
+        if "shared_facilities_classification" in out.columns:
+            continue
         # Preserve pre-existing, explicitly reviewed configuration flags.
         if pd.notna(out.at[i, "shared_facilities"]):
             continue
