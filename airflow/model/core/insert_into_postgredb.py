@@ -18,6 +18,8 @@ from core.excluded_listing_unit_ids import exclude_listing_units
 # into names like "electricityincluded".
 MODEL_FEATURE_COLUMN_MAP = {
     "combined_bedrooms_bathrooms": "combined_bedrooms_bathrooms",
+    "physical_bedrooms": "physical_bedrooms",
+    "shared_facilities": "shared_facilities",
     "YR_BUILT_ENCODED": "yr_built_encoded",
     "Electricity Included": "electricity_included",
     "Heat Included": "heat_included",
@@ -36,6 +38,8 @@ def ensure_model_feature_columns(engine):
         text("""
             ALTER TABLE housing_listings
                 ADD COLUMN IF NOT EXISTS combined_bedrooms_bathrooms numeric,
+                ADD COLUMN IF NOT EXISTS physical_bedrooms numeric,
+                ADD COLUMN IF NOT EXISTS shared_facilities numeric,
                 ADD COLUMN IF NOT EXISTS yr_built_encoded integer,
                 ADD COLUMN IF NOT EXISTS electricity_included integer,
                 ADD COLUMN IF NOT EXISTS heat_included integer,
@@ -383,7 +387,8 @@ def psql_insert_copy(df):
             "rent_verification_status", "rent_final_basis", "rent_iqr_upper_cutoff",
         ],
         "floorplan": [
-            "bedrooms", "bathrooms", "available_bedrooms",
+            "bedrooms", "bathrooms", "physical_bedrooms",
+            "shared_facilities", "available_bedrooms",
             "available_bathrooms", "combined_bedrooms_bathrooms",
             "unit_sqft",
         ],
