@@ -437,8 +437,6 @@ def housing_data_preprocessing(existing_coordinates=None):
     matches = gpd.sjoin(points.to_crs(boundaries.crs), boundaries[["geometry"]], predicate="within", how="inner")
     result = df.loc[matches.index.unique()].copy()
     result["Bedrooms"] = pd.to_numeric(result["Bedrooms"], errors="coerce")
-    # Preserve the historical downstream convention: studio contributes 1 to rent math.
-    result.loc[result["Bedrooms"] == 0, "Bedrooms"] = 1
     result["Bathrooms"] = pd.to_numeric(result["Bathrooms"], errors="coerce").fillna(1)
     result["RentAmount"] = pd.to_numeric(result["RentAmount"], errors="coerce")
     return result.reset_index(drop=True)

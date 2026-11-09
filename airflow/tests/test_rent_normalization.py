@@ -53,6 +53,16 @@ class RentalNormalizationTests(unittest.TestCase):
         self.assertTrue(pd.isna(result["num_people"]))
         self.assertEqual(result["total_rent_amount"], 2750)
 
+    def test_studio_stays_zero_bedrooms_and_divides_rent_by_one(self):
+        result = deterministic_extract({
+            "Bedrooms": 0, "Bathrooms": 1,
+            "RentAmount": 1400, "RentType": "Price Per Unit",
+        })
+        self.assertEqual(result["available_bedrooms"], 0)
+        self.assertEqual(result["num_people"], 0)
+        self.assertEqual(result["rent_per_person"], 1400)
+        self.assertEqual(result["total_rent_amount"], 1400)
+
     def test_per_person_rate_does_not_require_bedroom_count(self):
         result = deterministic_extract({
             "Bedrooms": None, "Bathrooms": None,

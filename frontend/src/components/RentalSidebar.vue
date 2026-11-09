@@ -65,8 +65,11 @@
                     <span class="rent-compact-unit">/ person</span>
                 </div>
                 <div class="rent-compact-secondary">
-                    {{ formatMoney(listing?.total_rent_amount) }} total
-                    <span v-if="listing?.num_people" class="rent-compact-people">· {{ listing.num_people }} {{ listing.num_people === 1 ? 'person' : 'people' }}</span>
+                    <template v-if="isStudio(listing)">Studio</template>
+                    <template v-else>
+                        {{ formatMoney(listing?.total_rent_amount) }} total
+                        <span v-if="listing?.num_people" class="rent-compact-people">· {{ listing.num_people }} {{ listing.num_people === 1 ? 'person' : 'people' }}</span>
+                    </template>
                 </div>
             </div>
 
@@ -81,8 +84,13 @@
                         <div class="rent-label-small">per person</div>
                     </div>
                     <div class="rent-per-person-section">
-                        <div class="per-person-amount">{{ formatMoney(listing?.total_rent_amount) }}</div>
-                        <div class="per-person-label">Total Rent (<span class="people-count">{{ listing?.num_people || 'N/A' }} {{ (listing?.num_people === 1) ? 'person' : 'people' }} </span>)</div>
+                        <template v-if="isStudio(listing)">
+                            <div class="per-person-label"><span class="people-count">Studio</span></div>
+                        </template>
+                        <template v-else>
+                            <div class="per-person-amount">{{ formatMoney(listing?.total_rent_amount) }}</div>
+                            <div class="per-person-label">Total Rent (<span class="people-count">{{ listing?.num_people || 'N/A' }} {{ (listing?.num_people === 1) ? 'person' : 'people' }} </span>)</div>
+                        </template>
                     </div>
                 </div>
 
@@ -486,8 +494,13 @@
                         <div class="rent-label-small">per person</div>
                     </div>
                     <div class="rent-per-person-section">
-                        <div class="per-person-amount">{{ formatMoney(listing?.total_rent_amount) }}</div>
-                        <div class="per-person-label">Total Rent (<span class="people-count">{{ listing?.num_people || 'N/A' }} {{ (listing?.num_people === 1) ? 'person' : 'people' }}</span>)</div>
+                        <template v-if="isStudio(listing)">
+                            <div class="per-person-label"><span class="people-count">Studio</span></div>
+                        </template>
+                        <template v-else>
+                            <div class="per-person-amount">{{ formatMoney(listing?.total_rent_amount) }}</div>
+                            <div class="per-person-label">Total Rent (<span class="people-count">{{ listing?.num_people || 'N/A' }} {{ (listing?.num_people === 1) ? 'person' : 'people' }}</span>)</div>
+                        </template>
                     </div>
                 </div>
 
@@ -529,7 +542,7 @@
                     </div>
                     <div class="listing-info">
                         <div class="listing-address">{{ titleCase(String(similarListing?.listingaddress ?? '')) }}</div>
-                        <div class="listing-details">{{ similarListing?.available_bedrooms }} bed, {{ similarListing?.available_bathrooms }} bath</div>
+                        <div class="listing-details">{{ similarListing?.available_bedrooms === 0 ? 'Studio' : `${similarListing?.available_bedrooms} bed` }}, {{ similarListing?.available_bathrooms }} bath</div>
                         <div class="listing-amenities" v-if="similarListing?.amenities_score">
                             Amenities: {{ similarListing?.amenities_score.toFixed(1) }}/100
                         </div>
@@ -589,6 +602,10 @@ const listingTitle = computed(() => {
  */
 const formatMoney = (amount: number | null | undefined): string =>
     amount && amount > 0 ? `$${Math.round(amount).toLocaleString('en-US')}` : 'N/A';
+
+/** 0 bedrooms is a studio. Missing counts stay missing. */
+const isStudio = (item: { available_bedrooms?: number | null; num_people?: number | null } | null | undefined) =>
+    item?.available_bedrooms === 0 || item?.num_people === 0;
 
 const closePopup = () => {
     emit('close');

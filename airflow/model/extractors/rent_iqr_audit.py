@@ -58,8 +58,8 @@ def audit_normalized_rents(frame: pd.DataFrame) -> pd.DataFrame:
             float(np.exp(q3 + IQR_MULTIPLIER * log_iqr)),
         )
 
-    lower = bucket.map({k: v[0] for k, v in bounds})
-    upper = bucket.map({k: v[1] for k, v in bounds})
+    lower = bucket.map({int(k): v[0] for k, v in bounds.items()})
+    upper = bucket.map({int(k): v[1] for k, v in bounds.items()})
     has_reference = lower.notna() & upper.notna()
     per_unit = advertised.div(people.where(people.gt(0)))
     per_person = advertised.where(advertised.gt(0))

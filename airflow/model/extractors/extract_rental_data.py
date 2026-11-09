@@ -82,9 +82,7 @@ def deterministic_extract(row):
     bedrooms = pd.to_numeric(row.get("Bedrooms"), errors="coerce")
     bathrooms = pd.to_numeric(row.get("Bathrooms"), errors="coerce")
 
-    # Studio apartments have one rentable sleeping space for rent normalization.
-    if pd.notna(bedrooms) and bedrooms == 0:
-        bedrooms = 1.0
+    # A studio stays 0 bedrooms. Only the per-person division below treats 0 as 1.
     if pd.notna(bedrooms) and bedrooms < 0:
         bedrooms = np.nan
     if pd.notna(bathrooms) and bathrooms <= 0:
@@ -101,7 +99,12 @@ def deterministic_extract(row):
         per_person_rent = float(rent)
         total_rent = float(rent) * occupant_count if pd.notna(occupant_count) else np.nan
     else:
-        per_person_rent = float(rent) / occupant_count if pd.notna(occupant_count) and occupant_count > 0 else np.nan
+        if pd.isna(occupant_count):
+            per_person_rent = np.nan
+        else:
+            # Keep 0 bedrooms in the features; substitute 1 only for this division.
+            divisor = occupant_count if occupant_count > 0 else 1.0
+            per_person_rent = float(rent) / divisor
         total_rent = float(rent)
 
     return {
@@ -173,11 +176,12 @@ def extract_rental_data(apartments_for_rent):
         if review["review_status"] != "confirmed":
             continue
         basis = review["confirmed_basis"]
-        if basis not in ("per_person", "per_unit") or bedrooms[i] <= 0:
+        if basis not in ("per_person", "per_unit") or bedrooms[i] < 0:
             continue
+        divisor = float(bedrooms[i]) if bedrooms[i] > 0 else 1.0
         expected = (
             float(raw[i]) if basis == "per_person"
-            else float(raw[i] / bedrooms[i])
+            else float(raw[i] / divisor)
         )
         out.at[i, "rent_per_person"] = expected
         out.at[i, "total_rent_amount"] = (
