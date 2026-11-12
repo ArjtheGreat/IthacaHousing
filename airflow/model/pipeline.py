@@ -159,6 +159,51 @@ def get_existing_calculated_data():
         return pd.DataFrame()
 
 
+
+def apply_manual_rent_overrides(listings):
+    """Preserve explicitly flagged per-person rents from the live database.
+
+    This runs after rent extraction and before ML/CMA. A database/read error
+    must abort the refresh rather than silently erase existing manual edits.
+    The scraper's computed value remains in rent_per_person_original.
+    """
+    if engine is None:
+        raise RuntimeError("DB_URI must be configured to preserve manual rent overrides")
+    if "ListingId" not in listings or "rent_per_person" not in listings:
+        raise ValueError("ListingId and rent_per_person are required for overrides")
+
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT listingid, rent_per_person
+            FROM housing_listings
+            WHERE rent_manual_override IS TRUE
+        """)).fetchall()
+
+    overrides = {}
+    for listing_id, rent in rows:
+        number = pd.to_numeric(rent, errors="coerce")
+        if pd.isna(number) or not np.isfinite(number) or number <= 0:
+            raise ValueError(f"Invalid manually overridden rent for listing {listing_id}")
+        overrides[str(listing_id)] = float(number)
+
+    out = listings.copy()
+    ids = out["ListingId"].astype("string")
+    matched = ids.isin(overrides)
+    out["rent_manual_override"] = matched.fillna(False).astype(bool)
+
+    if matched.any():
+        out.loc[matched, "rent_per_person"] = (
+            ids.loc[matched].map(overrides).astype(float).to_numpy()
+        )
+
+    unmatched_count = len(set(overrides) - set(ids.dropna().astype(str)))
+    print(
+        f"✏️ Preserved {int(matched.sum())} listing rows with manual rent overrides; "
+        f"{unmatched_count} flagged listings no longer present in the scrape"
+    )
+    return out
+
+
 def track_removed_listings(existing_df, new_ids: set):
     """
     Track listings removed between data pulls.
@@ -492,6 +537,9 @@ def housing_data_pipeline():
     print("📄 Extracting rental features...")
     apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)
     apartments_for_rent = data_preprocessing.calc_adjusted_bed_bath_values(apartments_for_rent)
+    # Keep manually verified per-person rents through the TRUNCATE + INSERT.
+    # Apply before ML, CV, and CMA so all outputs use the corrected target.
+    apartments_for_rent = apply_manual_rent_overrides(apartments_for_rent)
 
     # Preserve 0=studio in ML, separately from occupants used for rent math.
     apartments_for_rent["model_bedrooms"] = pd.to_numeric(
