@@ -470,8 +470,8 @@ def housing_data_preprocessing(existing_coordinates=None):
     # Normalize only recognized locality/state suffixes. Preserve the street
     # number/name, including cases like "400 TRIPHAMMER RDITHACA NY 14850".
     suffix = re.compile(
-        r"(?i)\\s*,?\\s*(?:ITHACA|CAYUGA\\s+HEIGHTS)"
-        r"\\s*,?\\s*(?:NY|NEW\\s+YORK)\\s*(\\d{5})(?:-\\d{4})?\\s*$"
+        r"(?i)\s*,?\s*(?:ITHACA|CAYUGA\s+HEIGHTS)"
+        r"\s*,?\s*(?:NY|NEW\s+YORK)\s*(?:(\d{5})(?:-\d{4})?)?\s*$"
     )
     if "ListingAddress" in result:
         raw_address = result["ListingAddress"].fillna("").astype(str)
@@ -480,15 +480,15 @@ def housing_data_preprocessing(existing_coordinates=None):
         for idx, address in raw_address.items():
             match = suffix.search(address)
             if match:
-                if pd.isna(result.at[idx, "ListingZip"]) or not str(result.at[idx, "ListingZip"]).strip():
+                if match.group(1) and (pd.isna(result.at[idx, "ListingZip"]) or not str(result.at[idx, "ListingZip"]).strip()):
                     result.at[idx, "ListingZip"] = match.group(1)
                 address = address[:match.start()]
-            result.at[idx, "ListingAddress"] = re.sub(r"\\s+", " ", address).strip(" ,")
+            result.at[idx, "ListingAddress"] = re.sub(r"\s+", " ", address).strip(" ,")
     if "ListingZip" in result:
         result["ListingZip"] = (
             result["ListingZip"].astype("string")
-            .str.replace(r"\\.0$", "", regex=True)
-            .str.extract(r"(\\d{5})", expand=False)
+            .str.replace(r"\.0$", "", regex=True)
+            .str.extract(r"(\d{5})", expand=False)
         )
 
     print(
