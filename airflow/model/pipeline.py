@@ -108,6 +108,46 @@ def get_existing_coordinates():
         print(f"⚠️ Error fetching existing coordinates: {e}")
         return pd.DataFrame()
 
+def get_manual_rent_overrides():
+    """Read human-corrected rents before retraining. Fail closed if DB is unavailable.
+
+    Only rent_per_person is manually protected; all other source attributes
+    are refreshed normally. A separate review workflow remains authoritative
+    for source price/basis classification.
+    """
+    if engine is None:
+        raise RuntimeError("DB_URI is required to preserve manual rent corrections")
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT listingid, rent_per_person
+            FROM public.housing_listings
+            WHERE rent_manual_override IS TRUE
+        """)).mappings().all()
+
+    overrides = {}
+    for row in rows:
+        rent = pd.to_numeric(row["rent_per_person"], errors="coerce")
+        if not np.isfinite(rent) or rent <= 0:
+            raise ValueError(
+                f"Invalid protected rent for listing {row['listingid']!r}: {row['rent_per_person']!r}"
+            )
+        overrides[str(row["listingid"])] = float(rent)
+    return overrides
+
+
+def apply_manual_rent_overrides(listings):
+    """Apply protected rents after rent extraction but before filtering and ML."""
+    overrides = get_manual_rent_overrides()
+    listings = listings.copy()
+    ids = listings["ListingId"].astype(str)
+    listings["rent_manual_override"] = ids.isin(overrides)
+    protected = listings["rent_manual_override"]
+    if protected.any():
+        listings.loc[protected, "rent_per_person"] = ids.loc[protected].map(overrides).to_numpy()
+    print(f"🔒 Preserved {int(protected.sum())} manual rent corrections")
+    return listings
+
+
 def get_existing_calculated_data():
     """
     Fetch existing calculated fields for all listings to preserve them
@@ -528,8 +568,8 @@ def housing_data_pipeline():
     apartments_for_rent = calculate_amenity_score.add_canonical_amenities(apartments_for_rent)
 
     # Apply explicit unit-level exclusions before ML and before any DB insert.
-    # The full refresh TRUNCATEs the old table, so excluded units disappear
-    # from Supabase instead of being inserted again.
+    # The atomic UPSERT + stale-ID reconciliation removes excluded units
+    # from Supabase on a successful complete refresh.
     apartments_for_rent = excluded_listing_unit_ids.exclude_listing_units(
         apartments_for_rent
     )
@@ -537,6 +577,10 @@ def housing_data_pipeline():
     print("📄 Extracting rental features...")
     apartments_for_rent = extract_rental_data.extract_rental_data(apartments_for_rent)
     apartments_for_rent = data_preprocessing.calc_adjusted_bed_bath_values(apartments_for_rent)
+
+    # Manual rent edits in Supabase win over freshly scraped/calculated rents.
+    # Apply before rent validity filtering, CV training, and fair-value modeling.
+    apartments_for_rent = apply_manual_rent_overrides(apartments_for_rent)
     # Keep manually verified per-person rents through the TRUNCATE + INSERT.
     # Apply before ML, CV, and CMA so all outputs use the corrected target.
     apartments_for_rent = apply_manual_rent_overrides(apartments_for_rent)
