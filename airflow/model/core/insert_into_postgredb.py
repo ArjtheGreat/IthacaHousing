@@ -378,7 +378,7 @@ def psql_insert_copy(df):
             "listingexpirationdate", "lengthavailable",
         ],
         "pricing": [
-            "rentamount", "renttype", "rent_per_person",
+            "rentamount", "renttype", "rent_per_person", "rent_manual_override",
             "rent_per_person_original", "num_people", "total_rent_amount",
             "predictedrent", "differenceinfairvalue", "predicted_rent_cma",
             "nearest_neighbor_listingids", "ithaca_insights_adjustment",
