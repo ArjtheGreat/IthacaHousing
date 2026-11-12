@@ -307,7 +307,7 @@ def psql_insert_copy(df):
     df = df.loc[keep].copy()
     if df.empty:
         raise ValueError(
-            "No listings have valid positive rent_per_person; refusing to truncate housing_listings"
+            "No listings have valid positive rent_per_person; refusing to reconcile housing_listings"
         )
     engine = create_engine(
         os.getenv("DB_URI"),
@@ -503,6 +503,7 @@ def psql_insert_copy(df):
         text("""
             ALTER TABLE housing_listings
                 ADD COLUMN IF NOT EXISTS rent_per_person_original numeric,
+                ADD COLUMN IF NOT EXISTS rent_manual_override boolean NOT NULL DEFAULT false,
                 ADD COLUMN IF NOT EXISTS ithaca_insights_adjustment boolean NOT NULL DEFAULT false,
                 ADD COLUMN IF NOT EXISTS suspected_landlord_pricing_error boolean NOT NULL DEFAULT false,
                 ADD COLUMN IF NOT EXISTS pricing_adjustment_reason text,
@@ -545,10 +546,40 @@ def psql_insert_copy(df):
     if missing_optional:
         print(f"⚠️ Optional columns missing from frame (not inserted): {missing_optional}")
 
+    # Never let an incomplete or duplicated scrape damage the live dataset.
+    if "listingid" not in df.columns:
+        raise ValueError("Missing stable listingid; cannot UPSERT")
+    if df["listingid"].isna().any() or df["listingid"].str.strip().eq("").any():
+        raise ValueError("Blank listingid; refusing publication")
+    if df["listingid"].duplicated().any():
+        duplicates = df.loc[df["listingid"].duplicated(), "listingid"].head(5).tolist()
+        raise ValueError(f"Duplicate listingid in refreshed data: {duplicates}")
+
+    if "rent_manual_override" not in df.columns:
+        df["rent_manual_override"] = False
+    df["rent_manual_override"] = df["rent_manual_override"].fillna(False).astype(bool)
+
     placeholders = [f":{col}" for col in df.columns]
+    # Manual rent corrections are protected at the database level even if a
+    # caller omits the upstream override merge. Preserve the human-set flag.
+    updatable = [c for c in df.columns if c not in (
+        "listingid", "createdate", "rent_manual_override"
+    )]
+    updates = []
+    for col in updatable:
+        if col == "rent_per_person":
+            updates.append(
+                "rent_per_person = CASE "
+                "WHEN housing_listings.rent_manual_override IS TRUE "
+                "THEN housing_listings.rent_per_person "
+                "ELSE EXCLUDED.rent_per_person END"
+            )
+        else:
+            updates.append(f"{col} = EXCLUDED.{col}")
     insert_query = text(f"""
         INSERT INTO housing_listings ({", ".join(df.columns)})
         VALUES ({", ".join(placeholders)})
+        ON CONFLICT (listingid) DO UPDATE SET {", ".join(updates)}
     """)
 
     records = df.where(pd.notnull(df), None).to_dict(orient="records")
@@ -590,19 +621,57 @@ def psql_insert_copy(df):
                     f"for listing {record.get('listingid')}"
                 )
 
-    # Transactional full refresh: TRUNCATE and every insert batch COMMIT
-    # together. A bad row, schema mismatch or dropped connection must roll
-    # back the whole refresh, never leave the live listings table empty.
+    # Atomic UPSERT + reconciliation: a successful full scrape is the source
+    # of truth for which listing IDs remain live. The temporary ID table makes
+    # stale-row deletion possible without TRUNCATE or replacing existing rows.
+    # On any error, the entire transaction rolls back.
     batch_size = 50
-    inserted = 0
+    upserted = 0
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE TABLE housing_listings RESTART IDENTITY CASCADE;"))
+        current_count = conn.execute(
+            text("SELECT count(*) FROM housing_listings")
+        ).scalar_one()
+        min_fraction = 0.50
+        if current_count >= 100 and len(records) < current_count * min_fraction:
+            raise ValueError(
+                f"Refusing to reconcile {len(records)} scraped listings against "
+                f"{current_count} existing rows (below {min_fraction:.0%} safety threshold). "
+                "Check scrape completeness and explicit exclusions first."
+            )
+
+        conn.execute(text("""
+            CREATE TEMP TABLE refresh_listing_ids (
+                listingid text PRIMARY KEY
+            ) ON COMMIT DROP
+        """))
+        insert_id = text(
+            "INSERT INTO refresh_listing_ids (listingid) VALUES (:listingid)"
+        )
+        for batch in _chunked(records, batch_size):
+            conn.execute(
+                insert_id,
+                [{"listingid": r["listingid"]} for r in batch]
+            )
+
         for batch_num, batch in enumerate(_chunked(records, batch_size), start=1):
             conn.execute(insert_query, batch)
-            inserted += len(batch)
-            if batch_num == 1 or batch_num % 5 == 0 or inserted == len(records):
-                print(f"💾 Staged {inserted}/{len(records)} rows in transaction...")
-    print(f"✅ Atomically replaced housing_listings with {inserted} rows")
+            upserted += len(batch)
+            if batch_num == 1 or batch_num % 5 == 0 or upserted == len(records):
+                print(f"💾 Upserted {upserted}/{len(records)} rows in transaction...")
+
+        # Rows absent from the validated full refresh are genuinely stale.
+        # Excluded/unpriced listings also disappear, matching old TRUNCATE
+        # semantics. Manual corrections protect field values, not immortality.
+        deleted = conn.execute(text("""
+            DELETE FROM housing_listings AS live
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM refresh_listing_ids AS fresh
+                WHERE fresh.listingid = live.listingid
+            )
+        """)).rowcount
+
+    print(f"✅ Atomically upserted {upserted} listings; deleted {deleted} stale rows")
     # A sorted, narrower browsing surface without dropping live API columns.
     # Created after the full ingest so the view always reflects the latest schema.
     # ALTER TABLE ADD COLUMN cannot reorder a PostgreSQL table's existing columns.
