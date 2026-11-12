@@ -422,20 +422,79 @@ def housing_data_preprocessing(existing_coordinates=None):
 
     df["GmapLatitude"] = df["latitude"]
     df["GmapLongitude"] = df["longitude"]
+
+    # Use the repository's actual municipal polygons, not postal-city names:
+    # "Ithaca, NY 14850" includes substantial areas OUTSIDE the city.
     boundaries = gpd.read_file(get_geojson_path())
-    boundaries = boundaries[boundaries["fullname"].isin(["CITY OF ITHACA", "TOWN OF ITHACA"])]
+    allowed = {
+        "CITY OF ITHACA": "Ithaca",
+        "VILLAGE OF CAYUGA HEIGHTS": "Cayuga Heights",
+    }
+    boundaries = boundaries.loc[
+        boundaries["fullname"].isin(allowed),
+        ["fullname", "geometry"],
+    ].copy()
     if boundaries.crs is None:
-        raise ValueError("Ithaca boundary GeoJSON has no CRS")
+        raise ValueError("Ithaca municipal boundary GeoJSON has no CRS")
+    if set(boundaries["fullname"]) != set(allowed):
+        raise ValueError("Missing required Ithaca/Cayuga Heights boundary polygons")
+
+    with_coords = df.dropna(subset=["latitude", "longitude"]).copy()
     points = gpd.GeoDataFrame(
-        df.dropna(subset=["latitude", "longitude"]).copy(),
-        geometry=gpd.points_from_xy(
-            df.dropna(subset=["latitude", "longitude"])["longitude"],
-            df.dropna(subset=["latitude", "longitude"])["latitude"],
-        ),
+        with_coords,
+        geometry=gpd.points_from_xy(with_coords["longitude"], with_coords["latitude"]),
         crs="EPSG:4326",
     )
-    matches = gpd.sjoin(points.to_crs(boundaries.crs), boundaries[["geometry"]], predicate="within", how="inner")
-    result = df.loc[matches.index.unique()].copy()
+    # 'intersects' includes properties exactly on a municipal boundary.
+    matches = gpd.sjoin(
+        points.to_crs(boundaries.crs),
+        boundaries,
+        predicate="intersects",
+        how="inner",
+    )
+    if matches.empty:
+        raise ValueError("No properties fall inside the City of Ithaca or Cayuga Heights")
+
+    # A point on the common border may match two polygons; retain each
+    # listing exactly once. Prefer its existing valid municipality on ties.
+    matches["_preferred"] = (
+        matches["fullname"].map(allowed).str.casefold()
+        == matches.get("ListingCity", pd.Series("", index=matches.index))
+            .fillna("").astype(str).str.strip().str.casefold()
+    )
+    matches = matches.sort_values("_preferred", ascending=False)
+    matches = matches.loc[~matches.index.duplicated(keep="first")]
+    result = df.loc[matches.index].copy()
+    result["ListingCity"] = matches["fullname"].map(allowed).to_numpy()
+
+    # Normalize only recognized locality/state suffixes. Preserve the street
+    # number/name, including cases like "400 TRIPHAMMER RDITHACA NY 14850".
+    suffix = re.compile(
+        r"(?i)\\s*,?\\s*(?:ITHACA|CAYUGA\\s+HEIGHTS)"
+        r"\\s*,?\\s*(?:NY|NEW\\s+YORK)\\s*(\\d{5})(?:-\\d{4})?\\s*$"
+    )
+    if "ListingAddress" in result:
+        raw_address = result["ListingAddress"].fillna("").astype(str)
+        if "ListingZip" not in result:
+            result["ListingZip"] = pd.NA
+        for idx, address in raw_address.items():
+            match = suffix.search(address)
+            if match:
+                if pd.isna(result.at[idx, "ListingZip"]) or not str(result.at[idx, "ListingZip"]).strip():
+                    result.at[idx, "ListingZip"] = match.group(1)
+                address = address[:match.start()]
+            result.at[idx, "ListingAddress"] = re.sub(r"\\s+", " ", address).strip(" ,")
+    if "ListingZip" in result:
+        result["ListingZip"] = (
+            result["ListingZip"].astype("string")
+            .str.replace(r"\\.0$", "", regex=True)
+            .str.extract(r"(\\d{5})", expand=False)
+        )
+
+    print(
+        f"📍 Municipal boundary filter: {len(result)}/{len(df)} unit rows "
+        f"inside Ithaca city or Cayuga Heights; dropped {len(df) - len(result)}"
+    )
     result["Bedrooms"] = pd.to_numeric(result["Bedrooms"], errors="coerce")
     result["Bathrooms"] = pd.to_numeric(result["Bathrooms"], errors="coerce").fillna(1)
     result["RentAmount"] = pd.to_numeric(result["RentAmount"], errors="coerce")
