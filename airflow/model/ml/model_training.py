@@ -63,6 +63,7 @@ USE_UNIT_AMENITIES = True
 USE_BUILDING_AMENITIES = True
 USE_UTILITY_AMENITIES = True
 USE_LEASING_AMENITIES = True
+USE_WARD_CATEGORY = True  # Five binary ward indicators; never a 1-to-5 ordinal number.
 EXCLUDE_FEATURES = ()
 INCLUDE_FEATURES = ()
 
@@ -128,6 +129,12 @@ def define_X_Y_variables(apartments_for_rent):
             columns[name] = pd.to_numeric(frame[source], errors="coerce")
         elif name not in BASELINE_FEATURES:
             raise ValueError(f"Missing required notebook predictor: {name}")
+    if USE_WARD_CATEGORY and "ward" in frame.columns:
+        # The five wards are mutually exclusive geographic categories.
+        # Outside-city and unassigned properties are NaN for all five.
+        ward = frame["ward"].astype("string")
+        for n in range(1, 6):
+            columns[f"ward_{n}"] = ward.eq(f"Ward {n}").astype("Float64").astype(float)
     X = pd.DataFrame(columns, index=frame.index).replace([np.inf, -np.inf], np.nan)
     # Match notebook preprocessing, without leaking any rent/target values.
     X = X.loc[:, X.notna().any()]
