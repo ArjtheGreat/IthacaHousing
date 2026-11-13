@@ -22,6 +22,7 @@ import calculators.calculate_transit_score as calculate_transit_score
 
 import extractors.extract_safety_features as extract_safety_features
 import extractors.extract_rental_data as extract_rental_data
+import extractors.assign_wards as assign_wards
 import extractors.shared_facilities_openai as shared_facilities_openai
 import extractors.extract_land_assessment_features as extract_land_assessment_features
 import extractors.extract_poi_features as extract_poi_features
@@ -438,6 +439,13 @@ def housing_data_pipeline():
         apartments_for_rent, existing_listings_df,
         extract_rental_data.extract_neighborhood,
         fields=["neighborhood"], required=["neighborhood"], label="neighborhood",
+    )
+
+    # Ward is distinct from the existing neighborhood field and should be
+    # computed from current coordinates, not reused across boundary changes.
+    print("🏛️ Assigning 2022 Ithaca wards (once per property)...")
+    apartments_for_rent = property_level.apply_per_property(
+        apartments_for_rent, assign_wards.assign_wards, label="city wards",
     )
 
     print("🏗️ Adding property/structural features...")
