@@ -1118,15 +1118,21 @@ function parsePostgresArray(pgArrayString: String) {
         }
     }
 
-    // A listing's nearest-neighbor list often starts with the listing itself; that is not a comparison
+    // Defense in depth for legacy CMA rows: exclude the subject property,
+    // not merely the current unit. Listing IDs are PropertyId-FloorplanId.
     const ownId = String(props.listing?.listingid ?? '');
-    ids = ids.filter(id => id !== ownId);
+    const ownPropertyId = ownId.includes('-') ? ownId.slice(0, ownId.lastIndexOf('-')) : ownId;
+    ids = ids.filter(id => id !== ownId &&
+        (id.includes('-') ? id.slice(0, id.lastIndexOf('-')) : id) !== ownPropertyId);
 
     const fetched = await Promise.all(
         ids.map((id: string) => fetchListing(id))
     );
 
-    similarListings.value = fetched.filter(l => l !== null) as Listing[];
+    similarListings.value = fetched.filter(
+        (listing): listing is Listing => listing !== null &&
+          String(listing.listingid ?? '').split('-').slice(0, -1).join('-') !== ownPropertyId
+    );
 }
 /**
  * 
