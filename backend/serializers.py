@@ -140,6 +140,14 @@ def serialize_listing(listing):
         "sewer_access": listing.sewer_access,
         "sewer_name": listing.sewer_name,
         "year_built": listing.year_built,
+        "year_built_source": listing.year_built_source,
+        "parcel_printkey": listing.parcel_printkey,
+        "parcel_match_method": listing.parcel_match_method,
+        "assessment_total_value": safe_float(listing.assessment_total_value),
+        "assessment_land_value": safe_float(listing.assessment_land_value),
+        "assessment_stories": safe_float(listing.assessment_stories),
+        "assessment_zoning": listing.assessment_zoning,
+        "assessment_property_class": listing.assessment_property_class,
         "assessment_sqft": safe_float(listing.assessment_sqft),
         "sale_price": safe_float(listing.sale_price)
     }
