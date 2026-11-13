@@ -15,7 +15,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 
 MODEL = "gpt-4.1-mini"
-VERSION = "shared-facilities-unit-v1"
+VERSION = "shared-facilities-unit-v2"\nLEGACY_VERSION = "shared-facilities-unit-v1"
 BATCH_SIZE = 15
 
 # Unit information comes FIRST. A property description may describe multiple
@@ -23,7 +23,7 @@ BATCH_SIZE = 15
 EVIDENCE_FIELDS = (
     "ListingId", "FloorplanId", "UnitName", "UnitNumber",
     "ListingGranularity", "RoomStatus", "FloorplanRentStyle",
-    "FloorplanPerPerson", "Bedrooms", "Bathrooms", "SqFt", "unit_sqft",
+    "FloorplanPerPerson", "Bedrooms", "Bathrooms",
     "HousingType", "PropertyCategory", "PropertyHighlights",
     "ShortDescription",
 )
@@ -117,6 +117,37 @@ def _fingerprint(details):
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+# Earlier v1 fingerprints included sizes even though the classifier is
+# expressly forbidden to infer shared facilities from unit area. Compute a
+# legacy hash only to migrate exact existing matches without another API call.
+LEGACY_EVIDENCE_FIELDS = (
+    "ListingId", "FloorplanId", "UnitName", "UnitNumber",
+    "ListingGranularity", "RoomStatus", "FloorplanRentStyle",
+    "FloorplanPerPerson", "Bedrooms", "Bathrooms", "SqFt", "unit_sqft",
+    "HousingType", "PropertyCategory", "PropertyHighlights",
+    "ShortDescription",
+)
+
+
+def _legacy_fingerprint(row):
+    details = {name: _value(row.get(name)) for name in LEGACY_EVIDENCE_FIELDS}
+    details = {k: v for k, v in details.items() if v is not None and v != ""}
+    return _fingerprint(details, version=LEGACY_VERSION)
+
+
+def _upgrade_cache_fingerprints(engine, entries):
+    """Migrate exactly matching v1 hashes, without changing reviewed labels."""
+    if not entries:
+        return
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE public.shared_facilities_classifications
+               SET evidence_fingerprint = :new_fingerprint
+             WHERE listingid = :listingid
+               AND evidence_fingerprint = :old_fingerprint
+        """), entries)
+
+
 def _load_cache(engine):
     with engine.connect() as conn:
         rows = conn.execute(text("""
@@ -185,7 +216,7 @@ def classify_shared_facilities(frame: pd.DataFrame) -> pd.DataFrame:
         for i, row in out.iterrows():
             listingid = str(row["ListingId"])
             prior = cached.get(listingid)
-            if prior and prior["evidence_fingerprint"] == fingerprints[i]:
+            legacy_match = (\n                prior is not None\n                and prior["evidence_fingerprint"] == _legacy_fingerprint(row)\n            )\n            if prior and (prior["evidence_fingerprint"] == fingerprints[i] or legacy_match):\n                if legacy_match and prior["evidence_fingerprint"] != fingerprints[i]:\n                    upgrades.append({\n                        "listingid": listingid,\n                        "old_fingerprint": prior["evidence_fingerprint"],\n                        "new_fingerprint": fingerprints[i],\n                    })
                 _apply(out, i, prior)
                 # The source bedroom count is fingerprinted too; only trust
                 # cached counts for matching source evidence.
