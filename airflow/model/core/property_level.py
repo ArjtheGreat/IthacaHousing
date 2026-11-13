@@ -22,6 +22,7 @@ UNIT_LEVEL_COLS = frozenset({
     "Bedrooms",
     "Bathrooms",
     "SqFt",
+    "unit_sqft",  # Floorplan-specific area; never broadcast across a property.
     "AvailableFrom",
     "AvailableDate",
     "LengthAvailable",
