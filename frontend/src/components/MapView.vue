@@ -205,7 +205,15 @@
 
     <!-- Map Container -->
     <div class="relative flex z-[0] border-b-2 border-black overflow-hidden" :class="{ 'has-assistant': !fairRent }">
-      <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" @select-listing="selectListingFromSidebar" :listing="selectedListing" :fair-rent="fairRent" v-if="isSidebarVisible" />
+      <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" @select-listing="selectListingFromSidebar" :listing="selectedListing" :fair-rent="selectedListing?.predictedrent != null" v-if="isSidebarVisible" />
+
+      <!-- The same Leaflet instance serves both listing discovery and fair-rent analysis. -->
+      <div class="explore-mode-switch" role="group" aria-label="Map display mode">
+        <button type="button" :class="{ active: !fairRent }"
+          :aria-pressed="!fairRent" @click="setMapMode('listings')">Explore Listings</button>
+        <button type="button" :class="{ active: fairRent }"
+          :aria-pressed="fairRent" @click="setMapMode('fair-rent')">Fair Rent Analysis</button>
+      </div>
 
       <!-- Address Search Bar -->
       <div class="search-container">
@@ -284,7 +292,6 @@
 
       <!-- Claude-powered assistant: sets the filters above and pins its picks on the map -->
       <ListingAssistant
-        v-if="!fairRent"
         :class="{ 'assistant-beside-sidebar': isSidebarVisible && !isMobile }"
         :current-filters="assistantCurrentFilters"
         :selected-id="selectedListing?.listingid != null ? String(selectedListing.listingid) : null"
@@ -298,7 +305,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, markRaw, toRaw } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount, markRaw, toRaw } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
@@ -320,9 +328,17 @@ import "@/assets/complexes.css";
 import cornellBoundaryUrl from "@/assets/cornell_main_boundary.geojson?url";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 
-const props = defineProps({
-  fairRent: { type: Boolean, default: true },
-});
+// Both URL modes share this one mounted map and its current filters.
+const route = useRoute();
+const router = useRouter();
+const mapMode = computed(() => route.query.mode === 'fair-rent' ? 'fair-rent' : 'listings');
+const fairRent = computed(() => mapMode.value === 'fair-rent');
+
+function setMapMode(mode) {
+  if (mode !== 'listings' && mode !== 'fair-rent') return;
+  if (mode === mapMode.value) return;
+  router.replace({ path: '/explore', query: { ...route.query, mode } });
+}
 
 const LISTING_COLOR = '#355C7D';
 const LISTING_SELECTED_COLOR = '#B31B1B';
@@ -370,7 +386,7 @@ const showCommutePanel = ref(false); // Controls visibility of new commute panel
 const activePOI = ref(null); // Tracks which POI is currently displayed
 
 // Price display mode: 'differential' or 'raw'. Listings mode stays on raw prices.
-const priceDisplayMode = ref(props.fairRent ? 'differential' : 'raw');
+const priceDisplayMode = ref('differential');
 
 // Mobile functionality variables
 const isMobile = ref(false); // Tracks if user is on mobile
@@ -515,7 +531,7 @@ function listingDotStyle(selected, radius) {
 }
 
 function clearAllHighlights() {
-    if (!props.fairRent) {
+    if (!fairRent.value) {
         markers.value.forEach(marker => marker.setStyle?.(listingDotStyle(false, marker.options.baseRadius ?? LISTING_DOT_RADIUS)));
         selectedEntry = null;
         selectedMarker.value = null;
@@ -549,7 +565,7 @@ function highlightSelectedMarker(listing) {
     selectedEntry = entry;
     selectedMarker.value = entry.marker;
 
-    if (!props.fairRent) {
+    if (!fairRent.value) {
         const radius = entry.marker.options.baseRadius ?? LISTING_DOT_RADIUS;
         entry.marker.setStyle(listingDotStyle(true, radius));
         entry.marker.bringToFront?.();
@@ -600,7 +616,7 @@ function getRawPriceStats(listings) {
  * Color of a single listing in the current price display mode
  */
 function listingColor(listing, stats) {
-    if (!props.fairRent) return LISTING_COLOR;
+    if (!fairRent.value) return LISTING_COLOR;
     if (priceDisplayMode.value === 'raw') {
         return getColorByRawPrice(listing.rent_per_person, stats.minRent, stats.maxRent, stats.p5, stats.p95);
     }
@@ -611,7 +627,7 @@ function listingColor(listing, stats) {
  * Center color and ring segments for a building marker in the current price display mode
  */
 function complexPaint(complex, stats) {
-    if (!props.fairRent) {
+    if (!fairRent.value) {
         return {
             center: LISTING_COLOR,
             segments: [{ color: LISTING_COLOR, count: complex.count }],
@@ -668,18 +684,18 @@ const formatRentRange = (complex) => (complex.minRent === complex.maxRent
  */
 function buildComplexPopup(entry, stats, totalUnits) {
     const { complex } = entry;
-    const units = props.fairRent
+    const units = fairRent.value
         ? sortByValue(complex.units)
         : [...complex.units].sort((a, b) => (a.rent_per_person || 0) - (b.rent_per_person || 0));
     const rows = units.map(unit => {
-        const score = props.fairRent ? valueScore(unit) : null;
+        const score = fairRent.value ? valueScore(unit) : null;
         return {
             id: unit.listingid,
             beds: unit.available_bedrooms == null ? 'N/A' : unit.available_bedrooms > 0 ? `${Number(unit.available_bedrooms)} bd` : 'Studio',
             rent: formatRent(unit.rent_per_person),
             color: listingColor(unit, stats),
-            badge: !props.fairRent ? '' : score === null ? 'n/a' : `${(Math.abs(score) * 100).toFixed(1)}%`,
-            badgeClass: !props.fairRent || score === null ? 'none' : bucketForScore(score),
+            badge: !fairRent.value ? '' : score === null ? 'n/a' : `${(Math.abs(score) * 100).toFixed(1)}%`,
+            badgeClass: !fairRent.value || score === null ? 'none' : bucketForScore(score),
         };
     });
     const range = complex.minRent === null ? '' : ` · ${formatRentRange(complex)}`;
@@ -710,7 +726,7 @@ async function openListing(listing) {
  * Switches listing markers between their zoomed-in and zoomed-out forms
  */
 function applyZoomMode() {
-    if (!props.fairRent) return;
+    if (!fairRent.value) return;
     const compact = map.value.getZoom() < COMPLEX_FULL_ZOOM;
     if (compact === isCompactZoom) return;
     isCompactZoom = compact;
@@ -917,7 +933,7 @@ function addMarkers(listings, filtered) {
       map.value.removeLayer(heatmapLayer.value); 
     }
 
-    if (!props.fairRent) {
+    if (!fairRent.value) {
         addListingDots(listings, rawMap);
         return;
     }
@@ -1313,6 +1329,20 @@ onBeforeUnmount(() => {
         plotClustersOnMap();
     }
 };
+
+// Redraw only the markers when switching modes: preserve Leaflet map, zoom,
+// filters, selected listing and the rental sidebar.
+watch(mapMode, () => {
+    if (!map.value || isLoading.value) return;
+    priceDisplayMode.value = 'differential';
+    if (activeFilter.value === 'topTen') {
+        addMarkers(topTenListings.value, false);
+    } else if (activeFilter.value === 'bottomTen') {
+        addMarkers(bottomTenListings.value, false);
+    } else {
+        mergeFilters();
+    }
+});
 
 /**
  * Toggle between price differential and raw price display
@@ -2077,6 +2107,39 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 </script>
 
 <style scoped>
+/* Map mode selector is an overlay, not a second map or navigation. */
+.explore-mode-switch {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 950;
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  background: #ffffffed;
+  border: 1px solid #dbe2ea;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px #0000001b;
+}
+.explore-mode-switch button {
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  padding: 9px 15px;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.explore-mode-switch button.active {
+  color: #ffffff;
+  background: #355c7d;
+}
+@media (max-width: 768px) {
+  .explore-mode-switch { top: 68px; left: 50%; }
+  .explore-mode-switch button { padding: 7px 9px; font-size: 12px; }
+}
 /* MAP */
 #map {
   position: absolute;
