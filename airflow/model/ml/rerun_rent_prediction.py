@@ -24,6 +24,7 @@ import core.excluded_listing_unit_ids as excluded_listing_unit_ids
 import core.pipeline_metrics as pipeline_metrics
 import ml.comparative_market_analysis as comparative_market_analysis
 import extractors.assign_wards as assign_wards
+import extractors.assign_bid as assign_bid
 import ml.data_preprocessing as data_preprocessing
 import ml.model_training as model_training
 from ml.unit_configuration import add_unit_configuration_features
@@ -125,6 +126,7 @@ def fetch_listings_for_retrain() -> pd.DataFrame:
         "unit_sqft",
         "neighborhood",
         "ward",
+        "in_business_improvement_district",
         "owner_name",
         "lengthavailable",
         "walk_time_urishall",
@@ -251,6 +253,7 @@ def prepare_features_from_db(df: pd.DataFrame) -> pd.DataFrame:
     # Re-derive ward from the bundled 2022 boundary source so DB-only
     # retrains work even if the existing table predates the ward column.
     out = assign_wards.assign_wards(out)
+    out = assign_bid.assign_bid(out)
 
     # CMA lat/lng aliases
     if "GmapLatitude" not in out.columns and "latitude" in out.columns:
@@ -483,6 +486,11 @@ def update_predictions_in_db(df: pd.DataFrame, batch_size: int = 100) -> int:
                 "predicted_rent_cma": _sanitize(row.get("predicted_rent_cma")),
                 "nearest_neighbor_listingids": neighbors,
                 "differenceinfairvalue": _sanitize(row.get("differenceinfairvalue")),
+                "ward": _sanitize(row.get("ward")),
+                "in_business_improvement_district": (
+                    None if pd.isna(row.get("in_business_improvement_district"))
+                    else bool(row.get("in_business_improvement_district"))
+                ),
                 **{name: _sanitize(row.get(name)) for name in calculate_amenity_score.CANONICAL_AMENITY_COLUMNS},
                 **{
                     dest: _sanitize(row.get(src))
@@ -503,6 +511,8 @@ def update_predictions_in_db(df: pd.DataFrame, batch_size: int = 100) -> int:
             predicted_rent_cma = :predicted_rent_cma,
             nearest_neighbor_listingids = :nearest_neighbor_listingids,
             differenceinfairvalue = :differenceinfairvalue,
+            ward = :ward,
+            in_business_improvement_district = :in_business_improvement_district,
             {feature_assignments}
         WHERE listingid = :listingid
         """
