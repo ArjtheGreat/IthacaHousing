@@ -8,6 +8,7 @@ from __future__ import annotations
 
 EXCLUDED_LISTING_UNIT_IDS = frozenset({
     "237571-30678009",  # The Pinnacle, 121 Lake St: anomalous 2BR floorplan
+    "237333-30766393",  # Center Ithaca, 171 E State St: R100 retail/commercial unit
 })
 
 
