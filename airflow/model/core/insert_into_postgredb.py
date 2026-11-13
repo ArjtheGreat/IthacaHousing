@@ -37,6 +37,14 @@ def ensure_model_feature_columns(engine):
         engine,
         text("""
             ALTER TABLE housing_listings
+                ADD COLUMN IF NOT EXISTS year_built_source text,
+                ADD COLUMN IF NOT EXISTS parcel_printkey text,
+                ADD COLUMN IF NOT EXISTS parcel_match_method text,
+                ADD COLUMN IF NOT EXISTS assessment_total_value numeric,
+                ADD COLUMN IF NOT EXISTS assessment_land_value numeric,
+                ADD COLUMN IF NOT EXISTS assessment_stories numeric,
+                ADD COLUMN IF NOT EXISTS assessment_zoning text,
+                ADD COLUMN IF NOT EXISTS assessment_property_class text,
                 ADD COLUMN IF NOT EXISTS ward text,
                 ADD COLUMN IF NOT EXISTS in_business_improvement_district boolean,
                 ADD COLUMN IF NOT EXISTS shared_facilities boolean,
@@ -437,7 +445,10 @@ def psql_insert_copy(df):
             "grocery_count_200m", "grocery_nearest_dist",
         ],
         "property": [
-            "year_built", "yr_built_encoded",
+            "year_built", "yr_built_encoded", "year_built_source",
+            "parcel_printkey", "parcel_match_method",
+            "assessment_total_value", "assessment_land_value",
+            "assessment_stories", "assessment_zoning", "assessment_property_class",
             "valid_certificate_of_compliance", "owner_name",
             "landlord_email", "landlord_name", "landlord_full_name",
             "landlord_username", "contact_number",
