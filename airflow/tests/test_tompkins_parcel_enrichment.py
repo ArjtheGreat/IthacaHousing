@@ -11,7 +11,7 @@ from shapely.geometry import Polygon, mapping
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "model"))
 from extractors.enrich_tompkins_parcels import (
-    _year, download_parcels_for_bbox, enrich_from_2026_parcels,
+    _year, _request_json, download_parcels_for_bbox, enrich_from_2026_parcels,
 )
 
 
@@ -77,6 +77,33 @@ class CountyParcelTests(unittest.TestCase):
         self.assertEqual(out.loc[1, "year_built_source"], "legacy_assessment_csv")
         self.assertTrue(pd.isna(out.loc[2, "year_built"]))
         self.assertEqual(out.loc[0, "parcel_printkey"], "101")
+
+    def test_large_id_query_uses_post_instead_of_long_get_url(self):
+        class FakeResponse:
+            status_code = 200
+            def raise_for_status(self):
+                pass
+            def json(self):
+                return {"type": "FeatureCollection", "features": []}
+
+        class FakeSession:
+            def __init__(self):
+                self.calls = []
+            def post(self, url, data, timeout):
+                self.calls.append(("POST", data))
+                return FakeResponse()
+            def get(self, url, params, timeout):
+                self.calls.append(("GET", params))
+                return FakeResponse()
+
+        session = FakeSession()
+        ids = ",".join(map(str, range(250)))
+        result = _request_json(session, {
+            "objectIds": ids, "f": "geojson", "returnGeometry": "true",
+        })
+        self.assertEqual(result["type"], "FeatureCollection")
+        self.assertEqual([kind for kind, _ in session.calls], ["POST"])
+        self.assertEqual(session.calls[0][1]["objectIds"], ids)
 
     def test_paginated_download_refuses_incomplete_pages(self):
         bbox = (-76.51, 42.43, -76.47, 42.47)
