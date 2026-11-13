@@ -435,11 +435,13 @@ def housing_data_pipeline():
     )
     apartments_for_rent = apartments_for_rent.drop(columns=["_parcel_cached"], errors="ignore")
 
-    print("📍 Extracting neighborhoods (once per PropertyId)...")
-    apartments_for_rent = property_level.apply_cached_property_enrichment(
-        apartments_for_rent, existing_listings_df,
+    # Recompute after updating boundary files; the prior DB cache contains
+    # outdated seven-neighborhood labels and must not mask the new 19 names.
+    print("📍 Extracting 2010 neighborhoods (once per PropertyId)...")
+    apartments_for_rent = property_level.apply_per_property(
+        apartments_for_rent,
         extract_rental_data.extract_neighborhood,
-        fields=["neighborhood"], required=["neighborhood"], label="neighborhood",
+        label="2010 neighborhoods",
     )
 
     # Ward is distinct from the existing neighborhood field and should be
