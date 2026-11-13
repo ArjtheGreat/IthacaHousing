@@ -205,7 +205,7 @@
 
     <!-- Map Container -->
     <div class="relative flex z-[0] border-b-2 border-black overflow-hidden has-assistant">
-      <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" @select-listing="selectListingFromSidebar" :listing="selectedListing" :fair-rent="fairRent" v-if="isSidebarVisible" />
+      <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" @select-listing="selectListingFromSidebar" @show-fair-rent="setMapMode('fair-rent')" :listing="selectedListing" :fair-rent="fairRent" v-if="isSidebarVisible" />
 
       <!-- The same Leaflet instance serves both listing discovery and fair-rent analysis. -->
       <div class="explore-mode-switch" role="group" aria-label="Map display mode">
