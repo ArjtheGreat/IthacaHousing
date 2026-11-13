@@ -20,6 +20,7 @@ export interface Listing {
     owner_name: string;
     neighborhood: string;
     ward?: string | null;
+    in_business_improvement_district?: boolean | null;
     nearest_stop_name: string;
     walk_time_to_nearest_stop: number;
     transit_score: number;
