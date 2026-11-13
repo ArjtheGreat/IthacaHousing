@@ -106,6 +106,7 @@ class HousingListing(Base):
     contact_number = Column(Text)
     neighborhood = Column(String)
     ward = Column(String)
+    in_business_improvement_district = Column(Boolean)
     nearest_stop_name = Column(String)
     walk_time_to_nearest_stop = Column(Numeric)
     transit_time_to_ag_quad = Column(Numeric)
