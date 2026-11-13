@@ -129,6 +129,11 @@ def define_X_Y_variables(apartments_for_rent):
             columns[name] = pd.to_numeric(frame[source], errors="coerce")
         elif name not in BASELINE_FEATURES:
             raise ValueError(f"Missing required notebook predictor: {name}")
+    if "in_business_improvement_district" in frame.columns:
+        columns["in_business_improvement_district"] = (
+            frame["in_business_improvement_district"]
+            .astype("boolean").astype("Float64").astype(float)
+        )
     if USE_WARD_CATEGORY and "ward" in frame.columns:
         # The five wards are mutually exclusive geographic categories.
         # Outside-city and unassigned properties are NaN for all five.
