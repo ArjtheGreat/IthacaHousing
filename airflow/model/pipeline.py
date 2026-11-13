@@ -68,7 +68,24 @@ def get_existing_listings_dataframe():
 
     try:
         with engine.connect() as conn:
-            query = text("""
+            # Optional county fields may not exist before the first GIS ingest.
+            # Select them dynamically so old databases still load cleanly.
+            present = {
+                row[0] for row in conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'housing_listings'"
+                ))
+            }
+            parcel_optional = [
+                "year_built_source", "parcel_printkey", "parcel_match_method",
+                "assessment_total_value", "assessment_land_value",
+                "assessment_stories", "assessment_zoning",
+                "assessment_property_class",
+            ]
+            extra = ", " + ", ".join(
+                col for col in parcel_optional if col in present
+            ) if any(col in present for col in parcel_optional) else ""
+            query = text(f"""
                 SELECT listingid, listingaddress, listingcity, listingzip, neighborhood,
                        rentamount, rent_per_person, available_bedrooms, available_bathrooms,
                        year_built, createdate, listingexpirationdate, lengthavailable,
@@ -76,7 +93,7 @@ def get_existing_listings_dataframe():
                        assessment_sqft, neighborhood_assessment, property_depth,
                        property_frontage, property_pc, water_access, sewer_access,
                        sewer_name, latitude, longitude, drive_time_urishall,
-                       drive_time_agriculturequad, drive_time_artsquad, drive_time_engineeringquad
+                       drive_time_agriculturequad, drive_time_artsquad, drive_time_engineeringquad{extra}
                 FROM housing_listings
             """)
             result = conn.execute(query)
@@ -417,6 +434,9 @@ def housing_data_pipeline():
         "neighborhood_assessment", "property_depth", "property_frontage",
         "property_acres", "property_pc", "water_access", "sewer_access",
         "sewer_name", "year_built", "sale_price", "assessment_sqft",
+        "year_built_source", "parcel_printkey", "parcel_match_method",
+        "assessment_total_value", "assessment_land_value",
+        "assessment_stories", "assessment_zoning", "assessment_property_class",
     ]
     # Cache parcel lookup only where a substantive value was previously saved.
     parcel_cache = existing_listings_df.copy()
