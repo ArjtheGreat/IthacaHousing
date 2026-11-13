@@ -38,6 +38,7 @@ def ensure_model_feature_columns(engine):
         text("""
             ALTER TABLE housing_listings
                 ADD COLUMN IF NOT EXISTS ward text,
+                ADD COLUMN IF NOT EXISTS in_business_improvement_district boolean,
                 ADD COLUMN IF NOT EXISTS shared_facilities boolean,
                 ADD COLUMN IF NOT EXISTS shared_facilities_classification text,
                 ADD COLUMN IF NOT EXISTS shared_facilities_confidence text,
@@ -403,7 +404,7 @@ def psql_insert_copy(df):
             "shared_facilities_fingerprint",
         ],
         "location": [
-            "latitude", "longitude", "neighborhood", "ward", "iso15",
+            "latitude", "longitude", "neighborhood", "ward", "in_business_improvement_district", "iso15",
             "walk_time_urishall", "walk_time_agriculturequad",
             "walk_time_artsquad", "walk_time_engineeringquad",
             "bike_time_urishall", "bike_time_agriculturequad",
