@@ -13,6 +13,7 @@ from core.excluded_listing_unit_ids import (
     exclude_listing_units,
 )
 from ml.model_training import define_X_Y_variables
+from ml.comparative_market_analysis import perform_cma
 
 
 class RentModelAndExclusionTests(unittest.TestCase):
@@ -40,6 +41,36 @@ class RentModelAndExclusionTests(unittest.TestCase):
             exclude_listing_units(frame)["listingid"].tolist(),
             ["237571-30743208"],
         )
+
+    def test_cma_excludes_every_unit_from_subject_property(self):
+        frame = pd.DataFrame({
+            "ListingId": ["522-1", "522-2", "522-3", "110-1", "220-1"],
+            "PropertyId": ["522", "522", "522", "110", "220"],
+            "rent_per_person": [1125, 1150, 1175, 1425, 900],
+        })
+        X = pd.DataFrame({"feature": [0.0, 0.01, 0.02, 0.03, 0.04]})
+        result = perform_cma(X, frame, n_neighbors=3)
+        for _, row in result.iterrows():
+            self.assertTrue(all(
+                neighbor.split("-")[0] != row["PropertyId"]
+                for neighbor in row["nearest_neighbor_listingIds"]
+            ))
+            self.assertEqual(len(row["nearest_neighbor_listingIds"]), 2)
+            prices = dict(zip(result["ListingId"], result["rent_per_person"]))
+            self.assertAlmostEqual(
+                row["predicted_rent_cma"],
+                np.mean([prices[neighbor] for neighbor in row["nearest_neighbor_listingIds"]]),
+            )
+
+    def test_cma_with_only_one_property_has_no_comps(self):
+        frame = pd.DataFrame({
+            "ListingId": ["522-1", "522-2"],
+            "PropertyId": ["522", "522"],
+            "rent_per_person": [1125, 1150],
+        })
+        result = perform_cma(pd.DataFrame({"x": [1, 2]}), frame)
+        self.assertTrue(all(not ids for ids in result["nearest_neighbor_listingIds"]))
+        self.assertTrue(result["predicted_rent_cma"].isna().all())
 
     def test_notebook_predictors_include_separate_amenities(self):
         data = pd.DataFrame({
