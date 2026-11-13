@@ -230,7 +230,7 @@ MODEL_PATH = "/opt/airflow/model"
 if not os.path.exists(MODEL_PATH):
     MODEL_PATH = str(Path(__file__).resolve().parent)
 
-geojson_path = os.path.join(MODEL_PATH, "data", "neighborhoods.geojson")
+geojson_path = str(Path(__file__).resolve().parents[1] / "data" / "neighborhoods.geojson")
 
 def extract_neighborhood(apartments_for_rent):
     """Assign James Spokes' named Ithaca neighborhoods to each property/unit.
