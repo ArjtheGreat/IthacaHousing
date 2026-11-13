@@ -63,7 +63,7 @@ USE_UNIT_AMENITIES = True
 USE_BUILDING_AMENITIES = True
 USE_UTILITY_AMENITIES = True
 USE_LEASING_AMENITIES = True
-USE_WARD_CATEGORY = True  # Five binary ward indicators; never a 1-to-5 ordinal number.
+USE_WARD_CATEGORY = False  # Temporarily exclude ward dummies from production model; retain ward in database for research.
 EXCLUDE_FEATURES = ()
 INCLUDE_FEATURES = ()
 
