@@ -49,7 +49,11 @@ class WardCategoryTests(unittest.TestCase):
         encoded = add_ward_indicators(result)
         for n in range(1, 6):
             col = f"ward_{n}"
-            self.assertEqual(int(encoded.loc[n - 1, col]), n == int(wards.iloc[n - 1].WardNum))
+            for row_index, boundary in wards.reset_index(drop=True).iterrows():
+                self.assertEqual(
+                    int(encoded.loc[row_index, col]),
+                    int(boundary["WardNum"]) == n,
+                )
             self.assertTrue(np.isnan(encoded.loc[5, col]))
 
     def test_missing_coordinates_stay_unassigned(self):
