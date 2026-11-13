@@ -462,16 +462,29 @@ def housing_data_pipeline():
     # legacy ownership/assessment CSV without overwriting known years or
     # treating parcel SQ_FT as unit floorplan area.
     print("🏗️ Filling missing parcel assessments from 2026 Tompkins County GIS...")
+    year_before = int(pd.to_numeric(
+        apartments_for_rent.get("year_built"), errors="coerce"
+    ).notna().sum()) if "year_built" in apartments_for_rent else 0
     try:
         apartments_for_rent = property_level.apply_per_property(
             apartments_for_rent,
             enrich_tompkins_parcels.enrich_from_2026_parcels,
             label="county parcel GIS",
         )
+        year_after = pd.to_numeric(apartments_for_rent["year_built"], errors="coerce").notna().sum()
+        print(f"📊 Construction years: {year_before} before county GIS, "
+              f"{year_after} after (+{year_after - year_before} rows)")
     except (OSError, RuntimeError, ValueError, KeyError) as exc:
         # The county endpoint can occasionally be unavailable. Existing
         # CSV-derived fields remain intact and the full ingest may proceed.
         print(f"⚠️ Parcel GIS enrichment unavailable; keeping legacy values: {exc}")
+        # Previously a failed GIS query was easy to miss, leaving all new
+        # assessment columns NULL without a useful Airflow traceback.
+        import traceback
+        traceback.print_exc()
+        if os.getenv("TOMPKINS_PARCEL_REQUIRED", "0") == "1":
+            raise
+
 
     print("📍 Extracting 2010 neighborhoods (once per PropertyId)...")
     apartments_for_rent = property_level.apply_per_property(
