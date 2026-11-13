@@ -163,40 +163,24 @@
     </div>
 
 
-    <!-- Amenities Section -->
+    <!-- Renter-friendly amenity groups; retain original advertised detail. -->
     <div class="popup-amenities">
-        <div class="amenities-header">
-            <strong>Amenities</strong>
-        </div>
-        
-        <div class="amenities-categories" v-if="formatAmenities(listing?.amenities, listing?.pets).length > 0">
-            <div 
-                v-for="(category, index) in formatAmenities(listing?.amenities, listing?.pets)" 
-                :key="category.category" 
-                class="amenity-category"
-                :class="{ 'category-other': category.category === 'Other' && formatAmenities(listing?.amenities, listing?.pets).length % 2 === 1 }"
-            >
-                <div class="category-header">
-                    <i :class="category.icon" class="category-icon" :style="{ color: category.color }"></i>
-                    <span class="category-name">{{ category.category }}</span>
-                </div>
-                <div class="amenity-pills">
-                    <div 
-                        v-for="amenity in category.amenities" 
-                        :key="amenity.name" 
-                        class="amenity-pill"
-                        :style="{ '--pill-color': category.color }"
-                    >
-                        {{ amenity.name }}
-                    </div>
-                </div>
+      <div class="amenities-header"><strong>Amenities</strong></div>
+      <div v-if="advertisedAmenityGroups.length" class="amenities-categories">
+        <div v-for="category in advertisedAmenityGroups" :key="category.category" class="amenity-category">
+          <div class="category-header">
+            <i class="fa-solid fa-check-circle category-icon" style="color:#355c7d"></i>
+            <span class="category-name">{{ category.category }}</span>
+          </div>
+          <div class="amenity-pills">
+            <div v-for="amenity in category.amenities" :key="amenity" class="amenity-pill">
+              {{ amenity }}
             </div>
+          </div>
         </div>
-        
-        <div v-else class="no-amenities">
-            <i class="fa-solid fa-info-circle"></i>
-            <span>No amenities listed</span>
-        </div>
+      </div>
+      <div v-else class="no-amenities"><i class="fa-solid fa-info-circle"></i> No amenities advertised</div>
+      <p class="amenities-disclaimer">Amenities are landlord-advertised; verify availability and whether utilities are included before signing.</p>
     </div>
 
     <!-- Transit Section -->
@@ -550,6 +534,7 @@ import { defineProps, defineEmits, ref, computed, onMounted, watch } from 'vue';
 import { fetchListing }  from "@/services/fetch"; 
 import type { Listing } from "@/services/interface"
 import { titleCase } from "@/utils/complexes";
+import { groupedAdvertisedAmenities } from "@/utils/amenities";
 
 const props = defineProps({
     listing: Object,
@@ -559,6 +544,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'zoom', 'select-listing', 'show-fair-rent']);
 
 const showTooltip = ref(false);
+const advertisedAmenityGroups = computed(() => groupedAdvertisedAmenities(props.listing?.amenities));
 
 /**
  * "205 Dryden Rd, Ithaca, 14850": title-cased, missing parts skipped,
@@ -1275,6 +1261,8 @@ watch<Listing | undefined>(
   
 
 <style scoped>
+.amenities-disclaimer { margin: 9px 0 0; font-size: 11px; line-height: 1.45; color: #64748b; }
+
 .fair-rent-teaser {
   display: flex;
   justify-content: space-between;
