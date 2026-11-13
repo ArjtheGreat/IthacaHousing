@@ -15,7 +15,8 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 
 MODEL = "gpt-4.1-mini"
-VERSION = "shared-facilities-unit-v2"\nLEGACY_VERSION = "shared-facilities-unit-v1"
+VERSION = "shared-facilities-unit-v2"
+LEGACY_VERSION = "shared-facilities-unit-v1"
 BATCH_SIZE = 15
 
 # Unit information comes FIRST. A property description may describe multiple
@@ -213,10 +214,21 @@ def classify_shared_facilities(frame: pd.DataFrame) -> pd.DataFrame:
     try:
         cached = _load_cache(engine)
         pending = []
+        upgrades = []
         for i, row in out.iterrows():
             listingid = str(row["ListingId"])
             prior = cached.get(listingid)
-            legacy_match = (\n                prior is not None\n                and prior["evidence_fingerprint"] == _legacy_fingerprint(row)\n            )\n            if prior and (prior["evidence_fingerprint"] == fingerprints[i] or legacy_match):\n                if legacy_match and prior["evidence_fingerprint"] != fingerprints[i]:\n                    upgrades.append({\n                        "listingid": listingid,\n                        "old_fingerprint": prior["evidence_fingerprint"],\n                        "new_fingerprint": fingerprints[i],\n                    })
+            legacy_match = (
+                prior is not None
+                and prior["evidence_fingerprint"] == _legacy_fingerprint(row)
+            )
+            if prior and (prior["evidence_fingerprint"] == fingerprints[i] or legacy_match):
+                if legacy_match and prior["evidence_fingerprint"] != fingerprints[i]:
+                    upgrades.append({
+                        "listingid": listingid,
+                        "old_fingerprint": prior["evidence_fingerprint"],
+                        "new_fingerprint": fingerprints[i],
+                    })
                 _apply(out, i, prior)
                 # The source bedroom count is fingerprinted too; only trust
                 # cached counts for matching source evidence.
@@ -224,6 +236,10 @@ def classify_shared_facilities(frame: pd.DataFrame) -> pd.DataFrame:
                     out.at[i, "physical_bedrooms"] = float(prior["physical_bedrooms"])
             else:
                 pending.append(i)
+
+        _upgrade_cache_fingerprints(engine, upgrades)
+        if upgrades:
+            print(f"♻️ Migrated {len(upgrades)} matching shared-facilities cache entries to v2")
 
         if pending:
             if not os.getenv("OPENAI_API_KEY"):
