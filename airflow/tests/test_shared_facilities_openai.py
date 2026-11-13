@@ -60,10 +60,10 @@ class SharedFacilitiesCacheTests(unittest.TestCase):
             "evidence_field": "UnitName", "physical_bedrooms": 0,
         }}
         engine = MagicMock()
-        with patch.dict(os.environ, {"DB_URI": "postgresql://not-used"}, clear=False), \\
-             patch.object(classifier, "create_engine", return_value=engine), \\
-             patch.object(classifier, "_load_cache", return_value=cache), \\
-             patch.object(classifier, "_upgrade_cache_fingerprints") as migrate, \\
+        with patch.dict(os.environ, {"DB_URI": "postgresql://not-used"}, clear=False), \
+             patch.object(classifier, "create_engine", return_value=engine), \
+             patch.object(classifier, "_load_cache", return_value=cache), \
+             patch.object(classifier, "_upgrade_cache_fingerprints") as migrate, \
              patch.object(classifier, "_save_batch") as save:
             out = classifier.classify_shared_facilities(frame)
         self.assertEqual(out.loc[0, "shared_facilities_classification"], "private")
