@@ -291,6 +291,23 @@ def _execute_with_retry(engine, statement, params=None, attempts=4, label="query
     raise last_err
 
 
+def _as_postgres_boolean(value, column, listingid):
+    """Convert binary model values to Python booleans before SQL binding.
+
+    Missing/unknown remains NULL. Reject anything other than 0 or 1 so
+    bad enrichment cannot silently publish a misleading district flag.
+    """
+    if value is None or pd.isna(value):
+        return None
+    if value in (0, 0.0, False):
+        return False
+    if value in (1, 1.0, True):
+        return True
+    raise ValueError(
+        f"Invalid {column} value: {value!r} for listing {listingid}"
+    )
+
+
 def psql_insert_copy(df):
     """
     Insert cleaned housing listing data into Supabase (PostgreSQL).
@@ -605,22 +622,19 @@ def psql_insert_copy(df):
         for k, v in list(record.items()):
             record[k] = _sanitize_record_value(v)
 
-    # Each model feature can be float 0.0/1.0 after numeric preprocessing,
-    # but PostgreSQL's shared_facilities column is BOOLEAN, not NUMERIC.
-    # Convert only that storage field; leave unknown as NULL.
-    if "shared_facilities" in df.columns:
-        for record in records:
-            value = record.get("shared_facilities")
-            if value is None or pd.isna(value):
-                record["shared_facilities"] = None
-            elif value in (0, 0.0, False):
-                record["shared_facilities"] = False
-            elif value in (1, 1.0, True):
-                record["shared_facilities"] = True
-            else:
-                raise ValueError(
-                    f"Invalid shared_facilities value: {value!r} "
-                    f"for listing {record.get('listingid')}"
+    # Numeric model preparation can turn boolean features into 0.0 / 1.0.
+    # Convert all PostgreSQL BOOLEAN columns to native Python bool / None.
+    # Casting the SQL column instead would conceal bad input values.
+    boolean_columns = (
+        "shared_facilities",
+        "in_business_improvement_district",
+        "rent_manual_override",
+    )
+    for record in records:
+        for col in boolean_columns:
+            if col in record:
+                record[col] = _as_postgres_boolean(
+                    record[col], col, record.get("listingid")
                 )
 
     # Atomic UPSERT + reconciliation: a successful full scrape is the source
