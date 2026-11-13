@@ -73,6 +73,12 @@
                 </div>
             </div>
 
+            <div v-if="!fairRent && listing?.predictedrent && listing?.rent_per_person"
+                 class="fair-rent-teaser">
+                <span>Model estimate: {{ formatMoney(listing.predictedrent) }}/person</span>
+                <button type="button" @click="emit('show-fair-rent')">View analysis</button>
+            </div>
+
             <!-- Fair Rent Map: side-by-side comparison -->
             <div v-else class="rent-comparison-grid">
                 <div class="rent-column actual-rent">
@@ -463,7 +469,7 @@
     <div class="cma-section">
         <div class="cma-header">
             <h4 class="cma-title">
-                {{ fairRent ? 'Comparative Market Analysis' : 'Similar properties' }}
+                Comparable Rentals
                 <div v-if="fairRent" class="tooltip-container">
                     <span class="tooltip-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info">
@@ -482,53 +488,19 @@
                     </div>
                 </div>
             </h4>
-            <!-- Main Rent Display -->
-            <div v-if="fairRent" class="rent-comparison-grid">
-                <!-- Actual Rent Column -->
-                <div class="rent-column actual-rent">
-                    <div class="rent-column-header">
-                        <span class="column-label">ACTUAL RENT</span>
-                    </div>
-                    <div class="rent-total-section">
-                        <div class="rent-amount-large">{{ formatMoney(listing?.rent_per_person) }}</div>
-                        <div class="rent-label-small">per person</div>
-                    </div>
-                    <div class="rent-per-person-section">
-                        <template v-if="isStudio(listing)">
-                            <div class="per-person-label"><span class="people-count">Studio</span></div>
-                        </template>
-                        <template v-else>
-                            <div class="per-person-amount">{{ formatMoney(listing?.total_rent_amount) }}</div>
-                            <div class="per-person-label">Total Rent (<span class="people-count">{{ listing?.num_people || 'N/A' }} {{ (listing?.num_people === 1) ? 'person' : 'people' }}</span>)</div>
-                        </template>
-                    </div>
-                </div>
-
-                <!-- CMA Rent Column -->
-                <div class="rent-column predicted-rent">
-                    <div class="rent-column-header">
-                        <span class="column-label">MARKET AVERAGE RENT</span>
-                    </div>
-                    <div class="rent-total-section">
-                        <div class="rent-amount-large predicted-amount">{{ formatMoney(listing?.predicted_rent_cma) }}</div>
-                        <div class="rent-label-small">per person</div>
-                    </div>
-                    <div class="prediction-difference" v-if="listing?.rent_per_person && listing?.predicted_rent_cma">
-                        <div class="difference-badge" :class="{
-                            'badge-overpriced': listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) > 0,
-                            'badge-underpriced': listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) < 0,
-                            'badge-fair': listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) === 0
-                        }">
-                            <span class="difference-arrow"></span>
-                            <span class="difference-percent">{{ listing?.rent_per_person && listing?.predicted_rent_cma ? Math.abs(((listing.rent_per_person - listing.predicted_rent_cma) / listing.predicted_rent_cma) * 100).toFixed(1) : '0.0' }}%</span>
-                            <span class="difference-label">{{ listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) < 0 ? 'Underpriced' : (listing?.rent_per_person && listing?.predicted_rent_cma && (listing.rent_per_person - listing.predicted_rent_cma) > 0 ? 'Overpriced' : 'Fair Price') }}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- CMA is supporting evidence, not a second model verdict. -->
+            <p v-if="fairRent && similarListings.length && listing?.predicted_rent_cma"
+               class="cma-average-inline">
+                Average asking rent of comparable units:
+                <strong>{{ formatMoney(listing.predicted_rent_cma) }}/person</strong>
+            </p>
         </div>
         
-        <div class="cma-listings-grid">
+        <div v-if="similarListings.length === 0" class="cma-empty">
+            Comparable listings from other properties aren't available yet.
+            If the CMA was recently updated, rerun the prediction pipeline to refresh the comparable IDs.
+        </div>
+        <div v-else class="cma-listings-grid">
             <div v-for="(similarListing, index) in similarListings.slice(0, 4)" :key="index" class="cma-listing-card">
                 <div class="card-left" @click="showListingDetails(similarListing)">
                     <div class="cma-listing-image">
@@ -584,7 +556,7 @@ const props = defineProps({
     fairRent: { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['close', 'zoom', 'select-listing']);
+const emit = defineEmits(['close', 'zoom', 'select-listing', 'show-fair-rent']);
 
 const showTooltip = ref(false);
 
@@ -1303,6 +1275,37 @@ watch<Listing | undefined>(
   
 
 <style scoped>
+.fair-rent-teaser {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+.fair-rent-teaser button {
+  border: 0;
+  background: transparent;
+  color: #1d4ed8;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cma-average-inline { color: #475569; margin: 10px 0; font-size: 13px; }
+.cma-empty {
+  padding: 15px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
 /* 📦 POPUP CONTAINER */
 .popup-container {
     background: #ffffff;
