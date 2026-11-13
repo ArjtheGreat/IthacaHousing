@@ -24,6 +24,7 @@ import extractors.extract_safety_features as extract_safety_features
 import extractors.extract_rental_data as extract_rental_data
 import extractors.assign_wards as assign_wards
 import extractors.assign_bid as assign_bid
+import extractors.enrich_tompkins_parcels as enrich_tompkins_parcels
 import extractors.shared_facilities_openai as shared_facilities_openai
 import extractors.extract_land_assessment_features as extract_land_assessment_features
 import extractors.extract_poi_features as extract_poi_features
@@ -437,6 +438,21 @@ def housing_data_pipeline():
 
     # Recompute after updating boundary files; the prior DB cache contains
     # outdated seven-neighborhood labels and must not mask the new 19 names.
+    # County GIS is a fresh, geometry-based second source. Fill gaps in the
+    # legacy ownership/assessment CSV without overwriting known years or
+    # treating parcel SQ_FT as unit floorplan area.
+    print("🏗️ Filling missing parcel assessments from 2026 Tompkins County GIS...")
+    try:
+        apartments_for_rent = property_level.apply_per_property(
+            apartments_for_rent,
+            enrich_tompkins_parcels.enrich_from_2026_parcels,
+            label="county parcel GIS",
+        )
+    except (OSError, RuntimeError, ValueError, KeyError) as exc:
+        # The county endpoint can occasionally be unavailable. Existing
+        # CSV-derived fields remain intact and the full ingest may proceed.
+        print(f"⚠️ Parcel GIS enrichment unavailable; keeping legacy values: {exc}")
+
     print("📍 Extracting 2010 neighborhoods (once per PropertyId)...")
     apartments_for_rent = property_level.apply_per_property(
         apartments_for_rent,
