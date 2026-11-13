@@ -19,6 +19,7 @@ export interface Listing {
     num_people: number;
     owner_name: string;
     neighborhood: string;
+    ward?: string | null;
     nearest_stop_name: string;
     walk_time_to_nearest_stop: number;
     transit_score: number;
