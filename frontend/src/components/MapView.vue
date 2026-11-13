@@ -1858,7 +1858,7 @@ const resetAllFilters = () => {
   activePOI.value = null;
   
   // Clear all active filters
-  activeFilters.value = { beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null, budget: null };
+  activeFilters.value = { beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null, budget: null, amenities: null };
   
   // Close panels
   showCommuteDrawer.value = false;
