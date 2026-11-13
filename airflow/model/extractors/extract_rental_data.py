@@ -230,60 +230,45 @@ MODEL_PATH = "/opt/airflow/model"
 if not os.path.exists(MODEL_PATH):
     MODEL_PATH = str(Path(__file__).resolve().parent)
 
-geojson_path = os.path.join(MODEL_PATH, "data", "IthacaN_Cleaned.geojson")
+geojson_path = os.path.join(MODEL_PATH, "data", "neighborhoods.geojson")
 
 def extract_neighborhood(apartments_for_rent):
+    """Assign James Spokes' named Ithaca neighborhoods to each property/unit.
+
+    Preserve exactly one result per input record on polygon overlaps and
+    shared boundaries. Coordinates and polygons are WGS84.
     """
-    Extracts Neighborhood using Spatial Join
-    """
-    try:
-        ithaca_neighborhoods_gdf = gpd.read_file(geojson_path)
-    except FileNotFoundError:
-        print("⚠️ IthacaN_Cleaned.geojson not found, skipping neighborhood extraction")
-        return apartments_for_rent
+    neighborhoods = gpd.read_file(geojson_path)
+    if "name" not in neighborhoods.columns:
+        raise ValueError("Neighborhood GeoJSON needs a 'name' property")
+    if neighborhoods.crs is None:
+        raise ValueError("Neighborhood GeoJSON must declare a CRS")
+    neighborhoods = neighborhoods.to_crs("EPSG:4326")
+    neighborhoods = neighborhoods.loc[neighborhoods.geometry.notna()].copy()
+    if neighborhoods.empty:
+        raise ValueError("Neighborhood GeoJSON contains no polygons")
 
-    apartments_for_rent["Coordinates"] = apartments_for_rent.apply(
-        lambda row: f'{{"lng": {row["longitude"]}, "lat": {row["latitude"]}}}'
-        if pd.notna(row["longitude"]) and pd.notna(row["latitude"]) else None,
-        axis=1
+    out = apartments_for_rent.copy().reset_index(drop=True)
+    out = out.drop(columns=["neighborhood", "index_right", "index_left"], errors="ignore")
+    lat = pd.to_numeric(out["latitude"], errors="coerce")
+    lon = pd.to_numeric(out["longitude"], errors="coerce")
+    valid = lat.between(-90, 90) & lon.between(-180, 180)
+    out["neighborhood"] = pd.Series(pd.NA, index=out.index, dtype="string")
+    if valid.any():
+        points = gpd.GeoDataFrame(
+            {"_row": out.index[valid]},
+            geometry=gpd.points_from_xy(lon[valid], lat[valid]),
+            crs="EPSG:4326",
+        )
+        # A few polygons may share boundaries; the more specific/smaller
+        # polygon wins and never duplicates a listing row.
+        polys = neighborhoods[["name", "geometry"]].copy()
+        polys["_area"] = polys.to_crs("EPSG:32618").geometry.area
+        hits = gpd.sjoin(points, polys, how="inner", predicate="intersects")
+        hits = hits.sort_values(["_row", "_area", "name"]).drop_duplicates("_row")
+        out.loc[hits["_row"].to_numpy(), "neighborhood"] = hits["name"].to_numpy()
+    print(
+        f"🏘️ Neighborhoods: {out['neighborhood'].notna().sum()}/{len(out)} "
+        "listing/property rows assigned using 2010 source polygons"
     )
-
-    def parse_coordinates(x):
-        if isinstance(x, str):
-            try:
-                coord_dict = json.loads(x)
-                return Point(coord_dict["lng"], coord_dict["lat"])
-            except (json.JSONDecodeError, KeyError, TypeError):
-                return None
-        elif isinstance(x, dict):
-            return Point(x["lng"], x["lat"])
-        else:
-            return None
-    
-    apartments_for_rent["geometry"] = apartments_for_rent["Coordinates"].apply(parse_coordinates)
-
-    apartments_for_rent_gdf = gpd.GeoDataFrame(
-        apartments_for_rent, geometry="geometry", crs="EPSG:4326"
-    )
-    
-    # Drop index columns from previous spatial joins to avoid conflicts
-    index_cols_to_drop = ['index_right', 'index_left']
-    existing_index_cols = [col for col in index_cols_to_drop if col in apartments_for_rent_gdf.columns]
-    if existing_index_cols:
-        apartments_for_rent_gdf = apartments_for_rent_gdf.drop(columns=existing_index_cols)
-    
-    result_gdf = apartments_for_rent_gdf.sjoin(ithaca_neighborhoods_gdf, how='left')
-    result_gdf = result_gdf.rename(columns={'name': 'neighborhood'})
-    
-    if 'neighborhood' in result_gdf.columns:
-        non_null_neighborhoods = result_gdf['neighborhood'].notna().sum()
-        print(f"✅ Neighborhood extraction: {non_null_neighborhoods}/{len(result_gdf)} listings have neighborhoods")
-        if non_null_neighborhoods > 0:
-            print(f"📊 Sample neighborhoods: {result_gdf['neighborhood'].value_counts().head(5).to_dict()}")
-    else:
-        print("⚠️ WARNING: 'neighborhood' column not found after spatial join!")
-        print(f"📋 Available columns: {list(result_gdf.columns)}")
-    
-    result_df = result_gdf.drop(columns=['geometry'])
-
-    return result_df
+    return out
