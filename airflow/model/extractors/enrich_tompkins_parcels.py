@@ -32,7 +32,7 @@ SOURCE_NAME = "tompkins_2026_parcel"
 # Keep runtime snapshots outside the source checkout (often mounted read-only in
 # Docker). Set TOMPKINS_PARCEL_CACHE_DIR to a persistent mounted directory.
 CACHE_DIR = Path(os.getenv("TOMPKINS_PARCEL_CACHE_DIR", "/tmp/ithaca_insights_parcels"))
-PAGE_SIZE = 250
+PAGE_SIZE = 50  # Keep polygon responses small for the county ArcGIS gateway
 
 PARCEL_FIELDS = (
     "FID", "PRINTKEY", "LOC", "LOCATION", "LOCADDR", "YEARBUILT",
@@ -67,10 +67,30 @@ NUMERIC_FIELDS = {
 
 
 def _request_json(session: requests.Session, params: dict) -> dict:
-    """Fetch REST JSON/GeoJSON, retrying transient HTTP failures."""
+    """Query ArcGIS with POST to avoid its reverse proxy's long-URL 404s.
+
+    The county object-ID list can be thousands of characters long even for
+    ~250 parcels. GET puts that list into the URL and the gateway returns 404
+    before ArcGIS evaluates the request. For small requests GET remains a
+    fallback if a proxy disallows POST.
+    """
+    use_post = "objectIds" in params
     for attempt in range(3):
         try:
-            response = session.get(PARCEL_API, params=params, timeout=(12, 90))
+            if use_post:
+                response = session.post(
+                    PARCEL_API, data=params, timeout=(12, 90),
+                )
+                if response.status_code in (403, 405):
+                    # Small 50-ID GET fallback for proxy configurations that
+                    # disallow POST. Never retry long URLs.
+                    response = session.get(
+                        PARCEL_API, params=params, timeout=(12, 90),
+                    )
+            else:
+                response = session.get(
+                    PARCEL_API, params=params, timeout=(12, 90),
+                )
             response.raise_for_status()
             payload = response.json()
             if "error" in payload:
@@ -78,7 +98,13 @@ def _request_json(session: requests.Session, params: dict) -> dict:
             return payload
         except (requests.RequestException, ValueError) as exc:
             if attempt == 2:
-                raise RuntimeError(f"Tompkins ArcGIS request failed: {exc}") from exc
+                # Report a short actionable error, rather than logging
+                # thousands of object IDs as part of the failed URL.
+                raise RuntimeError(
+                    f"Tompkins ArcGIS query failed (method={'POST' if use_post else 'GET'}, "
+                    f"id_count={len(params.get('objectIds', '').split(',')) if use_post else 'n/a'}, "
+                    f"status={getattr(getattr(exc, 'response', None), 'status_code', 'unknown')})"
+                ) from exc
             time.sleep(1.5 * (attempt + 1))
     raise RuntimeError("Unreachable parcel request")
 
