@@ -3,53 +3,56 @@ import numpy as np
 import pandas as pd
 
 def perform_cma(X, apartments_for_rent, n_neighbors=4):
+    """Find comparable listings at OTHER properties, never the subject building.
+
+    n_neighbors retains its legacy convention: 4 means up to 3 comparables.
+    Both displayed IDs and the CMA rent mean use the exact same eligible rows.
     """
-    Comparative Market Analysis (CMA) using KNN.
-    Predicts rent as the average rent of nearest neighbors.
-    
-    Parameters
-    X : np.array or DataFrame
-        Feature matrix with spatial + property features.
-    apartments_for_rent : pd.DataFrame
-        DataFrame with at least ['ListingId', 'Rent'].
-    n_neighbors : int
-        Number of neighbors to consider (including the listing itself).
-    
-    Returns
-    apartments_for_rent : pd.DataFrame
-        With extra columns:
-          - nearest_neighbor_listingIds (list of IDs)
-          - predicted_rent_cma (float)
-    """    
-    X_array = np.asarray(X, dtype=np.float64)
-    if not np.isfinite(X_array).all():
-        X_array = np.nan_to_num(X_array, nan=0.0, posinf=0.0, neginf=0.0)
+    if len(X) != len(apartments_for_rent):
+        raise ValueError("CMA features and listing rows must be aligned")
+    if "ListingId" not in apartments_for_rent or "rent_per_person" not in apartments_for_rent:
+        raise ValueError("CMA requires ListingId and rent_per_person")
+    if n_neighbors < 2:
+        raise ValueError("n_neighbors must be at least 2")
 
-    nbrs = NearestNeighbors(n_neighbors=n_neighbors, algorithm="ball_tree")
-    nbrs.fit(X_array)
+    out = apartments_for_rent.copy()
+    ids = out["ListingId"].astype(str).to_numpy()
+    if "PropertyId" in out:
+        properties = out["PropertyId"].astype(str).to_numpy()
+    else:
+        properties = np.array([identifier.rsplit("-", 1)[0] for identifier in ids])
+    rents = pd.to_numeric(out["rent_per_person"], errors="coerce").to_numpy(dtype=float)
+    features = np.asarray(X, dtype=np.float64)
+    features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
 
-    _, indices = nbrs.kneighbors(X_array)
+    # Enough candidate neighbors to skip even the largest same-property group.
+    # Exclude nonpositive and missing rents as well.
+    valid_rent = np.isfinite(rents) & (rents > 0)
+    maximum_group = int(pd.Series(properties).value_counts().max()) if len(ids) else 0
+    n_candidates = min(len(ids), maximum_group + n_neighbors - 1 +
+                       int((~valid_rent).sum()))
+    if not len(ids):
+        out["nearest_neighbor_listingIds"] = []
+        out["predicted_rent_cma"] = pd.Series(dtype=float)
+        return out
 
-    # Avoid Arrow-backed Series fancy-indexing (2D take → ArrowInvalid).
-    listing_ids = np.asarray(
-        apartments_for_rent["ListingId"].astype(str).tolist(), dtype=object
-    )
-    neighbor_ids = listing_ids[indices[:, 1:]]
-    apartments_for_rent["nearest_neighbor_listingIds"] = [
-        row.tolist() for row in neighbor_ids
-    ]
+    neighbors = NearestNeighbors(
+        n_neighbors=max(1, n_candidates), algorithm="auto"
+    ).fit(features)
+    _, indices = neighbors.kneighbors(features)
+    neighbor_ids = []
+    predicted_rents = []
+    for i, candidates in enumerate(indices):
+        selected = [
+            j for j in candidates
+            if properties[j] != properties[i] and valid_rent[j] and ids[j] != ids[i]
+        ][:n_neighbors - 1]
+        neighbor_ids.append(ids[selected].tolist())
+        predicted_rents.append(float(np.mean(rents[selected])) if selected else np.nan)
 
-    rents = pd.to_numeric(
-        apartments_for_rent["rent_per_person"], errors="coerce"
-    ).to_numpy(dtype=float)
-    rents = np.nan_to_num(rents, nan=0.0)
-
-    predicted_rents = [
-        float(np.mean(rents[row_indices[1:]])) for row_indices in indices
-    ]
-    apartments_for_rent["predicted_rent_cma"] = predicted_rents
-
-    return apartments_for_rent
+    out["nearest_neighbor_listingIds"] = neighbor_ids
+    out["predicted_rent_cma"] = predicted_rents
+    return out
 
 def define_X_for_cma(apartments_for_rent):
     """
