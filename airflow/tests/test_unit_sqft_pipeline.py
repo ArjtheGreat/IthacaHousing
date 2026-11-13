@@ -8,6 +8,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "model"))
 
 from core.fetch_housing_data import COLUMNS, rows_from_data
+from core.property_level import apply_per_property
 from ml.backfill_unit_sqft import build_backfill_rows
 from ml.model_training import define_X_Y_variables
 
@@ -46,6 +47,28 @@ class UnitSquareFootageTests(unittest.TestCase):
         self.assertEqual(rows[0]["contact_number"], "607-555-0144")
         self.assertEqual(rows[1]["unit_sqft"], 1204)
         self.assertIsNone(rows[2]["unit_sqft"])
+
+    def test_property_enrichment_preserves_distinct_unit_sizes(self):
+        rows = pd.DataFrame([
+            {"PropertyId": "100", "ListingId": "100-11", "SqFt": 338,
+             "unit_sqft": 338, "Bedrooms": 0, "latitude": 42.44},
+            {"PropertyId": "100", "ListingId": "100-12", "SqFt": 1100,
+             "unit_sqft": 1100, "Bedrooms": 3, "latitude": 42.44},
+            {"PropertyId": "100", "ListingId": "100-13", "SqFt": None,
+             "unit_sqft": None, "Bedrooms": 2, "latitude": 42.44},
+        ])
+
+        def enrich(representatives):
+            result = representatives.copy()
+            result["neighborhood"] = "Collegetown"
+            return result
+
+        output = apply_per_property(rows, enrich, label="size regression test")
+        indexed = output.set_index("ListingId")
+        self.assertEqual(indexed.loc["100-11", "unit_sqft"], 338)
+        self.assertEqual(indexed.loc["100-12", "unit_sqft"], 1100)
+        self.assertTrue(pd.isna(indexed.loc["100-13", "unit_sqft"]))
+        self.assertEqual(indexed.loc["100-12", "neighborhood"], "Collegetown")
 
     def test_backfill_uses_stable_listing_ids_only_for_positive_areas(self):
         rows = rows_from_data(self.source_data())
