@@ -167,6 +167,28 @@
             </div>
           </div>
 
+          <!-- Curated amenity filters (all selected must be advertised). -->
+          <div class="amenity-filter-section">
+            <button type="button" class="amenity-filter-heading" @click="showAmenityFilters = !showAmenityFilters"
+              :aria-expanded="showAmenityFilters">
+              <span><i class="fa-solid fa-sliders"></i> Amenities <span v-if="selectedAmenities.length" class="amenity-selected-count">{{ selectedAmenities.length }}</span></span>
+              <span>{{ showAmenityFilters ? 'Hide' : 'Show' }}</span>
+            </button>
+            <div v-if="showAmenityFilters" class="amenity-filter-body">
+              <p class="amenity-filter-hint">Only advertised amenities are matched. Select multiple to require all.</p>
+              <div v-for="category in AMENITY_CATEGORIES" :key="category" class="amenity-filter-group">
+                <h5>{{ category }}</h5>
+                <div class="amenity-filter-options">
+                  <label v-for="option in AMENITY_OPTIONS.filter(item => item.category === category)" :key="option.key" class="amenity-filter-choice">
+                    <input type="checkbox" :checked="selectedAmenities.includes(option.key)" @change="toggleAmenityFilter(option.key)" />
+                    <span>{{ option.label }}</span>
+                  </label>
+                </div>
+              </div>
+              <button v-if="selectedAmenities.length" type="button" class="amenity-clear-btn" @click="clearAmenityFilters">Clear amenities</button>
+            </div>
+          </div>
+
           <!-- Reset Button -->
           <div class="reset-section">
             <button @click="resetAllFilters" class="reset-btn">Reset All Filters</button>
@@ -306,6 +328,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, markRaw, toRaw } from "vue";
+import { AMENITY_OPTIONS, AMENITY_CATEGORIES, matchesAmenityKeys } from "@/utils/amenities";
 import { useRoute, useRouter } from "vue-router";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -366,7 +389,9 @@ const isochronicLayer = ref(null); // Stores the isochronic map layer
 // Tab functionality moved to InsideIthacaView
 let activeFilter = ref(null); // Tracks which filter is selected
 
-const activeFilters = ref({ beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null, budget: null }); // Holds Bath and Bed Data for Dynamic Filtering
+const activeFilters = ref({ beds: null, baths: null, location: null, walk: null, transit: null, pets: null, roomtorent: null, rent: null, shared: null, commute: null, budget: null, amenities: null }); // Holds Bath and Bed Data for Dynamic Filtering
+const selectedAmenities = ref([]);
+const showAmenityFilters = ref(false);
 const filteredListings = ref([]); // Keeps track of the filtered listings
 const filterError = ref(null); // Key of the filter whose data failed to load, shown as an alert
 const selectedBeds = ref(0); // Number of Selected Beds
@@ -1396,6 +1421,7 @@ const filterControlResets = {
   location: () => { selectedLocation.value = ''; },
   commute: () => { selectedCommuteTime.value = ''; },
   budget: () => { selectedBudget.value = 0; },
+  amenities: () => { selectedAmenities.value = []; },
 };
 
 /**
@@ -1824,6 +1850,7 @@ const resetAllFilters = () => {
   selectedDestination.value = '';
   selectedCommuteTime.value = '';
   selectedTransitMode.value = '';
+  selectedAmenities.value = [];
   
   // Clear POI
   clearPOIMarkers();
@@ -1878,6 +1905,27 @@ const resetAllFilters = () => {
   }
 };
 
+
+/**
+ * Amenity selections are ANDed with each other, and intersect with existing
+ * map filters. The map's minimal endpoint includes the raw amenities JSON.
+ */
+const updateAmenityFilter = () => {
+  activeFilters.value.amenities = selectedAmenities.value.length
+    ? allListings.value.filter(listing => matchesAmenityKeys(listing.amenities, selectedAmenities.value))
+    : null;
+  mergeFilters();
+};
+const toggleAmenityFilter = (key) => {
+  selectedAmenities.value = selectedAmenities.value.includes(key)
+    ? selectedAmenities.value.filter(value => value !== key)
+    : [...selectedAmenities.value, key];
+  updateAmenityFilter();
+};
+const clearAmenityFilters = () => {
+  selectedAmenities.value = [];
+  updateAmenityFilter();
+};
 
 /**
  * Merges every active filter (whatever keys activeFilters has) and redraws the map
@@ -2102,6 +2150,19 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
 </script>
 
 <style scoped>
+.amenity-filter-section { margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 12px; }
+.amenity-filter-heading { display:flex; width:100%; justify-content:space-between; align-items:center; border:0; background:transparent; padding:6px 0; color:#334155; font-size:14px; font-weight:700; cursor:pointer; }
+.amenity-filter-heading span:last-child { font-size:12px; font-weight:500; color:#64748b; }
+.amenity-selected-count { display:inline-block; padding:1px 7px; border-radius:999px; background:#dbeafe; color:#1e40af; font-size:11px; margin-left:5px; }
+.amenity-filter-body { padding:4px 0 10px; }
+.amenity-filter-hint { color:#64748b; font-size:11px; margin:0 0 12px; line-height:1.5; }
+.amenity-filter-group { margin-bottom:12px; }
+.amenity-filter-group h5 { font-size:12px; font-weight:700; color:#475569; margin:0 0 7px; }
+.amenity-filter-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
+.amenity-filter-choice { display:flex; align-items:flex-start; gap:6px; font-size:11px; line-height:1.3; color:#334155; cursor:pointer; }
+.amenity-filter-choice input { margin:1px 0 0; accent-color:#355c7d; flex-shrink:0; }
+.amenity-clear-btn { border:0; background:#e2e8f0; padding:7px 10px; border-radius:8px; font-size:12px; cursor:pointer; }
+
 /* Map mode selector is an overlay, not a second map or navigation. */
 .explore-mode-switch {
   position: absolute;
