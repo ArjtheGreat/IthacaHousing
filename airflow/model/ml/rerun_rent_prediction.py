@@ -23,6 +23,7 @@ import core.insert_into_postgredb as insert_into_postgredb
 import core.excluded_listing_unit_ids as excluded_listing_unit_ids
 import core.pipeline_metrics as pipeline_metrics
 import ml.comparative_market_analysis as comparative_market_analysis
+import extractors.assign_wards as assign_wards
 import ml.data_preprocessing as data_preprocessing
 import ml.model_training as model_training
 from ml.unit_configuration import add_unit_configuration_features
@@ -123,6 +124,7 @@ def fetch_listings_for_retrain() -> pd.DataFrame:
         "assessment_sqft",
         "unit_sqft",
         "neighborhood",
+        "ward",
         "owner_name",
         "lengthavailable",
         "walk_time_urishall",
@@ -245,6 +247,10 @@ def prepare_features_from_db(df: pd.DataFrame) -> pd.DataFrame:
     if "unit_sqft" in out.columns:
         unit_area = pd.to_numeric(out["unit_sqft"], errors="coerce")
         out["unit_sqft"] = unit_area.where(unit_area > 0)
+
+    # Re-derive ward from the bundled 2022 boundary source so DB-only
+    # retrains work even if the existing table predates the ward column.
+    out = assign_wards.assign_wards(out)
 
     # CMA lat/lng aliases
     if "GmapLatitude" not in out.columns and "latitude" in out.columns:
