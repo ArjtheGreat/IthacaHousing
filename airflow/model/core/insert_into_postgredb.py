@@ -114,6 +114,71 @@ def create_clean_listing_view(engine, preferred_order):
     )
     print(f"🧾 Refreshed {CLEAN_VIEW_NAME}: {len(columns)} ordered columns")
 
+
+# Readable, intentionally narrow Supabase table-editor surface. These groups
+# are ordered by end-user relevance; raw ingestion and ML columns stay in the
+# underlying housing_listings contract.
+OVERVIEW_COLUMNS = (
+    # Listing identity
+    "listingid", "listingaddress", "listingcity", "listingzip",
+    "housingtype", "shortdescription", "listingphotos", "createdate",
+    # Unit and advertised rent
+    "bedrooms", "bathrooms", "available_bedrooms", "available_bathrooms",
+    "physical_bedrooms", "unit_sqft", "rentamount", "renttype",
+    "rent_per_person", "num_people", "total_rent_amount", "shared_facilities",
+    # Fair-rent predictions and comps
+    "predictedrent", "differenceinfairvalue", "predicted_rent_cma",
+    "nearest_neighbor_listingids", "rent_manual_override",
+    # Location
+    "latitude", "longitude", "neighborhood", "ward",
+    "in_business_improvement_district", "walk_time_urishall",
+    "transit_score", "nearest_stop_name",
+    # County parcel and building
+    "year_built", "year_built_source", "parcel_printkey",
+    "parcel_match_method", "assessment_total_value",
+    "assessment_land_value", "assessment_sqft", "property_acres",
+    "sale_price", "assessment_stories", "assessment_zoning",
+    "assessment_property_class", "property_pc", "owner_name",
+    "valid_certificate_of_compliance",
+    # A handful of useful amenities rather than >70 model flags
+    "pets", "amenities", "has_fitness_center", "has_rooftop_terrace",
+    "has_keyless_entry", "has_dishwasher", "has_in_unit_laundry",
+    "has_elevator", "has_sauna", "parking_available",
+    "is_furnished", "heat_included_verified",
+)
+
+
+def create_listing_overview_view(engine):
+    """Create a compact, ordered table-editor view; never drop source columns.
+
+    Security-invoker obeys the underlying table's RLS. Revoke public access:
+    this internal exploration view is for the database owner in Studio, not
+    an additional unauthenticated API surface.
+    """
+    with engine.connect() as conn:
+        available = {row[0] for row in conn.execute(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema='public' AND table_name='housing_listings'"
+        ))}
+    columns = [col for col in OVERVIEW_COLUMNS if col in available]
+    if "listingid" not in columns:
+        raise ValueError("Cannot create overview without listingid")
+    projection = ", ".join(f'"{col}"' for col in columns)
+    _execute_with_retry(
+        engine,
+        text(
+            "CREATE OR REPLACE VIEW public.housing_listings_overview "
+            "WITH (security_invoker = true) AS SELECT "
+            + projection
+            + " FROM public.housing_listings; "
+            "REVOKE ALL ON public.housing_listings_overview "
+            "FROM PUBLIC, anon, authenticated;"
+        ),
+        label="refresh compact housing listings overview",
+    )
+    print(f"🗂️ Refreshed housing_listings_overview: {len(columns)} ordered columns")
+
+
 def clean_json_field(x):
     """
     Clean and standardize JSON-like values for SQL insertion.
@@ -703,6 +768,7 @@ def psql_insert_copy(df):
     # Created after the full ingest so the view always reflects the latest schema.
     # ALTER TABLE ADD COLUMN cannot reorder a PostgreSQL table's existing columns.
     create_clean_listing_view(engine, ordered_columns)
+    create_listing_overview_view(engine)
 
 
 def confirmation(): 
