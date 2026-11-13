@@ -136,9 +136,9 @@ OVERVIEW_COLUMNS = (
     # County parcel and building
     "year_built", "year_built_source", "parcel_printkey",
     "parcel_match_method", "assessment_total_value",
-    "assessment_land_value", "assessment_sqft", "property_acres",
+    "assessment_land_value", "property_acres",
     "sale_price", "assessment_stories", "assessment_zoning",
-    "assessment_property_class", "property_pc", "owner_name",
+    "assessment_property_class", "owner_name",
     "valid_certificate_of_compliance",
     # A handful of useful amenities rather than >70 model flags
     "pets", "amenities", "has_fitness_center", "has_rooftop_terrace",
