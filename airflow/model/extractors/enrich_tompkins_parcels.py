@@ -29,7 +29,9 @@ PARCEL_API = (
 )
 SOURCE_YEAR = 2026
 SOURCE_NAME = "tompkins_2026_parcel"
-CACHE_DIR = Path(__file__).resolve().parents[1] / "data" / "parcel_cache"
+# Keep runtime snapshots outside the source checkout (often mounted read-only in
+# Docker). Set TOMPKINS_PARCEL_CACHE_DIR to a persistent mounted directory.
+CACHE_DIR = Path(os.getenv("TOMPKINS_PARCEL_CACHE_DIR", "/tmp/ithaca_insights_parcels"))
 PAGE_SIZE = 250
 
 PARCEL_FIELDS = (
