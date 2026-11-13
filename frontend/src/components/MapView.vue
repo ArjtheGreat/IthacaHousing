@@ -1772,28 +1772,20 @@ const clearPOIMarkers = () => {
  */
 const loadNeighborhoodsLayer = async () => {
   try {
-    const response = await fetch('/maps/IthacaN_Cleaned.geojson');
+    const response = await fetch('/maps/neighborhoods.geojson');
     const geojsonData = await response.json();
     
-    // Define colors for different neighborhoods
-    const neighborhoodColors = {
-      'Collegetown': '#3b82f6',
-      'Fall Creek': '#8b5cf6', 
-      'North Side': '#f59e0b',
-      'Downtown': '#10b981',
-      'South Side': '#ef4444',
-      'South Hill': '#06b6d4',
-      'Belle Sherman': '#84cc16'
-    };
-    
+    // Preserve source layer colors for all 19 named neighborhoods.
+    // Unrecognized names receive a neutral fallback rather than an
+    // incorrect old seven-neighborhood color mapping.
     neighborhoodsLayer.value = L.geoJSON(geojsonData, {
       style: function(feature) {
         const neighborhoodName = feature.properties.name;
         return {
-          color: neighborhoodColors[neighborhoodName] || '#6b7280',
+          color: feature.properties.layer_color || '#64748b',
           weight: 2,
           opacity: 0.8,
-          fillColor: neighborhoodColors[neighborhoodName] || '#6b7280',
+          fillColor: feature.properties.layer_color || '#64748b',
           fillOpacity: 0.2
         };
       },
