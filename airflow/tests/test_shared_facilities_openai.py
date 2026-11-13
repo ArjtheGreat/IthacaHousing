@@ -35,6 +35,45 @@ class SharedFacilitiesCacheTests(unittest.TestCase):
         modified = classifier._fingerprint(classifier._evidence(row))
         self.assertNotEqual(original, modified)
 
+    def test_sqft_changes_do_not_invalidate_v2(self):
+        row = pd.Series({
+            "ListingId": "p-101", "UnitName": "Private studio",
+            "Bedrooms": 0, "SqFt": 338, "unit_sqft": 338,
+        })
+        original = classifier._fingerprint(classifier._evidence(row))
+        old_legacy = classifier._legacy_fingerprint(row)
+        row["SqFt"] = 344
+        row["unit_sqft"] = 344
+        self.assertEqual(original, classifier._fingerprint(classifier._evidence(row)))
+        self.assertNotEqual(old_legacy, classifier._legacy_fingerprint(row))
+
+    def test_matching_v1_cache_migrates_without_api_call(self):
+        frame = pd.DataFrame([{
+            "ListingId": "p-101", "UnitName": "Private studio",
+            "Bedrooms": 0, "SqFt": 338, "unit_sqft": 338,
+        }])
+        old_hash = classifier._legacy_fingerprint(frame.iloc[0])
+        new_hash = classifier._fingerprint(classifier._evidence(frame.iloc[0]))
+        cache = {"p-101": {
+            "evidence_fingerprint": old_hash, "classification": "private",
+            "confidence": "high", "evidence": "Private kitchen and bath",
+            "evidence_field": "UnitName", "physical_bedrooms": 0,
+        }}
+        engine = MagicMock()
+        with patch.dict(os.environ, {"DB_URI": "postgresql://not-used"}, clear=False), \\
+             patch.object(classifier, "create_engine", return_value=engine), \\
+             patch.object(classifier, "_load_cache", return_value=cache), \\
+             patch.object(classifier, "_upgrade_cache_fingerprints") as migrate, \\
+             patch.object(classifier, "_save_batch") as save:
+            out = classifier.classify_shared_facilities(frame)
+        self.assertEqual(out.loc[0, "shared_facilities_classification"], "private")
+        migrate.assert_called_once_with(engine, [{
+            "listingid": "p-101",
+            "old_fingerprint": old_hash,
+            "new_fingerprint": new_hash,
+        }])
+        save.assert_not_called()
+
     def test_cached_units_make_no_api_calls(self):
         frame = pd.DataFrame([
             {"ListingId": "p-101", "Bedrooms": 1, "UnitName": "Room A"},
