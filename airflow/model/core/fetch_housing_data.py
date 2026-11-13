@@ -473,10 +473,15 @@ def housing_data_preprocessing(existing_coordinates=None):
         r"(?i)\s*,?\s*(?:ITHACA|CAYUGA\s+HEIGHTS)"
         r"\s*,?\s*(?:NY|NEW\s+YORK)\s*(?:(\d{5})(?:-\d{4})?)?\s*$"
     )
+    # read_csv stores zip codes as float64 (14850.0). Keep them as text before
+    # filling a missing zip from the address, or assigning "14850" raises.
+    if "ListingZip" not in result.columns:
+        result["ListingZip"] = pd.Series(pd.NA, index=result.index, dtype="string")
+    else:
+        result["ListingZip"] = result["ListingZip"].astype("string")
+
     if "ListingAddress" in result:
         raw_address = result["ListingAddress"].fillna("").astype(str)
-        if "ListingZip" not in result:
-            result["ListingZip"] = pd.NA
         for idx, address in raw_address.items():
             match = suffix.search(address)
             if match:

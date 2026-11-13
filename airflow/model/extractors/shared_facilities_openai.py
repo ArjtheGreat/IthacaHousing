@@ -110,9 +110,9 @@ def _evidence(row):
     return {k: v for k, v in data.items() if v is not None and v != ""}
 
 
-def _fingerprint(details):
+def _fingerprint(details, version=VERSION):
     canonical = json.dumps(
-        {"version": VERSION, "evidence": details},
+        {"version": version, "evidence": details},
         sort_keys=True, ensure_ascii=False, default=str,
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
