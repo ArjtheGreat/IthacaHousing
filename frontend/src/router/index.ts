@@ -7,7 +7,6 @@ import ContactsView from "@/components/ContactsView.vue"
 import UrbanGrowthView from "@/components/UrbanGrowthView.vue"
 import InsideIthacaView from "@/components/InsideIthacaView.vue"
 import AnalyticsView from "@/components/AnalyticsView.vue"
-import ListingsView from "@/components/ListingsView.vue"
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -18,14 +17,18 @@ const router = createRouter({
       component: HomePage,
     },
     {
-      path: '/rent',
-      name: 'rent',
+      path: '/explore',
+      name: 'explore',
       component: MapView,
+    },
+    // Preserve existing shared links to the two original map pages.
+    {
+      path: '/rent',
+      redirect: { path: '/explore', query: { mode: 'fair-rent' } },
     },
     {
       path: '/listings',
-      name: 'listings',
-      component: ListingsView,
+      redirect: { path: '/explore', query: { mode: 'listings' } },
     },
     {
       path: '/about',
