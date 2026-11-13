@@ -113,7 +113,9 @@ def get_listings_minimal(db: Session = Depends(get_db)):
                 drive_time_agriculturequad,
                 drive_time_artsquad,
                 drive_time_engineeringquad,
-                neighborhood
+                neighborhood,
+                amenities,
+                pets
             FROM housing_listings
             WHERE latitude IS NOT NULL 
             AND longitude IS NOT NULL
@@ -148,6 +150,8 @@ def get_listings_minimal(db: Session = Depends(get_db)):
                 "drive_time_artsquad": safe_float(row[20]),
                 "drive_time_engineeringquad": safe_float(row[21]),
                 "neighborhood": row[22],
+                "amenities": row[23],
+                "pets": row[24],
             }
             for row in rows
         ]
