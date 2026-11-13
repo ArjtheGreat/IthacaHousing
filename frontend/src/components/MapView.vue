@@ -204,7 +204,7 @@
     </div>
 
     <!-- Map Container -->
-    <div class="relative flex z-[0] border-b-2 border-black overflow-hidden" :class="{ 'has-assistant': !fairRent }">
+    <div class="relative flex z-[0] border-b-2 border-black overflow-hidden has-assistant">
       <RentalSidebar class="rental-sidebar" @close="closePopup" @zoom="zoomToListing" @select-listing="selectListingFromSidebar" :listing="selectedListing" :fair-rent="selectedListing?.predictedrent != null" v-if="isSidebarVisible" />
 
       <!-- The same Leaflet instance serves both listing discovery and fair-rent analysis. -->
@@ -1342,6 +1342,9 @@ watch(mapMode, () => {
     } else {
         mergeFilters();
     }
+    if (selectedListing.value) {
+        highlightSelectedMarker(selectedListing.value);
+    }
 });
 
 /**
@@ -2137,7 +2140,7 @@ const toggleMenu = () => (menuOpen.value = !menuOpen.value);
   background: #355c7d;
 }
 @media (max-width: 768px) {
-  .explore-mode-switch { top: 68px; left: 50%; }
+  .explore-mode-switch { top: 133px; left: 50%; }
   .explore-mode-switch button { padding: 7px 9px; font-size: 12px; }
 }
 /* MAP */
