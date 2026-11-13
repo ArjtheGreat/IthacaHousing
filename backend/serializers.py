@@ -122,6 +122,7 @@ def serialize_listing(listing):
         "total_rent_amount": safe_float(listing.total_rent_amount),
         "owner_name": listing.owner_name,
         "neighborhood": listing.neighborhood,
+        "ward": listing.ward,
         "nearest_stop_name": listing.nearest_stop_name,
         "walk_time_to_nearest_stop": safe_float(listing.walk_time_to_nearest_stop),
         "transit_time_to_ag_quad": safe_float(listing.transit_time_to_ag_quad),
