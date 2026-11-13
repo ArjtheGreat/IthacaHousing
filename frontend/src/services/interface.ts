@@ -30,6 +30,14 @@ export interface Listing {
     water: string;
     sewer: string;
     yr_built: number;
+    year_built_source?: string | null;
+    parcel_printkey?: string | null;
+    parcel_match_method?: string | null;
+    assessment_total_value?: number | null;
+    assessment_land_value?: number | null;
+    assessment_stories?: number | null;
+    assessment_zoning?: string | null;
+    assessment_property_class?: string | null;
     sqft_per_sale_price: number;
     housingtype?: string;
     renttype?: string;
