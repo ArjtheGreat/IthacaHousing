@@ -23,6 +23,7 @@ import calculators.calculate_transit_score as calculate_transit_score
 import extractors.extract_safety_features as extract_safety_features
 import extractors.extract_rental_data as extract_rental_data
 import extractors.assign_wards as assign_wards
+import extractors.assign_bid as assign_bid
 import extractors.shared_facilities_openai as shared_facilities_openai
 import extractors.extract_land_assessment_features as extract_land_assessment_features
 import extractors.extract_poi_features as extract_poi_features
@@ -446,6 +447,11 @@ def housing_data_pipeline():
     print("🏛️ Assigning 2022 Ithaca wards (once per property)...")
     apartments_for_rent = property_level.apply_per_property(
         apartments_for_rent, assign_wards.assign_wards, label="city wards",
+    )
+
+    print("🏙️ Assigning official Ithaca Business Improvement District flag...")
+    apartments_for_rent = property_level.apply_per_property(
+        apartments_for_rent, assign_bid.assign_bid, label="business improvement district",
     )
 
     print("🏗️ Adding property/structural features...")
