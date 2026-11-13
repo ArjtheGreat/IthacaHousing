@@ -668,7 +668,7 @@ async function initializeMap() {
 
 async function loadNeighborhoodsLayer() {
   try {
-    const response = await fetch('/maps/IthacaN_Cleaned.geojson');
+    const response = await fetch('/maps/neighborhoods.geojson');
     const geojsonData = await response.json();
     
     // Store the GeoJSON data for later use
