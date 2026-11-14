@@ -175,7 +175,7 @@ def group_by_landlord_df(df):
     def valid_name(v):
         if pd.isna(v):
             return None
-        name = re.sub(r"\\s+", " ", str(v)).strip().casefold()
+        name = re.sub(r"\s+", " ", str(v)).strip().casefold()
         if name in {"", "none", "null", "nan", "not found", "unknown", "n/a", "na", "-"}:
             return None
         return name
