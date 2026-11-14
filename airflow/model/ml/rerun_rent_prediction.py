@@ -455,17 +455,34 @@ def run_ml_and_cma(apartments_for_rent: pd.DataFrame):
     )
 
 def _sanitize(v):
-    if v is None:
+    """Values psycopg can adapt. pandas NA is not NULL and cannot be sent."""
+    if v is None or v is pd.NA:
         return None
-    if isinstance(v, float) and pd.isna(v):
+    if isinstance(v, (list, dict)):
+        return json.dumps(v)
+    try:
+        missing = pd.isna(v)
+    except (TypeError, ValueError):
+        missing = False
+    if isinstance(missing, (bool, np.bool_)) and bool(missing):
         return None
     if isinstance(v, Decimal):
         return float(v)
-    if isinstance(v, (np.floating, np.integer)):
+    if isinstance(v, (np.floating, np.integer, np.bool_)):
         return v.item()
-    if isinstance(v, (list, dict)):
-        return json.dumps(v)
     return v
+
+
+def _shared_facilities_flag(value):
+    """housing_listings.shared_facilities is boolean. Model features are 0/1/NaN."""
+    value = _sanitize(value)
+    if value is None or (not isinstance(value, (list, dict)) and pd.isna(value)):
+        return None
+    if value in (0, 0.0, False):
+        return False
+    if value in (1, 1.0, True):
+        return True
+    raise ValueError(f"Invalid shared_facilities value: {value!r}")
 
 
 def update_predictions_in_db(df: pd.DataFrame, batch_size: int = 100) -> int:
@@ -497,7 +514,9 @@ def update_predictions_in_db(df: pd.DataFrame, batch_size: int = 100) -> int:
                 **{
                     dest: _sanitize(row.get(src))
                     for src, dest in insert_into_postgredb.MODEL_FEATURE_COLUMN_MAP.items()
+                    if dest != "shared_facilities"
                 },
+                "shared_facilities": _shared_facilities_flag(row.get("shared_facilities")),
             }
         )
 

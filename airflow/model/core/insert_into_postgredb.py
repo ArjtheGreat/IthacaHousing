@@ -166,10 +166,14 @@ def create_listing_overview_view(engine):
     if "listingid" not in columns:
         raise ValueError("Cannot create overview without listingid")
     projection = ", ".join(f'"{col}"' for col in columns)
+    # CREATE OR REPLACE cannot drop or reorder existing view columns.
+    # Drop without CASCADE so a dependent object fails the task instead of
+    # being removed silently.
     _execute_with_retry(
         engine,
         text(
-            "CREATE OR REPLACE VIEW public.housing_listings_overview "
+            "DROP VIEW IF EXISTS public.housing_listings_overview; "
+            "CREATE VIEW public.housing_listings_overview "
             "WITH (security_invoker = true) AS SELECT "
             + projection
             + " FROM public.housing_listings; "
