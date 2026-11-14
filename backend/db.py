@@ -100,6 +100,7 @@ class HousingListing(Base):
     total_rent_amount = Column(Numeric)
     owner_name = Column(String)
     landlord_email = Column(Text)
+    landlord_company = Column(Text)
     landlord_name = Column(Text)
     landlord_full_name = Column(Text)
     landlord_username = Column(Text)
