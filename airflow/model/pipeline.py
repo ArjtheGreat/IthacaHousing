@@ -12,6 +12,7 @@ if MODEL_PATH not in sys.path:
 
 import core.fetch_housing_data as fetch_housing_data
 import core.excluded_listing_unit_ids as excluded_listing_unit_ids
+import core.amenity_overrides as amenity_overrides
 import core.insert_into_postgredb as insert_into_postgredb
 import core.pipeline_metrics as pipeline_metrics
 import core.property_level as property_level
@@ -410,6 +411,7 @@ def housing_data_pipeline():
         print("⚠️ No floorplan areas received; XGBoost cannot learn a SQFT effect on this run")
 
     apartments_for_rent = property_level.ensure_property_id(apartments_for_rent)
+    apartments_for_rent = amenity_overrides.normalize_known_addresses(apartments_for_rent)
 
     # Load preserved enrichment BEFORE re-running owner, parcel and
     # neighborhood lookups. These values will be replaced by the latest
@@ -631,6 +633,7 @@ def housing_data_pipeline():
     )
 
     apartments_for_rent = calculate_amenity_score.add_canonical_amenities(apartments_for_rent)
+    apartments_for_rent = amenity_overrides.apply_amenity_overrides(apartments_for_rent)
 
     # Apply explicit unit-level exclusions before ML and before any DB insert.
     # The atomic UPSERT + stale-ID reconciliation removes excluded units
