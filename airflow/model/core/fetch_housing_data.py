@@ -174,6 +174,16 @@ def fill_layout_from_matching_floorplans(rows):
     return rows
 
 
+def structured_company_name(value):
+    """Company comes from a structured source field, never an inferred owner."""
+    if isinstance(value, dict):
+        value = value.get("name") or value.get("company_name") or value.get("title")
+    if not isinstance(value, str):
+        return None
+    company = " ".join(value.split())
+    return company if company and company.casefold() not in {"none", "unknown", "n/a", "not found"} else None
+
+
 def rows_from_data(data):
     rows = []
     for key, prop in data.items():
@@ -209,9 +219,8 @@ def rows_from_data(data):
             # Preserve original contact metadata separately from parcel owner_name.
             # Structured company identity from the Cornell feed, if present.
             # Do not guess the management company from the contact's name/email.
-            "landlord_company": (
-                prop.get("landlord_company") or prop.get("company_name")
-                or (prop.get("company", {}).get("name") if isinstance(prop.get("company"), dict) else prop.get("company"))
+            "landlord_company": structured_company_name(
+                prop.get("landlord_company") or prop.get("company_name") or prop.get("company")
             ),
             "landlord_email": prop.get("landlord_email"),
             "landlord_name": prop.get("landlord_name") or prop.get("full_name"),
