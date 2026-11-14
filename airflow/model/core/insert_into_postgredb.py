@@ -138,13 +138,15 @@ OVERVIEW_COLUMNS = (
     "parcel_match_method", "assessment_total_value",
     "assessment_land_value", "property_acres",
     "sale_price", "assessment_stories", "assessment_zoning",
-    "assessment_property_class", "owner_name", "landlord_company", "landlord_name",
+    "assessment_property_class", "owner_name",
     "valid_certificate_of_compliance",
     # A handful of useful amenities rather than >70 model flags
     "pets", "amenities", "has_fitness_center", "has_rooftop_terrace",
     "has_keyless_entry", "has_dishwasher", "has_in_unit_laundry",
     "has_elevator", "has_sauna", "parking_available",
     "is_furnished", "heat_included_verified",
+    # Append new fields so CREATE OR REPLACE VIEW preserves existing column order.
+    "landlord_company", "landlord_name",
 )
 
 
