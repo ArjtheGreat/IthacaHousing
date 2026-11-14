@@ -21,6 +21,7 @@ from sqlalchemy.exc import OperationalError, DBAPIError
 import calculators.calculate_amenity_score as calculate_amenity_score
 import core.insert_into_postgredb as insert_into_postgredb
 import core.excluded_listing_unit_ids as excluded_listing_unit_ids
+import core.amenity_overrides as amenity_overrides
 import core.pipeline_metrics as pipeline_metrics
 import ml.comparative_market_analysis as comparative_market_analysis
 import extractors.assign_wards as assign_wards
@@ -218,6 +219,9 @@ def prepare_features_from_db(df: pd.DataFrame) -> pd.DataFrame:
         out["Amenities"] = out["Amenities"].apply(_parse_amenities)
         out = calculate_amenity_score.calculate_amenity_score(out)
         out = calculate_amenity_score.add_canonical_amenities(out)
+
+    out = amenity_overrides.normalize_known_addresses(out)
+    out = amenity_overrides.apply_amenity_overrides(out)
 
     # Bed/bath features
     if "available_bedrooms" not in out.columns and "Bedrooms" in out.columns:
