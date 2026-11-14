@@ -128,6 +128,8 @@ def fetch_listings_for_retrain() -> pd.DataFrame:
         "ward",
         "in_business_improvement_district",
         "owner_name",
+        "landlord_company",
+        "landlord_name",
         "lengthavailable",
         "walk_time_urishall",
         "walk_time_agriculturequad",
@@ -392,19 +394,19 @@ def run_ml_and_cma(apartments_for_rent: pd.DataFrame):
         apartments_for_rent[col] = X[col].to_numpy()
     y = np.log(pd.to_numeric(dollars, errors="coerce").to_numpy(dtype=float))
 
-    print("🏢 Running XGBoost OOF...")
+    print("🏢 Running landlord-held-out XGBoost OOF...")
     apartments_for_rent, fold_metrics, overall, feature_importance = (
         model_training.compute_fair_rent_oof(
             apartments_for_rent=apartments_for_rent, y=y,
             x_cols=list(X.columns), n_splits=5,
-            n_estimators=100, max_depth=6,
+            n_estimators=100, max_depth=6, group_level="landlord",
         )
     )
     # Diagnostic challengers: same GroupKFold scheme, never deployed automatically.
     # Baseline's one-hots and predictions are preserved for apples-to-apples review.
     challenge = _experimental_model_comparisons(apartments_for_rent, list(X.columns), y)
     baseline_row = pd.DataFrame([{
-        "model": "Original XGBoost (production)",
+        "model": "Landlord-held-out XGBoost (production)",
         "features": len(list(dict.fromkeys(list(X.columns) + ["latitude", "longitude"]))),
         "r2": overall["r2"], "rmse": overall["rmse"], "mae": overall["mae"],
         "bias_actual_minus_pred": overall["bias"],
