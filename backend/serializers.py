@@ -121,6 +121,8 @@ def serialize_listing(listing):
         "num_people": safe_float(listing.num_people),
         "total_rent_amount": safe_float(listing.total_rent_amount),
         "owner_name": listing.owner_name,
+        "landlord_company": listing.landlord_company,
+        "landlord_name": listing.landlord_name,
         "neighborhood": listing.neighborhood,
         "ward": listing.ward,
         "in_business_improvement_district": listing.in_business_improvement_district,
