@@ -159,6 +159,53 @@ def group_by_property_df(df):
     raise ValueError("OOF requires PropertyId or ListingId for grouped folds")
 
 
+def group_by_landlord_df(df):
+    """Group all units of the same advertised landlord together.
+
+    Priority: structured landlord_company > contact landlord_name > property ID.
+    Unknown/placeholder contacts fall back to property ID so unrelated landlords
+    are NEVER lumped into one giant unknown group. Property-level consistency
+    is enforced, even if different unit rows have conflicting contact metadata.
+    This groups by contact when company is unavailable; it does not prove legal
+    ownership or merge brand aliases between different names.
+    """
+    import re
+
+    properties = group_by_property_df(df).reset_index(drop=True)
+    def valid_name(v):
+        if pd.isna(v):
+            return None
+        name = re.sub(r"\\s+", " ", str(v)).strip().casefold()
+        if name in {"", "none", "null", "nan", "not found", "unknown", "n/a", "na", "-"}:
+            return None
+        return name
+
+    companies = (df["landlord_company"].reset_index(drop=True)
+                 if "landlord_company" in df else pd.Series([None] * len(df)))
+    names = (df["landlord_name"].reset_index(drop=True)
+             if "landlord_name" in df else pd.Series([None] * len(df)))
+
+    # One grouping label per property; a valid company takes precedence over
+    # a contact name even when one of its units has no company metadata.
+    labels = pd.DataFrame({"property": properties,
+                           "company": companies.map(valid_name),
+                           "name": names.map(valid_name)})
+    group_map = {}
+    for property_id, rows in labels.groupby("property", sort=False):
+        companies_here = sorted(set(rows["company"].dropna()))
+        names_here = sorted(set(rows["name"].dropna()))
+        if len(companies_here) > 1:
+            raise ValueError(f"Conflicting landlord_company values for PropertyId {property_id}: {companies_here}")
+        if not companies_here and len(names_here) > 1:
+            raise ValueError(f"Conflicting landlord_name values for PropertyId {property_id}: {names_here}")
+        group_map[property_id] = (
+            "company:" + companies_here[0] if companies_here else
+            "landlord:" + names_here[0] if names_here else
+            "property:" + str(property_id)
+        )
+    return properties.map(group_map).set_axis(df.index)
+
+
 def _model_features(train, test):
     """Numerical features for XGBoost; keep missing values as NaN.
 
@@ -192,6 +239,7 @@ def compute_fair_rent_oof(
     n_splits=5,
     n_estimators=100,
     max_depth=6,
+    group_level="property",
 ):
     """Predict each unit with a single XGBoost trained on OTHER properties.
 
@@ -212,7 +260,9 @@ def compute_fair_rent_oof(
     if not np.isfinite(log_y).all():
         raise ValueError("OOF log-rent targets must be finite")
 
-    groups = group_by_property_df(frame)
+    if group_level not in {"property", "landlord"}:
+        raise ValueError(f"Unsupported group_level: {group_level}")
+    groups = group_by_landlord_df(frame) if group_level == "landlord" else group_by_property_df(frame)
     n_props = int(groups.nunique())
     folds = min(n_splits, n_props)
     if folds < 2:
@@ -238,7 +288,7 @@ def compute_fair_rent_oof(
     fold_rows = []
     importance = []
 
-    print(f"🏢 OOF XGBoost: {n_props} properties, {folds} folds, "
+    print(f"🏢 OOF XGBoost ({group_level}-held-out): {n_props} groups, {folds} folds, "
           f"{len(frame)} unit rows, {len(features)} predictors")
 
     splitter = GroupKFold(n_splits=folds)
@@ -263,7 +313,8 @@ def compute_fair_rent_oof(
         row = {
             "fold": fold_id,
             "train_properties": int(groups.iloc[train_pos].nunique()),
-            "test_properties": int(groups.iloc[test_pos].nunique()),
+            "test_properties": int(group_by_property_df(frame.iloc[test_pos]).nunique()),
+            "test_landlord_groups": int(groups.iloc[test_pos].nunique()),
             "test_listings": int(len(test_pos)),
             **_dollar_metrics(actual, predicted),
         }
@@ -288,7 +339,8 @@ def compute_fair_rent_oof(
     actual_all = np.exp(log_y)
     predicted_all = np.exp(log_pred)
     overall = {
-        "n_properties": n_props,
+        "n_properties": int(group_by_property_df(frame).nunique()),
+        "n_landlord_groups": int(groups.nunique()) if group_level == "landlord" else None,
         "n_listings": len(frame),
         "n_folds": folds,
         **_dollar_metrics(actual_all, predicted_all),
