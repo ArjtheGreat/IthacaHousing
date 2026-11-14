@@ -699,7 +699,7 @@ def housing_data_pipeline():
     apartments_for_rent["latitude"] = pd.to_numeric(apartments_for_rent["latitude"], errors="coerce")
     apartments_for_rent["longitude"] = pd.to_numeric(apartments_for_rent["longitude"], errors="coerce")
 
-    print("💰 Training one XGBoost per property-held-out fold...")
+    print("💰 Training one XGBoost per landlord-held-out fold...")
     apartments_for_rent, fold_metrics, overall, feature_importance = (
         model_training.compute_fair_rent_oof(
             apartments_for_rent=apartments_for_rent,
@@ -708,11 +708,12 @@ def housing_data_pipeline():
             n_splits=5,
             n_estimators=100,
             max_depth=6,
+            group_level="landlord",
         )
     )
     print("\n📊 OOF fold metrics ($ per person per month):")
     print(fold_metrics.to_string(index=False, float_format=lambda v: f"{v:,.2f}"))
-    print("\n📊 Pooled held-out-property metrics:")
+    print("\n📊 Pooled held-out-landlord metrics:")
     for key in ("r2", "rmse", "mae", "bias", "median_residual", "residual_std", "p90_abs_error"):
         print(f"  {key}: {overall[key]:,.3f}")
     print("\n⭐ Most important rent predictors:")
@@ -725,10 +726,10 @@ def housing_data_pipeline():
         "MAE": [overall["mae"]],
         "MAPE": [None],
         "flagged": [False],
-    }, index=["Property-Grouped OOF XGBoost"])
+    }, index=["Landlord-Grouped OOF XGBoost"])
     X_spatial = X.copy()
     y_clean = y
-    best_model = "Property-Grouped OOF XGBoost"
+    best_model = "Landlord-Grouped OOF XGBoost"
 
     # ============================================================
     # 11) CMA
