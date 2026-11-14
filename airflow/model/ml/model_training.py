@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import xgboost as xgb
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import GroupKFold
+from sklearn.model_selection import GroupKFold, LeaveOneGroupOut
 
 
 # Notebook model: separate baseline, bedrooms/bathrooms, and advertised amenities.
@@ -264,9 +264,11 @@ def compute_fair_rent_oof(
         raise ValueError(f"Unsupported group_level: {group_level}")
     groups = group_by_landlord_df(frame) if group_level == "landlord" else group_by_property_df(frame)
     n_props = int(groups.nunique())
-    folds = min(n_splits, n_props)
-    if folds < 2:
-        raise ValueError(f"At least two distinct properties required, found {n_props}")
+    if n_props < 2:
+        raise ValueError(f"At least two distinct validation groups required, found {n_props}")
+    # For landlord grouping, hold out exactly ONE landlord (all their
+    # properties/units) per fold. The property baseline retains GroupKFold.
+    folds = n_props if group_level == "landlord" else min(n_splits, n_props)
 
     # Explicitly use only requested available numerical predictors, and avoid
     # target-derived fields even if a caller accidentally includes them.
@@ -291,7 +293,7 @@ def compute_fair_rent_oof(
     print(f"🏢 OOF XGBoost ({group_level}-held-out): {n_props} groups, {folds} folds, "
           f"{len(frame)} unit rows, {len(features)} predictors")
 
-    splitter = GroupKFold(n_splits=folds)
+    splitter = LeaveOneGroupOut() if group_level == "landlord" else GroupKFold(n_splits=folds)
     for fold_id, (train_pos, test_pos) in enumerate(
         splitter.split(frame, log_y, groups), start=1
     ):
